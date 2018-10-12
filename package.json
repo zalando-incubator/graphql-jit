@@ -15,7 +15,7 @@
     "lint": "tslint --project .",
     "build": "tsc",
     "test": "jest",
-    "test-cov": "jest --coverage"
+    "coverage": "jest --coverage"
   },
   "files": [
     "dist/*"
