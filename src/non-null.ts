@@ -12,7 +12,7 @@ import {
   getOperationRootType
 } from "graphql/execution/execute";
 import { isAbstractType } from "graphql/type";
-import { merge } from "lodash";
+import merge from "lodash.merge";
 import { collectFields, collectSubfields, resolveFieldDef } from "./ast";
 
 interface QueryMetadata {
