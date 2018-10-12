@@ -15,7 +15,7 @@
     "lint": "tslint --project .",
     "build": "tsc",
     "test": "jest",
-    "coverage": "jest --coverage"
+    "coverage": "jest --coverage && codecov"
   },
   "files": [
     "dist/*"
@@ -46,6 +46,9 @@
     "coverageReporters": [
       "text",
       "text-summary",
+      "clover",
+      "lcov",
+      "json",
       "html"
     ],
     "testRegex": "(/tests/.*|(\\.|/)test)\\.ts$",
@@ -65,6 +68,7 @@
     "@types/lodash.merge": "^4.6.4",
     "@types/node": "^10.11.7",
     "benchmark": "^2.1.4",
+    "codecov": "^3.1.0",
     "fast-json-stringify": "^1.9.1",
     "graphql": "^0.13.2",
     "jest": "^23.6.0",
