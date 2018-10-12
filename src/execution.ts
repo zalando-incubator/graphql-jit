@@ -56,7 +56,7 @@ export interface ExecutionResult {
 }
 
 export interface CompilerOptions {
-    customSerializer: boolean;
+    customJSONSerializer: boolean;
 
     // Disable builtin scalars and enum serialization
     // which is responsible for coercion,
@@ -125,9 +125,7 @@ export interface CompiledQuery {
         context: any,
         variables: Maybe<{ [key: string]: any }>
     ) => Promise<ExecutionResult> | ExecutionResult;
-    document: DocumentNode;
     stringify: (v: any) => string;
-    operation: OperationDefinitionNode;
 }
 
 /**
@@ -152,7 +150,7 @@ export function compileQuery(
     }
     try {
         const options = {
-            customSerializer: false,
+            customJSONSerializer: false,
             disableLeafSerialization: false,
             ...partialOptions
         };
@@ -167,7 +165,7 @@ export function compileQuery(
         );
 
         let stringify: (v: any) => string;
-        if (options.customSerializer) {
+        if (options.customJSONSerializer) {
             const jsonSchema = queryToJSONSchema(context);
             stringify = fastJson(jsonSchema);
         } else {
@@ -184,10 +182,7 @@ export function compileQuery(
         const func = new Function(functionBody)();
         return {
             query: createBoundQuery(context, document, func),
-            stringify,
-            document,
-            operationName,
-            operation: context.operation
+            stringify
         };
     } catch (err) {
         return {
