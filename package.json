@@ -11,8 +11,9 @@
     "url": "git@github.com:ruiaraujo/graphql-jit.git"
   },
   "scripts": {
-    "prepublishOnly": "npm run test && npm run build",
-    "build": "tslint --project . && tsc",
+    "prepublishOnly": "npm run lint && npm run test && npm run build",
+    "lint": "tslint --project .",
+    "build": "tsc",
     "test": "jest",
     "test-cov": "jest --coverage"
   },
