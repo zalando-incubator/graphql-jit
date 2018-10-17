@@ -254,7 +254,7 @@ describe("Execute: Handles basic execution tasks", () => {
 
     const rootValue = { root: "val" };
 
-    await executeQuery(schema, ast, rootValue, null, { var: 123 });
+    executeQuery(schema, ast, rootValue, null, { var: 'abc' });
 
     expect(Object.keys(info)).toEqual([
       "fieldName",
@@ -280,7 +280,7 @@ describe("Execute: Handles basic execution tasks", () => {
     expect(info.schema).toEqual(schema);
     expect(info.rootValue).toEqual(rootValue);
     expect(info.operation).toEqual(ast.definitions[0]);
-    expect(info.variableValues).toEqual({ var: "123" });
+    expect(info.variableValues).toEqual({ var: "abc" });
   });
 
   test("threads root value context correctly", async () => {

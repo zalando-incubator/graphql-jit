@@ -103,7 +103,7 @@ johnSmith.recentArticle = article(1);
 function article(id: number): any {
   return {
     id,
-    isPublished: "true",
+    isPublished: true,
     author: johnSmith,
     title: "My Article " + id,
     body: "This is a post",

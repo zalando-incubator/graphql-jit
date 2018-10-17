@@ -1,15 +1,15 @@
 import {
-  ExecutionResult,
-  FieldNode,
-  GraphQLError,
-  GraphQLType,
-  isListType,
-  isNonNullType,
-  isObjectType
+    ExecutionResult,
+    FieldNode,
+    getOperationRootType,
+    GraphQLError,
+    GraphQLType,
+    isListType,
+    isNonNullType,
+    isObjectType
 } from "graphql";
 import {
-  ExecutionContext,
-  getOperationRootType
+  ExecutionContext
 } from "graphql/execution/execute";
 import { isAbstractType } from "graphql/type";
 import merge from "lodash.merge";

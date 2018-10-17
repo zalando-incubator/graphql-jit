@@ -1,6 +1,6 @@
 {
   "name": "graphql-jit",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "GraphQL JIT Compiler to JS",
   "main": "dist/index.js",
   "types": "./dist/index.d.ts",
@@ -27,48 +27,24 @@
       "json"
     ],
     "testEnvironment": "node",
-    "collectCoverageFrom": [
-      "!**/__tests__/*",
-      "!**/__benchmarks__/*",
-      "**/*.ts"
-    ],
-    "coveragePathIgnorePatterns": [
-      "^.+\\.d\\.ts$"
-    ],
-    "coverageThreshold": {
-      "global": {
-        "branches": 87,
-        "functions": 93,
-        "lines": 94,
-        "statements": 94
-      }
-    },
-    "coverageReporters": [
-      "text",
-      "text-summary",
-      "clover",
-      "lcov",
-      "json",
-      "html"
-    ],
     "testRegex": "(/tests/.*|(\\.|/)test)\\.ts$",
     "transform": {
       "^.+\\.ts$": "ts-jest"
     }
   },
   "peerDependencies": {
-    "graphql": "^0.13.2"
+    "graphql": "^14.0.2"
   },
   "devDependencies": {
     "@types/benchmark": "^1.0.31",
-    "@types/graphql": "^0.13.4",
+    "@types/graphql": "^14.0.3",
     "@types/jest": "^23.3.5",
     "@types/json-schema": "^7.0.1",
     "@types/lodash.merge": "^4.6.4",
     "@types/node": "^10.11.7",
     "benchmark": "^2.1.4",
     "codecov": "^3.1.0",
-    "graphql": "^0.13.2",
+    "graphql": "^14.0.2",
     "jest": "^23.6.0",
     "prettier": "^1.14.3",
     "ts-jest": "^23.10.4",

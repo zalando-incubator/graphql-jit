@@ -4,19 +4,19 @@
  * @type       {<type>}
  */
 import {
-  FieldNode,
-  GraphQLType,
-  isAbstractType,
-  isEnumType,
-  isListType,
-  isNonNullType,
-  isObjectType,
-  isScalarType
+    FieldNode,
+    getOperationRootType,
+    GraphQLType,
+    isAbstractType,
+    isEnumType,
+    isListType,
+    isNonNullType,
+    isObjectType,
+    isScalarType
 } from "graphql";
 import {
   collectFields,
-  ExecutionContext,
-  getOperationRootType
+  ExecutionContext
 } from "graphql/execution/execute";
 import { JSONSchema6, JSONSchema6TypeName } from "json-schema";
 import { collectSubfields, resolveFieldDef } from "./ast";

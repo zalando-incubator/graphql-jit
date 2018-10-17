@@ -59,7 +59,7 @@ Object {
           "args": Array [
             Object {
               "defaultValue": "\\"No longer supported\\"",
-              "description": "Explains why this element was deprecated, usually also including a suggestion for how to access supported similar data. Formatted in [Markdown](https://daringfireball.net/projects/markdown/).",
+              "description": "Explains why this element was deprecated, usually also including a suggestion for how to access supported similar data. Formatted using the Markdown syntax (as specified by [CommonMark](https://commonmark.org/).",
               "name": "reason",
               "type": Object {
                 "kind": "SCALAR",
@@ -1058,54 +1058,6 @@ In some cases, you need to provide options to alter GraphQL's execution behavior
                 },
               },
             },
-            Object {
-              "args": Array [],
-              "deprecationReason": "Use \`locations\`.",
-              "description": null,
-              "isDeprecated": true,
-              "name": "onOperation",
-              "type": Object {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": Object {
-                  "kind": "SCALAR",
-                  "name": "Boolean",
-                  "ofType": null,
-                },
-              },
-            },
-            Object {
-              "args": Array [],
-              "deprecationReason": "Use \`locations\`.",
-              "description": null,
-              "isDeprecated": true,
-              "name": "onFragment",
-              "type": Object {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": Object {
-                  "kind": "SCALAR",
-                  "name": "Boolean",
-                  "ofType": null,
-                },
-              },
-            },
-            Object {
-              "args": Array [],
-              "deprecationReason": "Use \`locations\`.",
-              "description": null,
-              "isDeprecated": true,
-              "name": "onField",
-              "type": Object {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": Object {
-                  "kind": "SCALAR",
-                  "name": "Boolean",
-                  "ofType": null,
-                },
-              },
-            },
           ],
           "inputFields": null,
           "interfaces": Array [],
@@ -1157,6 +1109,12 @@ In some cases, you need to provide options to alter GraphQL's execution behavior
               "description": "Location adjacent to an inline fragment.",
               "isDeprecated": false,
               "name": "INLINE_FRAGMENT",
+            },
+            Object {
+              "deprecationReason": null,
+              "description": "Location adjacent to a variable definition.",
+              "isDeprecated": false,
+              "name": "VARIABLE_DEFINITION",
             },
             Object {
               "deprecationReason": null,

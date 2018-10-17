@@ -64,7 +64,7 @@ describe("json schema creator", () => {
   function article(id: number): any {
     return {
       id,
-      isPublished: "true",
+      isPublished: true,
       author: {
         id: 123,
         name: "John Smith"

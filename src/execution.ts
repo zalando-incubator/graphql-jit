@@ -3,6 +3,7 @@ import {
     DocumentNode,
     formatError,
     FragmentDefinitionNode,
+    getOperationRootType,
     GraphQLAbstractType,
     GraphQLEnumType,
     GraphQLError,
@@ -27,7 +28,6 @@ import {
 import {
     collectFields,
     ExecutionContext,
-    getOperationRootType
 } from "graphql/execution/execute";
 import { FieldNode, OperationDefinitionNode } from "graphql/language/ast";
 import Maybe from "graphql/tsutils/Maybe";

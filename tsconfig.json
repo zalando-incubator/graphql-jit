@@ -11,7 +11,7 @@
     "strict": true,
     "declaration": true,
     "alwaysStrict": true,
-    "strictPropertyInitialization": false,
+    "strictPropertyInitialization": true,
     "esModuleInterop": true,
     "outDir": "./dist",
     "lib": [
