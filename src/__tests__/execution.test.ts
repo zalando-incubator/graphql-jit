@@ -254,7 +254,7 @@ describe("Execute: Handles basic execution tasks", () => {
 
     const rootValue = { root: "val" };
 
-    executeQuery(schema, ast, rootValue, null, { var: 'abc' });
+    executeQuery(schema, ast, rootValue, null, { var: "abc" });
 
     expect(Object.keys(info)).toEqual([
       "fieldName",
