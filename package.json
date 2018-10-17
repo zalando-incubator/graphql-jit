@@ -11,13 +11,13 @@
     "url": "git@github.com:ruiaraujo/graphql-jit.git"
   },
   "scripts": {
-    "prepublishOnly": "npm run lint && npm run test && npm run build",
+    "prepublishOnly": "yarn && yarn build",
     "format": "prettier --no-config --write src/**/*.ts",
     "check-format": "prettier --no-config -l src/**/*.ts",
     "lint": "tslint --project .",
     "build": "tsc",
     "test": "jest",
-    "coverage": "jest --coverage && codecov"
+    "codecov": "codecov"
   },
   "files": [
     "dist/*"

@@ -11,9 +11,9 @@ before_script:
 - yarn check-format
 - yarn lint
 script:
-- yarn test
+- yarn test --coverage
 - yarn build
-after_success: yarn coverage
+after_success: yarn codecov
 deploy:
   provider: npm
   email: ruka.araujo@gmail.com
