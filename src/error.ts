@@ -7,8 +7,7 @@
  * @flow strict
  */
 
-
-import {printError, SourceLocation, GraphQLError as UpstreamGraphQLError} from "graphql";
+import {GraphQLError as UpstreamGraphQLError, printError, SourceLocation} from "graphql";
 
 export function GraphQLError(
         message: string,
@@ -43,7 +42,7 @@ export function GraphQLError(
 
         // Include (non-enumerable) stack trace.
         if (originalError && originalError.stack) {
-            Object.defineProperty(this, 'stack', {
+            Object.defineProperty(this, "stack", {
                 value: originalError.stack,
                 writable: true,
                 configurable: true,
@@ -51,7 +50,7 @@ export function GraphQLError(
         } else if (Error.captureStackTrace) {
             Error.captureStackTrace(this, GraphQLError);
         } else {
-            Object.defineProperty(this, 'stack', {
+            Object.defineProperty(this, "stack", {
                 value: Error().stack,
                 writable: true,
                 configurable: true,
@@ -61,7 +60,7 @@ export function GraphQLError(
 
 (GraphQLError as any).prototype = Object.create(UpstreamGraphQLError.prototype, {
     constructor: { value: GraphQLError },
-    name: { value: 'GraphQLError' },
+    name: { value: "GraphQLError" },
     toString: {
         value: function toString() {
             return printError(this);

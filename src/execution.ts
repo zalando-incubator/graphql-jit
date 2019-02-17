@@ -40,9 +40,9 @@ import {
     getVariableValues,
     resolveFieldDef
 } from "./ast";
+import {GraphQLError as CustomGraphQLError} from "./error";
 import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
-import {GraphQLError as CustomGraphQLError} from "./error";
 
 /**
  * The result of GraphQL execution.
@@ -1250,7 +1250,7 @@ function getErrorObject(
       }`;
     }
 
-    return `new GraphQLError(${message}, 
+    return `new GraphQLError(${message},
     ${locations ? JSON.stringify(locations) : "undefined"},
       ${serializeResponsePathAsArray(path)},
       ${originalError})`;
@@ -1459,7 +1459,8 @@ function normalizeErrors(err: Error[] | Error): GraphQLFormattedError[] {
 }
 
 function normalizeError(err: Error): GraphQLFormattedError {
-    return err instanceof GraphQLError ? err : new (CustomGraphQLError as any)(err.message, (err as any).locations, (err as any).path, err);
+    return err instanceof GraphQLError ? err :
+        new (CustomGraphQLError as any)(err.message, (err as any).locations, (err as any).path, err);
 }
 
 /**
