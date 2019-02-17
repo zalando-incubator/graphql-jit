@@ -288,9 +288,7 @@ export function getArgumentDefs(
         // execution. This is a runtime check to ensure execution does not
         // continue with an invalid argument value.
         throw new GraphQLError(
-          `Argument "${name}" of type \"${inspect(
-            argType
-          )}\" has invalid value ${print(argumentNode.value)}.`,
+          `Argument "${name}" of type \"${argType}\" has invalid value ${print(argumentNode.value)}.`,
           [argumentNode.value]
         );
       }
@@ -311,9 +309,9 @@ export function getArgumentDefs(
       throw new GraphQLError(
         argumentNode
           ? `Argument "${name}" of non-null type ` +
-            `"${inspect(argType)}" must not be null.`
+            `"${argType}" must not be null.`
           : `Argument "${name}" of required type ` +
-            `"${inspect(argType)}" was not provided.`,
+            `"${argType}" was not provided.`,
         [node]
       );
     }
@@ -376,7 +374,7 @@ export function getVariableValues(
         new GraphQLError(
           `Variable "$${varName}" expected value of type ` +
             `"${
-              varType ? inspect(varType) : print(varDefNode.type)
+              varType ? varType : print(varDefNode.type)
             }" which cannot be used as an input type.`,
           [varDefNode.type]
         )
@@ -395,9 +393,9 @@ export function getVariableValues(
           new GraphQLError(
             hasValue
               ? `Variable "$${varName}" of non-null type ` +
-                `"${inspect(varType)}" must not be null.`
+                `"${varType}" must not be null.`
               : `Variable "$${varName}" of required type ` +
-                `"${inspect(varType)}" was not provided.`,
+                `"${varType}" was not provided.`,
             [varDefNode]
           )
         );

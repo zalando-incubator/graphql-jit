@@ -285,9 +285,14 @@ describe("Execute: Handles inputs", () => {
           }
         `);
 
+        const noVal = Object.create(null);
+        noVal.a = "foo";
+        noVal.b = ["bar"];
+        noVal.c = "baz";
+
         expect(result).toEqual({
           data: {
-            fieldWithObjectInput: "{ a: 'foo', b: [ 'bar' ], c: 'baz' }"
+            fieldWithObjectInput: inspect(noVal)
           }
         });
       });
@@ -667,8 +672,7 @@ describe("Execute: Handles inputs", () => {
             message:
               'Variable "$value" got invalid value [ 1, 2, 3 ]; ' +
               "Expected type String; String cannot represent a non string value: [1, 2, 3]",
-            locations: [{ line: 2, column: 16 }],
-            path: undefined
+            locations: [{ line: 2, column: 16 }]
           }
         ]
       });
