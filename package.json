@@ -15,6 +15,7 @@
     "format": "prettier --no-config --write src/**/*.ts",
     "check-format": "prettier --no-config -l src/**/*.ts",
     "lint": "tslint --project .",
+    "lint-fix": "tslint --project . --fix",
     "build": "tsc",
     "test": "jest",
     "codecov": "codecov"

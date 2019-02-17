@@ -5,7 +5,7 @@
     "noEmitOnError": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
-    "noImplicitThis": true,
+    "noImplicitThis": false,
     "moduleResolution": "node",
     "sourceMap": true,
     "strict": true,

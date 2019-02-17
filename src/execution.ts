@@ -40,6 +40,7 @@ import {
     getVariableValues,
     resolveFieldDef
 } from "./ast";
+import {GraphQLError as CustomGraphQLError} from "./error";
 import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
 
@@ -277,6 +278,7 @@ export function createBoundQuery(
             executor,
             resolveIfDone,
             safeMap,
+            CustomGraphQLError,
             ...resolvers
         ]);
         if (result) {
@@ -1223,7 +1225,7 @@ function buildCompilationContext(
         depth: 0,
         variableValues: {},
         fieldResolver: undefined as any,
-        errors
+        errors: errors as any
     };
 }
 
@@ -1237,10 +1239,10 @@ function getErrorObject(
     nodes: FieldNode[],
     path: ResponsePath,
     message: string,
-    extensionsObject?: string
+    originalError?: string
 ): string {
     const locations = computeLocations(nodes);
-    if (!extensionsObject) {
+    if (!originalError) {
         return `{
         message: ${message},
         locations: ${locations ? JSON.stringify(locations) : "undefined"},
@@ -1248,16 +1250,10 @@ function getErrorObject(
       }`;
     }
 
-    return `${extensionsObject} && ${extensionsObject}.extensions ? {
-        message: ${message},
-        locations: ${locations ? JSON.stringify(locations) : "undefined"},
-        path: ${serializeResponsePathAsArray(path)},
-        extensions: ${extensionsObject}.extensions
-      } : {
-        message: ${message},
-        locations: ${locations ? JSON.stringify(locations) : "undefined"},
-        path: ${serializeResponsePathAsArray(path)},
-      }`;
+    return `new GraphQLError(${message},
+    ${locations ? JSON.stringify(locations) : "undefined"},
+      ${serializeResponsePathAsArray(path)},
+      ${originalError})`;
 }
 
 function getResolverName(parentName: string, name: string) {
@@ -1280,7 +1276,7 @@ function getSerializerName(name: string) {
 function getFunctionSignature(context: CompilationContext) {
     return `return function query (
   ${GLOBAL_ROOT_NAME}, ${GLOBAL_CONTEXT_NAME}, ${GLOBAL_VARIABLES_NAME}, ${GLOBAL_EXECUTOR_NAME},
-   __resolveIfDone, __safeMap,
+   __resolveIfDone, __safeMap, GraphQLError,
     ${getResolversVariablesName(context)})`;
 }
 
@@ -1463,9 +1459,8 @@ function normalizeErrors(err: Error[] | Error): GraphQLFormattedError[] {
 }
 
 function normalizeError(err: Error): GraphQLFormattedError {
-    return formatError(
-        err instanceof GraphQLError ? err : new GraphQLError(err.message)
-    );
+    return err instanceof GraphQLError ? err :
+        new (CustomGraphQLError as any)(err.message, (err as any).locations, (err as any).path, err);
 }
 
 /**
