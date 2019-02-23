@@ -67,7 +67,7 @@ export interface CompilerOptions {
 
     // Map of serializers to override
     // the key should be the name passed to the Scalar or Enum type
-    customSerializers: { [key: string]: (v: any) => any}
+    customSerializers: { [key: string]: (v: any) => any};
 }
 
 /**
@@ -541,7 +541,8 @@ function compileLeafType(
     ) {
         body += `${originPaths.join(".")}`;
     } else {
-        context.dependencies.set(getSerializerName(type.name), getSerializer(type, context.options.customSerializers[type.name]));
+        context.dependencies.set(getSerializerName(type.name),
+            getSerializer(type, context.options.customSerializers[type.name]));
         body += getSerializerName(type.name);
         body += `(${originPaths.join(
             "."
