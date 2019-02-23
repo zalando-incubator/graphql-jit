@@ -33,6 +33,14 @@
     "testRegex": "(/tests/.*|(\\.|/)test)\\.ts$",
     "transform": {
       "^.+\\.ts$": "ts-jest"
+    },
+    "coverageThreshold": {
+      "global": {
+        "branches": 87,
+        "functions": 93,
+        "lines": 93,
+        "statements": 93
+      }
     }
   },
   "peerDependencies": {

@@ -13,6 +13,7 @@ import {
     GraphQLObjectType,
     GraphQLOutputType,
     GraphQLResolveInfo,
+    GraphQLScalarSerializer,
     GraphQLScalarType,
     GraphQLSchema,
     GraphQLType,
@@ -63,6 +64,10 @@ export interface CompilerOptions {
     // which is responsible for coercion,
     // only safe for use if the output is completely correct.
     disableLeafSerialization: boolean;
+
+    // Map of serializers to override
+    // the key should be the name passed to the Scalar or Enum type
+    customSerializers: { [key: string]: (v: any) => any}
 }
 
 /**
@@ -124,7 +129,7 @@ export interface CompiledQuery {
     query: (
         root: any,
         context: any,
-        variables: Maybe<{ [key: string]: any }>
+        variables: Maybe<{ [key: string]: GraphQLScalarSerializer<any> }>
     ) => Promise<ExecutionResult> | ExecutionResult;
     stringify: (v: any) => string;
 }
@@ -153,6 +158,7 @@ export function compileQuery(
         const options = {
             customJSONSerializer: false,
             disableLeafSerialization: false,
+            customSerializers: {},
             ...partialOptions
         };
 
@@ -535,7 +541,7 @@ function compileLeafType(
     ) {
         body += `${originPaths.join(".")}`;
     } else {
-        context.dependencies.set(getSerializerName(type.name), getSerializer(type));
+        context.dependencies.set(getSerializerName(type.name), getSerializer(type, context.options.customSerializers[type.name]));
         body += getSerializerName(type.name);
         body += `(${originPaths.join(
             "."
@@ -1096,13 +1102,15 @@ function serializeResponsePath(path: ResponsePath | undefined): string {
 /**
  * Returned a bound serialization function of a scalar or enum
  * @param {GraphQLScalarType | GraphQLEnumType} scalar
+ * @param customSerializer custom serializer
  * @returns {(v: any) => any} bound serializationFunction
  */
 function getSerializer(
-    scalar: GraphQLScalarType | GraphQLEnumType
+    scalar: GraphQLScalarType | GraphQLEnumType,
+    customSerializer?: GraphQLScalarSerializer<any>
 ): (v: any, onError: (msg: string) => void) => any {
     const { name } = scalar;
-    const serialize = scalar.serialize.bind(scalar);
+    const serialize = customSerializer ? customSerializer : (val: any) => scalar.serialize(val);
     return (v: any, onError: (msg: string) => void) => {
         try {
             const value = serialize(v);
