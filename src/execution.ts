@@ -209,7 +209,7 @@ export function isCompiledQuery<
 export function createBoundQuery(
     context: CompilationContext,
     document: DocumentNode,
-    func: () => any
+    func: (...args: any[]) => any
 ) {
     const {
         schema,
