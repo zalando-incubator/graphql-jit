@@ -1,6 +1,6 @@
 {
   "name": "graphql-jit",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "GraphQL JIT Compiler to JS",
   "main": "dist/index.js",
   "types": "./dist/index.d.ts",
@@ -33,6 +33,14 @@
     "testRegex": "(/tests/.*|(\\.|/)test)\\.ts$",
     "transform": {
       "^.+\\.ts$": "ts-jest"
+    },
+    "coverageThreshold": {
+      "global": {
+        "branches": 87,
+        "functions": 93,
+        "lines": 93,
+        "statements": 93
+      }
     }
   },
   "peerDependencies": {

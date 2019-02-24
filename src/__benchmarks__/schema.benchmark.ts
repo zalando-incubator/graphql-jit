@@ -50,7 +50,14 @@ fragment articleFields on Article {
 `);
 
 const { query: withLeaf }: any = compileQuery(schema, document, "", {
-  disableLeafSerialization: false
+  disableLeafSerialization: false,
+  customSerializers: {
+    String: String,
+    ID: String,
+    Boolean: Boolean,
+    Int: Number,
+    Float: Number
+  }
 });
 const { query: noLeaf }: any = compileQuery(schema, document, "", {
   disableLeafSerialization: true

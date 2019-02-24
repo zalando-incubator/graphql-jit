@@ -220,6 +220,23 @@ describe("Scalars: Is able to serialize custom scalar", () => {
         });
         expect(GraphQLString.serialize).not.toHaveBeenCalledWith("test");
       });
+      test("custom serializer is called", () => {
+        const customSerializer = jest.fn(String);
+        const prepared: any = compileQuery(
+          setupSchema(GraphQLString, "test"),
+          parse("{scalar}"),
+          "",
+          { customSerializers: { String: customSerializer } }
+        );
+        const result = prepared.query(undefined, undefined, {});
+        expect(result).toEqual({
+          data: {
+            scalar: "test"
+          }
+        });
+        expect(GraphQLString.serialize).not.toHaveBeenCalledWith("test");
+        expect(customSerializer).toHaveBeenCalledWith("test");
+      });
     });
   });
 });
