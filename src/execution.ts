@@ -1,13 +1,12 @@
 import fastJson from "fast-json-stringify";
 import {
     DocumentNode,
-    formatError,
+    ExecutionResult,
     FragmentDefinitionNode,
     getOperationRootType,
     GraphQLAbstractType,
     GraphQLEnumType,
     GraphQLError,
-    GraphQLFormattedError,
     GraphQLLeafType,
     GraphQLList,
     GraphQLObjectType,
@@ -44,18 +43,6 @@ import {
 import {GraphQLError as CustomGraphQLError} from "./error";
 import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
-
-/**
- * The result of GraphQL execution.
- *
- *   - `errors` is included when any errors occurred as a non-empty array.
- *   - `data` is the result of a successful execution of the query.
- */
-export interface ExecutionResult {
-    errors?: ReadonlyArray<GraphQLFormattedError>;
-    data?: { [key: string]: any };
-    extensions?: any;
-}
 
 export interface CompilerOptions {
     customJSONSerializer: boolean;
@@ -231,7 +218,7 @@ export function createBoundQuery(
 
         // Return early errors if variable coercing failed.
         if (errors) {
-            return { errors: errors.map(formatError) };
+            return { errors };
         }
 
         let result: ExecutionResult | null = null;
@@ -1460,14 +1447,14 @@ export function serialPromiseExecutor(
     };
 }
 
-function normalizeErrors(err: Error[] | Error): GraphQLFormattedError[] {
+function normalizeErrors(err: Error[] | Error): GraphQLError[] {
     if (Array.isArray(err)) {
         return err.map(e => normalizeError(e));
     }
     return [normalizeError(err)];
 }
 
-function normalizeError(err: Error): GraphQLFormattedError {
+function normalizeError(err: Error): GraphQLError {
     return err instanceof GraphQLError ? err :
         new (CustomGraphQLError as any)(err.message, (err as any).locations, (err as any).path, err);
 }
