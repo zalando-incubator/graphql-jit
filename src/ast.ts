@@ -1,4 +1,5 @@
 import {
+  ASTNode,
   coerceValue,
   DirectiveNode,
   FieldNode,
@@ -28,7 +29,7 @@ import { CoercedVariableValues } from "graphql/execution/values";
 import { Kind } from "graphql/language";
 import Maybe from "graphql/tsutils/Maybe";
 import { isAbstractType } from "graphql/type";
-import { inspect } from "util";
+import inspect from "./inspect";
 
 /**
  * Given a selectionSet, adds all of the fields in that selection to
@@ -429,7 +430,7 @@ export function getVariableValues(
 }
 
 export function computeLocations(
-  nodes: FieldNode[]
+  nodes: ASTNode[]
 ): SourceLocation[] | undefined {
   if (!Array.isArray(nodes) || !nodes.length) {
     return undefined;
@@ -448,6 +449,29 @@ export function computeLocations(
   }
   return locations;
 }
+
+
+export interface ObjectPath {
+  prev: ObjectPath | undefined;
+  key: string;
+  type: ResponsePathType;
+}
+
+// response path is used for identifying
+// the info resolver function as well as the path in errros,
+// the meta type is used for elements that are only to be used for
+// the function name
+type ResponsePathType = "variable" | "literal" | "meta";
+
+
+export function addPath(
+    responsePath: ObjectPath | undefined,
+    key: string,
+    type: ResponsePathType = "literal"
+): ObjectPath {
+  return { prev: responsePath, key, type };
+}
+
 
 function hasOwnProperty(obj: any, prop: string): boolean {
   return Object.prototype.hasOwnProperty.call(obj, prop);

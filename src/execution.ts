@@ -23,7 +23,7 @@ import {
     isObjectType,
     isSpecifiedScalarType,
     Kind,
-    print
+    print,
 } from "graphql";
 import {
     collectFields,
@@ -38,11 +38,15 @@ import {
     computeLocations,
     getArgumentDefs,
     getVariableValues,
-    resolveFieldDef
+    resolveFieldDef,
+    ObjectPath,
+    addPath
 } from "./ast";
 import {GraphQLError as CustomGraphQLError} from "./error";
 import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
+import {CoercedVariableValues} from "graphql/execution/values";
+import {compileVariableParsing} from "./variables";
 
 export interface CompilerOptions {
     customJSONSerializer: boolean;
@@ -51,6 +55,8 @@ export interface CompilerOptions {
     // which is responsible for coercion,
     // only safe for use if the output is completely correct.
     disableLeafSerialization: boolean;
+
+    enableVariableCompilation: boolean;
 
     // Map of serializers to override
     // the key should be the name passed to the Scalar or Enum type
@@ -69,12 +75,6 @@ interface CompilationContext extends ExecutionContext {
     depth: number;
 }
 
-// response path is used for identifying
-// the info resolver function as well as the path in errros,
-// the meta type is used for elements that are only to be used for
-// the function name
-type ResponsePathType = "variable" | "literal" | "meta";
-
 // prefix for the variable used ot cache validation results
 const SAFETY_CHECK_PREFIX = "__validNode";
 const GLOBAL_DATA_NAME = "__globalData";
@@ -85,15 +85,9 @@ const GLOBAL_ROOT_NAME = "__rootValue";
 const GLOBAL_VARIABLES_NAME = "__variables";
 const GLOBAL_CONTEXT_NAME = "__context";
 
-interface ResponsePath {
-    prev: ResponsePath | undefined;
-    key: string;
-    type: ResponsePathType;
-}
-
 interface DeferredField {
     name: string;
-    responsePath: ResponsePath;
+    responsePath: ObjectPath;
     originPaths: string[];
     destinationPaths: string[];
     parentType: GraphQLObjectType;
@@ -145,6 +139,7 @@ export function compileQuery(
         const options = {
             customJSONSerializer: false,
             disableLeafSerialization: false,
+            enableVariableCompilation: false,
             customSerializers: {},
             ...partialOptions
         };
@@ -165,6 +160,9 @@ export function compileQuery(
         } else {
             stringify = JSON.stringify;
         }
+        const getVariables = options.enableVariableCompilation ?
+            compileVariableParsing(schema, context.operation.variableDefinitions || []):
+            (inputs: { [key: string]: any }) => getVariableValues(schema, context.operation.variableDefinitions || [], inputs);
 
         const mainBody = compileOperation(context);
         const functionBody = `
@@ -175,7 +173,7 @@ export function compileQuery(
   }`;
         const func = new Function(functionBody)();
         return {
-            query: createBoundQuery(context, document, func),
+            query: createBoundQuery(context, document, func, getVariables),
             stringify
         };
     } catch (err) {
@@ -194,16 +192,14 @@ export function isCompiledQuery<
 
 // Exported only for an error test
 export function createBoundQuery(
-    context: CompilationContext,
+    compilationContext: CompilationContext,
     document: DocumentNode,
-    func: (...args: any[]) => any
+    func: (...args: any[]) => any,
+    getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues
 ) {
-    const {
-        schema,
-        operation: { variableDefinitions, operation }
-    } = context;
-    const trimmer = createNullTrimmer(context);
-    const resolvers = getFunctionResolvers(context);
+    const {operation: { operation }} = compilationContext;
+    const trimmer = createNullTrimmer(compilationContext);
+    const resolvers = getFunctionResolvers(compilationContext);
     return (
         rootValue: any,
         context: any,
@@ -211,8 +207,6 @@ export function createBoundQuery(
     ): Promise<ExecutionResult> | ExecutionResult => {
         // this can be shared across in a batch request
         const { errors, coerced } = getVariableValues(
-            schema,
-            variableDefinitions || [],
             variables || {}
         );
 
@@ -436,7 +430,7 @@ function compileType(
     fieldNodes: FieldNode[],
     originPaths: string[],
     destinationPaths: string[],
-    previousPath: ResponsePath
+    previousPath: ObjectPath
 ): string {
     const sourcePath = originPaths.join(".");
     let body = `${sourcePath} == null ? `;
@@ -518,7 +512,7 @@ function compileLeafType(
     type: GraphQLLeafType,
     originPaths: string[],
     fieldNodes: FieldNode[],
-    previousPath: ResponsePath,
+    previousPath: ObjectPath,
     errorDestination: string
 ) {
     let body = "";
@@ -558,7 +552,7 @@ function compileObjectType(
     type: GraphQLObjectType,
     originPaths: string[],
     destinationPaths: string[],
-    responsePath: ResponsePath | undefined,
+    responsePath: ObjectPath | undefined,
     fieldMap: { [key: string]: FieldNode[] },
     alwaysDefer: boolean
 ): string {
@@ -620,7 +614,7 @@ function compileAbstractType(
     type: GraphQLAbstractType,
     fieldNodes: FieldNode[],
     originPaths: string[],
-    previousPath: ResponsePath,
+    previousPath: ObjectPath,
     errorDestination: string
 ): string {
     let resolveType: GraphQLTypeResolver<any, any>;
@@ -720,7 +714,7 @@ function compileAbstractType(
  * @param {GraphQLList<GraphQLType>} type list type being compiled
  * @param {FieldNode[]} fieldNodes
  * @param originalObjectPaths
- * @param {ResponsePath} responsePath
+ * @param {ObjectPath} responsePath
  * @param errorDestination
  * @returns {string} compiled list transformation
  */
@@ -730,7 +724,7 @@ function compileListType(
     type: GraphQLList<GraphQLType>,
     fieldNodes: FieldNode[],
     originalObjectPaths: string[],
-    responsePath: ResponsePath,
+    responsePath: ObjectPath,
     errorDestination: string
 ) {
     const name = originalObjectPaths.join(".");
@@ -933,7 +927,7 @@ function getExecutionInfo(
     fieldType: GraphQLOutputType,
     fieldName: string,
     fieldNodes: FieldNode[],
-    responsePath: ResponsePath
+    responsePath: ObjectPath
 ) {
     const resolveInfoName = createResolveInfoName(responsePath);
     const { schema, fragments, operation } = context;
@@ -943,7 +937,7 @@ function getExecutionInfo(
         (
             rootValue: any,
             variableValues: any,
-            path: ResponsePath
+            path: ObjectPath
         ): GraphQLResolveInfo => ({
             fieldName,
             fieldNodes,
@@ -1022,23 +1016,15 @@ export function isPromise(value: any): value is Promise<any> {
     );
 }
 
-function addPath(
-    responsePath: ResponsePath | undefined,
-    key: string,
-    type: ResponsePathType = "literal"
-): ResponsePath {
-    return { prev: responsePath, key, type };
-}
-
 /**
  * Serializes the response path for an error response.
  *
- * @param {ResponsePath | undefined} path response path of a field
+ * @param {ObjectPath | undefined} path response path of a field
  * @returns {string} filtered serialization of the response path
  */
-function serializeResponsePathAsArray(path: ResponsePath) {
+function serializeResponsePathAsArray(path: ObjectPath) {
     const flattened = [];
-    let curr: ResponsePath | undefined = path;
+    let curr: ObjectPath | undefined = path;
     while (curr) {
         flattened.push({ key: curr.key, type: curr.type });
         curr = curr.prev;
@@ -1057,9 +1043,9 @@ function serializeResponsePathAsArray(path: ResponsePath) {
     return src + "]";
 }
 
-function createResolveInfoName(path: ResponsePath) {
+function createResolveInfoName(path: ObjectPath) {
     const flattened = [];
-    let curr: ResponsePath | undefined = path;
+    let curr: ObjectPath | undefined = path;
     while (curr) {
         flattened.push(curr.key);
         curr = curr.prev;
@@ -1069,10 +1055,10 @@ function createResolveInfoName(path: ResponsePath) {
 
 /**
  * Serializes the response path for the resolve info function
- * @param {ResponsePath | undefined} path response path of a field
+ * @param {ObjectPath | undefined} path response path of a field
  * @returns {string} filtered serialization of the response path
  */
-function serializeResponsePath(path: ResponsePath | undefined): string {
+function serializeResponsePath(path: ObjectPath | undefined): string {
     if (!path) {
         return "undefined";
     }
@@ -1233,7 +1219,7 @@ function getFieldNodesName(nodes: FieldNode[]) {
 
 function getErrorObject(
     nodes: FieldNode[],
-    path: ResponsePath,
+    path: ObjectPath,
     message: string,
     originalError?: string
 ): string {
