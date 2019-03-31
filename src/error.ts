@@ -23,7 +23,7 @@ export function GraphQLError(
             },
             locations: {
                 value: locations || undefined,
-                enumerable: Boolean(locations),
+                enumerable: locations && locations.length > 0,
             },
             path: {
                 value: path || undefined,

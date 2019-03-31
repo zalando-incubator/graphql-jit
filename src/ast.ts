@@ -431,11 +431,8 @@ export function getVariableValues(
 
 export function computeLocations(
   nodes: ASTNode[]
-): SourceLocation[] | undefined {
-  if (!Array.isArray(nodes) || !nodes.length) {
-    return undefined;
-  }
-  const locations = nodes.reduce(
+): SourceLocation[] {
+  return nodes.reduce(
     (list, node) => {
       if (node.loc) {
         list.push(getLocation(node.loc.source, node.loc.start));
@@ -444,12 +441,7 @@ export function computeLocations(
     },
     [] as SourceLocation[]
   );
-  if (locations.length === 0) {
-    return undefined;
-  }
-  return locations;
 }
-
 
 export interface ObjectPath {
   prev: ObjectPath | undefined;
@@ -463,7 +455,6 @@ export interface ObjectPath {
 // the function name
 type ResponsePathType = "variable" | "literal" | "meta";
 
-
 export function addPath(
     responsePath: ObjectPath | undefined,
     key: string,
@@ -471,7 +462,6 @@ export function addPath(
 ): ObjectPath {
   return { prev: responsePath, key, type };
 }
-
 
 function hasOwnProperty(obj: any, prop: string): boolean {
   return Object.prototype.hasOwnProperty.call(obj, prop);

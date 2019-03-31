@@ -4,8 +4,12 @@
 
 /* tslint:disable:no-big-function */
 import {
+  GraphQLBoolean,
   GraphQLEnumType,
+  GraphQLFloat,
+  GraphQLID,
   GraphQLInputObjectType,
+  GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
@@ -93,6 +97,10 @@ const TestType = new GraphQLObjectType({
     }),
     fieldWithObjectInput: fieldWithInputArg({ type: TestInputObject }),
     fieldWithNullableStringInput: fieldWithInputArg({ type: GraphQLString }),
+    fieldWithNullableIDInput: fieldWithInputArg({ type: GraphQLID }),
+    fieldWithNullableIntInput: fieldWithInputArg({ type: GraphQLInt }),
+    fieldWithNullableFloatInput: fieldWithInputArg({ type: GraphQLFloat }),
+    fieldWithNullableBooleanInput: fieldWithInputArg({ type: GraphQLBoolean }),
     fieldWithNonNullableStringInput: fieldWithInputArg({
       type: new GraphQLNonNull(GraphQLString)
     }),
@@ -127,7 +135,9 @@ const schema = new GraphQLSchema({ query: TestType });
 
 function executeQuery(query: string, variableValues?: any) {
   const document = parse(query);
-  const prepared: any = compileQuery(schema, document, "", {enableVariableCompilation: true});
+  const prepared: any = compileQuery(schema, document, "", {
+    enableVariableCompilation: true
+  });
   if (prepared.errors) {
     return prepared;
   }
@@ -376,7 +386,7 @@ describe("Execute: Handles inputs", () => {
           errors: [
             {
               message:
-                "Variable \"$input\" got invalid value { a: \"foo\", b: \"bar\", c: null }; " +
+                'Variable "$input" got invalid value { a: "foo", b: "bar", c: null }; ' +
                 "Expected non-nullable type String! not to be null at value.c.",
               locations: [{ line: 2, column: 16 }]
             }
@@ -391,7 +401,7 @@ describe("Execute: Handles inputs", () => {
           errors: [
             {
               message:
-                "Variable \"$input\" got invalid value \"foo bar\"; " +
+                'Variable "$input" got invalid value "foo bar"; ' +
                 "Expected type TestInputObject to be an object.",
               locations: [{ line: 2, column: 16 }]
             }
@@ -408,7 +418,7 @@ describe("Execute: Handles inputs", () => {
           errors: [
             {
               message:
-                "Variable \"$input\" got invalid value { a: \"foo\", b: \"bar\" }; " +
+                'Variable "$input" got invalid value { a: "foo", b: "bar" }; ' +
                 "Field value.c of required type String! was not provided.",
               locations: [{ line: 2, column: 16 }]
             }
@@ -426,7 +436,7 @@ describe("Execute: Handles inputs", () => {
           errors: [
             {
               message:
-                  'Variable "$input" got invalid value { a: "foo", b: "bar", c: "baz", extra: "dog" }; Field "extra" is not defined by type TestInputObject.',
+                'Variable "$input" got invalid value { a: "foo", b: "bar", c: "baz", extra: "dog" }; Field "extra" is not defined by type TestInputObject.',
               locations: [{ line: 2, column: 16 }]
             }
           ]
@@ -453,8 +463,8 @@ describe("Execute: Handles inputs", () => {
           NaN: "NaN",
           false: "false",
           customValue: '"custom value"',
-          defaultValue: '"DEFAULT_VALUE"',
-        },
+          defaultValue: '"DEFAULT_VALUE"'
+        }
       });
     });
 
@@ -471,9 +481,126 @@ describe("Execute: Handles inputs", () => {
         }
       });
     });
+
+    describe("using variables", () => {
+      const doc = `
+        query ($input: TestEnum) {
+          fieldWithEnumInput(input: $input)
+        }
+      `;
+
+      test("uses undefined when variable not provided", async () => {
+        const result = await executeQuery(doc, {});
+
+        expect(result).toEqual({
+          data: {
+            fieldWithEnumInput: null
+          }
+        });
+      });
+
+      test("uses null when variable provided explicit null value", async () => {
+        const result = await executeQuery(doc, { input: null });
+
+        expect(result).toEqual({
+          data: {
+            fieldWithEnumInput: "null"
+          }
+        });
+      });
+
+      test("uses default value when not provided", async () => {
+        const result = await executeQuery(
+          `
+        query ($input: TestEnum = FALSE) {
+          fieldWithEnumInput(input: $input)
+        }
+      `,
+          {}
+        );
+
+        expect(result).toEqual({
+          data: {
+            fieldWithEnumInput: "false"
+          }
+        });
+      });
+
+      test("does not use default value when provided", async () => {
+        const result = await executeQuery(
+          `query ($input: TestEnum = FALSE) {
+          fieldWithEnumInput(input: $input)
+        }`,
+          { input: "NAN" }
+        );
+
+        expect(result).toEqual({
+          data: {
+            fieldWithEnumInput: "NaN"
+          }
+        });
+      });
+
+      test("uses explicit null value instead of default value", async () => {
+        const result = await executeQuery(
+          `
+          query q($input: TestEnum = FALSE) {
+            fieldWithEnumInput(input: $input)
+          }`,
+          { input: null }
+        );
+
+        expect(result).toEqual({
+          data: {
+            fieldWithEnumInput: "null"
+          }
+        });
+      });
+
+      test("uses null default value when not provided", async () => {
+        const result = await executeQuery(
+          `
+          query q($input: TestEnum = NULL) {
+            fieldWithEnumInput(input: $input)
+          }`,
+          {
+            // Intentionally missing variable values.
+          }
+        );
+
+        expect(result).toEqual({
+          data: {
+            fieldWithEnumInput: "null"
+          }
+        });
+      });
+
+      test("errors on incorrect type", async () => {
+        const result = await executeQuery(doc, { input: "foo bar" });
+
+        expect(result).toEqual({
+          errors: [
+            {
+              message:
+                'Variable "$input" got invalid value "foo bar"; Expected type TestEnum.',
+              locations: [{ line: 2, column: 16 }]
+            }
+          ]
+        });
+      });
+    });
   });
 
   describe("Handles nullable scalars", () => {
+    const doc = `
+        query ($string: String, $id: ID, $int: Int, $float: Float, $boolean: Boolean) {
+          fieldWithNullableStringInput(input: $string)
+          fieldWithNullableIDInput(input: $id)
+          fieldWithNullableIntInput(input: $int)
+          fieldWithNullableFloatInput(input: $float)
+          fieldWithNullableBooleanInput(input: $boolean)
+        }
+      `;
     test("allows nullable inputs to be omitted", async () => {
       const result = await executeQuery(`
         {
@@ -489,15 +616,15 @@ describe("Execute: Handles inputs", () => {
     });
 
     test("allows nullable inputs to be omitted in a variable", async () => {
-      const result = await executeQuery(`
-        query ($value: String) {
-          fieldWithNullableStringInput(input: $value)
-        }
-      `);
+      const result = await executeQuery(doc);
 
       expect(result).toEqual({
         data: {
-          fieldWithNullableStringInput: null
+          fieldWithNullableStringInput: null,
+          fieldWithNullableIDInput: null,
+          fieldWithNullableIntInput: null,
+          fieldWithNullableFloatInput: null,
+          fieldWithNullableBooleanInput: null
         }
       });
     });
@@ -814,7 +941,7 @@ describe("Execute: Handles inputs", () => {
         errors: [
           {
             message:
-              "Variable \"$input\" got invalid value [\"A\", null, \"B\"]; " +
+              'Variable "$input" got invalid value ["A", null, "B"]; ' +
               "Expected non-nullable type String! not to be null at value[1].",
             locations: [{ line: 2, column: 16 }]
           }
@@ -864,7 +991,7 @@ describe("Execute: Handles inputs", () => {
         errors: [
           {
             message:
-              "Variable \"$input\" got invalid value [\"A\", null, \"B\"]; " +
+              'Variable "$input" got invalid value ["A", null, "B"]; ' +
               "Expected non-nullable type String! not to be null at value[1].",
             locations: [{ line: 2, column: 16 }]
           }
@@ -966,7 +1093,7 @@ describe("Execute: Handles inputs", () => {
       expect(result).toEqual({
         data: {
           fieldWithNonNullableStringInputAndDefaultArgumentValue:
-              '"Hello World"'
+            '"Hello World"'
         }
       });
     });

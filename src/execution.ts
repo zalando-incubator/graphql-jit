@@ -29,23 +29,23 @@ import {
     collectFields,
     ExecutionContext,
 } from "graphql/execution/execute";
+import {CoercedVariableValues} from "graphql/execution/values";
 import { FieldNode, OperationDefinitionNode } from "graphql/language/ast";
 import Maybe from "graphql/tsutils/Maybe";
 import { GraphQLTypeResolver } from "graphql/type/definition";
 import {
+    addPath,
     Arguments,
     collectSubfields,
     computeLocations,
     getArgumentDefs,
     getVariableValues,
-    resolveFieldDef,
     ObjectPath,
-    addPath
+    resolveFieldDef
 } from "./ast";
 import {GraphQLError as CustomGraphQLError} from "./error";
 import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
-import {CoercedVariableValues} from "graphql/execution/values";
 import {compileVariableParsing} from "./variables";
 
 export interface CompilerOptions {
@@ -161,8 +161,9 @@ export function compileQuery(
             stringify = JSON.stringify;
         }
         const getVariables = options.enableVariableCompilation ?
-            compileVariableParsing(schema, context.operation.variableDefinitions || []):
-            (inputs: { [key: string]: any }) => getVariableValues(schema, context.operation.variableDefinitions || [], inputs);
+            compileVariableParsing(schema, context.operation.variableDefinitions || []) :
+            (inputs: { [key: string]: any }) => getVariableValues(schema,
+                context.operation.variableDefinitions || [], inputs);
 
         const mainBody = compileOperation(context);
         const functionBody = `
@@ -1227,7 +1228,7 @@ function getErrorObject(
     if (!originalError) {
         return `{
         message: ${message},
-        locations: ${locations ? JSON.stringify(locations) : "undefined"},
+        locations: ${JSON.stringify(locations)},
         path: ${serializeResponsePathAsArray(path)},
       }`;
     }

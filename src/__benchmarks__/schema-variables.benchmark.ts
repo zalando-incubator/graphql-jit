@@ -49,10 +49,15 @@ fragment articleFields on Article {
 }
 `);
 
-const { query: compilerParserNoLeaf }: any = compileQuery(schema, document, "", {
-  enableVariableCompilation: true,
-  disableLeafSerialization: true
-});
+const { query: compilerParserNoLeaf }: any = compileQuery(
+  schema,
+  document,
+  "",
+  {
+    enableVariableCompilation: true,
+    disableLeafSerialization: true
+  }
+);
 const compilerParser: any = compileQuery(schema, document, "", {
   enableVariableCompilation: true,
   customSerializers: {
@@ -77,7 +82,7 @@ const { query: defaultParserNoLeaf }: any = compileQuery(schema, document, "", {
   enableVariableCompilation: false,
   disableLeafSerialization: true
 });
-const vars = {id: "1"};
+const vars = { id: "1" };
 
 const suite = new Benchmark.Suite();
 
@@ -85,34 +90,40 @@ suite
   .add("graphql-js", {
     defer: true,
     fn(deferred: any) {
-      const p: any = execute(schema, document, undefined,undefined, vars);
+      const p: any = execute(schema, document, undefined, undefined, vars);
       p.then(() => deferred.resolve());
     }
   })
-    .add("graphql-jit - default", {
-      defer: true,
-      fn(deferred: any) {
-        defaultParser(undefined, undefined, vars).then(() => deferred.resolve());
-      }
-    })
-    .add("graphql-jit - default no leaf", {
-      defer: true,
-      fn(deferred: any) {
-        defaultParserNoLeaf(undefined, undefined, vars).then(() => deferred.resolve());
-      }
-    })
-    .add("graphql-jit - compiled", {
-      defer: true,
-      fn(deferred: any) {
-        compilerParser.query(undefined, undefined, vars).then(() => deferred.resolve());
-      }
-    })
-    .add("graphql-jit - compiled no leaf", {
-      defer: true,
-      fn(deferred: any) {
-        compilerParserNoLeaf(undefined, undefined, vars).then(() => deferred.resolve());
-      }
-    })
+  .add("graphql-jit - default", {
+    defer: true,
+    fn(deferred: any) {
+      defaultParser(undefined, undefined, vars).then(() => deferred.resolve());
+    }
+  })
+  .add("graphql-jit - default no leaf", {
+    defer: true,
+    fn(deferred: any) {
+      defaultParserNoLeaf(undefined, undefined, vars).then(() =>
+        deferred.resolve()
+      );
+    }
+  })
+  .add("graphql-jit - compiled", {
+    defer: true,
+    fn(deferred: any) {
+      compilerParser
+        .query(undefined, undefined, vars)
+        .then(() => deferred.resolve());
+    }
+  })
+  .add("graphql-jit - compiled no leaf", {
+    defer: true,
+    fn(deferred: any) {
+      compilerParserNoLeaf(undefined, undefined, vars).then(() =>
+        deferred.resolve()
+      );
+    }
+  })
   // add listeners
   .on("cycle", (event: any) => {
     // tslint:disable-next-line
