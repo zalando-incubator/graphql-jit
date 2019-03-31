@@ -377,7 +377,7 @@ describe("Execute: Handles inputs", () => {
             {
               message:
                 "Variable \"$input\" got invalid value { a: \"foo\", b: \"bar\", c: null }; " +
-                "Expected non-nullable type String! not to be null at input.c.",
+                "Expected non-nullable type String! not to be null at value.c.",
               locations: [{ line: 2, column: 16 }]
             }
           ]
@@ -409,7 +409,7 @@ describe("Execute: Handles inputs", () => {
             {
               message:
                 "Variable \"$input\" got invalid value { a: \"foo\", b: \"bar\" }; " +
-                "Field input.c of required type String! was not provided.",
+                "Field value.c of required type String! was not provided.",
               locations: [{ line: 2, column: 16 }]
             }
           ]
@@ -815,7 +815,7 @@ describe("Execute: Handles inputs", () => {
           {
             message:
               "Variable \"$input\" got invalid value [\"A\", null, \"B\"]; " +
-              "Expected non-nullable type String! not to be null at input[1].",
+              "Expected non-nullable type String! not to be null at value[1].",
             locations: [{ line: 2, column: 16 }]
           }
         ]
@@ -865,7 +865,7 @@ describe("Execute: Handles inputs", () => {
           {
             message:
               "Variable \"$input\" got invalid value [\"A\", null, \"B\"]; " +
-              "Expected non-nullable type String! not to be null at input[1].",
+              "Expected non-nullable type String! not to be null at value[1].",
             locations: [{ line: 2, column: 16 }]
           }
         ]

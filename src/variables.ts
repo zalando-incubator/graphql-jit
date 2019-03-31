@@ -174,18 +174,18 @@ function generateInput(context: CompilationContext, varType: GraphQLInputType, v
         context.dependencies.set(`${varType.name}getValue`, varType.getValue);
         body += `
             if (typeof ${currentInput} === "string") { 
-                const enumValue = ${varType.name}getValue(value);
+              const enumValue = ${varType.name}getValue(value);
               if (enumValue) {
                 ${currentOutput} = enumValue.value;
               } else {
                 errors.push(new GraphQLError('Variable "$${varName}" of required type "${varType}" was bad.', ${errorLocation}));
-            }
+              }
             } else {
                 errors.push(new GraphQLError('Variable "$${varName}" of required type "${varType}" was bad.', ${errorLocation}));
             }
             `;
     } else if (isListType(varType)) {
-        context.errorMessage =`'Variable "$${printObjectPath(context.inputPath)}" got invalid value ' + inspect(${currentInput}) + '; '`;
+        context.errorMessage =`'Variable "$${varName}" got invalid value ' + inspect(${currentInput}) + '; '`;
         const hasValueName = hasValue(context.inputPath);
         const index = `idx${context.depth}`;
 
@@ -282,7 +282,7 @@ function printObjectPath(path: ObjectPath) {
         curr = curr.prev;
     }
     const initialIndex = Math.min(flattened.length -1 , 1);
-    let name = flattened[initialIndex].key;
+    let name = "value";
     for (let i = initialIndex + 1; i < flattened.length; ++i) {
         name += flattened[i].type === "literal" ? `.${flattened[i].key}` : `[$\{${flattened[i].key}}]`;
     }
