@@ -104,6 +104,18 @@ const TestType = new GraphQLObjectType({
     fieldWithNonNullableStringInput: fieldWithInputArg({
       type: new GraphQLNonNull(GraphQLString)
     }),
+    fieldWithNonNullableIDInput: fieldWithInputArg({
+      type: new GraphQLNonNull(GraphQLID)
+    }),
+    fieldWithNonNullableIntInput: fieldWithInputArg({
+      type: new GraphQLNonNull(GraphQLInt)
+    }),
+    fieldWithNonNullableFloatInput: fieldWithInputArg({
+      type: new GraphQLNonNull(GraphQLFloat)
+    }),
+    fieldWithNonNullableBooleanInput: fieldWithInputArg({
+      type: new GraphQLNonNull(GraphQLBoolean)
+    }),
     fieldWithDefaultArgumentValue: fieldWithInputArg({
       type: GraphQLString,
       defaultValue: "Hello World"
@@ -117,6 +129,9 @@ const TestType = new GraphQLObjectType({
       defaultValue: "Hello World"
     }),
     list: fieldWithInputArg({ type: new GraphQLList(GraphQLString) }),
+    superNestedList: fieldWithInputArg({
+      type: new GraphQLList(new GraphQLList(new GraphQLList(GraphQLString)))
+    }),
     nnList: fieldWithInputArg({
       type: new GraphQLNonNull(new GraphQLList(GraphQLString))
     }),
@@ -605,12 +620,20 @@ describe("Execute: Handles inputs", () => {
       const result = await executeQuery(`
         {
           fieldWithNullableStringInput
+          fieldWithNullableIDInput
+          fieldWithNullableIntInput
+          fieldWithNullableFloatInput
+          fieldWithNullableBooleanInput
         }
       `);
 
       expect(result).toEqual({
         data: {
-          fieldWithNullableStringInput: null
+          fieldWithNullableStringInput: null,
+          fieldWithNullableIDInput: null,
+          fieldWithNullableIntInput: null,
+          fieldWithNullableFloatInput: null,
+          fieldWithNullableBooleanInput: null
         }
       });
     });
@@ -633,42 +656,60 @@ describe("Execute: Handles inputs", () => {
       const result = await executeQuery(`
         query {
           fieldWithNullableStringInput(input: $value)
+          fieldWithNullableIDInput(input: $id)
+          fieldWithNullableIntInput(input: $int)
+          fieldWithNullableFloatInput(input: $float)
+          fieldWithNullableBooleanInput(input: $boolean)
         }
       `);
 
       expect(result).toEqual({
         data: {
-          fieldWithNullableStringInput: null
+          fieldWithNullableStringInput: null,
+          fieldWithNullableIDInput: null,
+          fieldWithNullableIntInput: null,
+          fieldWithNullableFloatInput: null,
+          fieldWithNullableBooleanInput: null
         }
       });
     });
 
     test("allows nullable inputs to be set to null in a variable", async () => {
-      const doc = `
-        query ($value: String) {
-          fieldWithNullableStringInput(input: $value)
-        }
-      `;
-      const result = await executeQuery(doc, { value: null });
+      const result = await executeQuery(doc, {
+        string: null,
+        id: null,
+        int: null,
+        float: null,
+        boolean: null
+      });
 
       expect(result).toEqual({
         data: {
-          fieldWithNullableStringInput: "null"
+          fieldWithNullableStringInput: "null",
+          fieldWithNullableIDInput: "null",
+          fieldWithNullableIntInput: "null",
+          fieldWithNullableFloatInput: "null",
+          fieldWithNullableBooleanInput: "null"
         }
       });
     });
 
     test("allows nullable inputs to be set to a value in a variable", async () => {
-      const doc = `
-        query ($value: String) {
-          fieldWithNullableStringInput(input: $value)
-        }
-      `;
-      const result = await executeQuery(doc, { value: "a" });
+      const result = await executeQuery(doc, {
+        string: "a",
+        id: "id",
+        int: 1,
+        float: 1.5,
+        boolean: true
+      });
 
       expect(result).toEqual({
         data: {
-          fieldWithNullableStringInput: '"a"'
+          fieldWithNullableStringInput: '"a"',
+          fieldWithNullableIDInput: '"id"',
+          fieldWithNullableIntInput: "1",
+          fieldWithNullableFloatInput: "1.5",
+          fieldWithNullableBooleanInput: "true"
         }
       });
     });
@@ -677,18 +718,35 @@ describe("Execute: Handles inputs", () => {
       const result = await executeQuery(`
         {
           fieldWithNullableStringInput(input: "a")
+          fieldWithNullableIDInput(input: "id")
+          fieldWithNullableIntInput(input: 1)
+          fieldWithNullableFloatInput(input: 1.5)
+          fieldWithNullableBooleanInput(input: true)
         }
       `);
 
       expect(result).toEqual({
         data: {
-          fieldWithNullableStringInput: '"a"'
+          fieldWithNullableStringInput: '"a"',
+          fieldWithNullableIDInput: '"id"',
+          fieldWithNullableIntInput: "1",
+          fieldWithNullableFloatInput: "1.5",
+          fieldWithNullableBooleanInput: "true"
         }
       });
     });
   });
 
   describe("Handles non-nullable scalars", () => {
+    const doc = `
+        query ($string: String!, $id: ID!, $int: Int!, $float: Float!, $boolean: Boolean!) {
+          fieldWithNonNullableStringInput(input: $string)
+          fieldWithNonNullableIDInput(input: $id)
+          fieldWithNonNullableIntInput(input: $int)
+          fieldWithNonNullableFloatInput(input: $float)
+          fieldWithNonNullableBooleanInput(input: $boolean)
+        }
+      `;
     test("allows non-nullable inputs to be omitted given a default", async () => {
       const result = await executeQuery(`
         query ($value: String = "default") {
@@ -704,53 +762,136 @@ describe("Execute: Handles inputs", () => {
     });
 
     test("does not allow non-nullable inputs to be omitted in a variable", async () => {
-      const result = await executeQuery(`
-        query ($value: String!) {
-          fieldWithNonNullableStringInput(input: $value)
-        }
-      `);
+      const result = await executeQuery(doc);
 
       expect(result).toEqual({
         errors: [
           {
+            locations: [{ line: 2, column: 16 }],
             message:
-              'Variable "$value" of required type "String!" was not provided.',
-            locations: [{ line: 2, column: 16 }]
+              'Variable "$string" of required type "String!" was not provided.'
+          },
+          {
+            locations: [
+              {
+                column: 34,
+                line: 2
+              }
+            ],
+            message: 'Variable "$id" of required type "ID!" was not provided.'
+          },
+          {
+            locations: [
+              {
+                column: 44,
+                line: 2
+              }
+            ],
+            message: 'Variable "$int" of required type "Int!" was not provided.'
+          },
+          {
+            locations: [
+              {
+                column: 56,
+                line: 2
+              }
+            ],
+            message:
+              'Variable "$float" of required type "Float!" was not provided.'
+          },
+          {
+            locations: [
+              {
+                column: 72,
+                line: 2
+              }
+            ],
+            message:
+              'Variable "$boolean" of required type "Boolean!" was not provided.'
           }
         ]
       });
     });
 
     test("does not allow non-nullable inputs to be set to null in a variable", async () => {
-      const doc = `
-        query ($value: String!) {
-          fieldWithNonNullableStringInput(input: $value)
-        }
-      `;
-      const result = await executeQuery(doc, { value: null });
+      const result = await executeQuery(doc, {
+        string: null,
+        id: null,
+        int: null,
+        float: null,
+        boolean: null
+      });
 
       expect(result).toEqual({
         errors: [
           {
+            locations: [
+              {
+                column: 16,
+                line: 2
+              }
+            ],
             message:
-              'Variable "$value" of non-null type "String!" must not be null.',
-            locations: [{ line: 2, column: 16 }]
+              'Variable "$string" of non-null type "String!" must not be null.'
+          },
+          {
+            locations: [
+              {
+                column: 34,
+                line: 2
+              }
+            ],
+            message: 'Variable "$id" of non-null type "ID!" must not be null.'
+          },
+          {
+            locations: [
+              {
+                column: 44,
+                line: 2
+              }
+            ],
+            message: 'Variable "$int" of non-null type "Int!" must not be null.'
+          },
+          {
+            locations: [
+              {
+                column: 56,
+                line: 2
+              }
+            ],
+            message:
+              'Variable "$float" of non-null type "Float!" must not be null.'
+          },
+          {
+            locations: [
+              {
+                column: 72,
+                line: 2
+              }
+            ],
+            message:
+              'Variable "$boolean" of non-null type "Boolean!" must not be null.'
           }
         ]
       });
     });
 
     test("allows non-nullable inputs to be set to a value in a variable", async () => {
-      const doc = `
-        query ($value: String!) {
-          fieldWithNonNullableStringInput(input: $value)
-        }
-      `;
-      const result = await executeQuery(doc, { value: "a" });
+      const result = await executeQuery(doc, {
+        string: "a",
+        id: "id",
+        int: 1,
+        float: 1.5,
+        boolean: true
+      });
 
       expect(result).toEqual({
         data: {
-          fieldWithNonNullableStringInput: '"a"'
+          fieldWithNonNullableStringInput: '"a"',
+          fieldWithNonNullableIDInput: '"id"',
+          fieldWithNonNullableIntInput: "1",
+          fieldWithNonNullableFloatInput: "1.5",
+          fieldWithNonNullableBooleanInput: "true"
         }
       });
     });
@@ -759,12 +900,20 @@ describe("Execute: Handles inputs", () => {
       const result = await executeQuery(`
         {
           fieldWithNonNullableStringInput(input: "a")
+          fieldWithNonNullableIDInput(input: "id")
+          fieldWithNonNullableIntInput(input: 1)
+          fieldWithNonNullableFloatInput(input: 1.5)
+          fieldWithNonNullableBooleanInput(input: true)
         }
       `);
 
       expect(result).toEqual({
         data: {
-          fieldWithNonNullableStringInput: '"a"'
+          fieldWithNonNullableStringInput: '"a"',
+          fieldWithNonNullableIDInput: '"id"',
+          fieldWithNonNullableIntInput: "1",
+          fieldWithNonNullableFloatInput: "1.5",
+          fieldWithNonNullableBooleanInput: "true"
         }
       });
     });
@@ -842,6 +991,21 @@ describe("Execute: Handles inputs", () => {
       const result = await executeQuery(doc, { input: null });
 
       expect(result).toEqual({ data: { list: "null" } });
+    });
+
+    test("allows deep nested lists", async () => {
+      const doc = `
+        query ($input: [[[String]]]) {
+          superNestedList(input: $input)
+        }
+      `;
+      const result = await executeQuery(doc, {
+        input: [[["A"]], [["B"], ["C"]]]
+      });
+
+      expect(result).toEqual({
+        data: { superNestedList: '[[["A"]], [["B"], ["C"]]]' }
+      });
     });
 
     test("allows lists to contain values", async () => {

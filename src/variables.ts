@@ -81,7 +81,6 @@ export function compileVariableParsing(
 
     body += "if (errors.length > 0) {return {errors, coerced: undefined};}";
     body += "return {errors: undefined, coerced};\n}";
-    // console.log(body);
     return Function
         .apply(null, ["coerced", "GraphQLError", "inspect"].concat(Array.from(dependencies.keys())).concat(body))
         .apply(null, [coercedValues, GraphQLError, inspect].concat(Array.from(dependencies.values())));
@@ -208,7 +207,7 @@ function generateInput(context: CompilationContext, varType: GraphQLInputType,
         const subContext = createSubCompilationContext(context);
         subContext.responsePath = addPath(subContext.responsePath, index, "variable");
         subContext.inputPath = addPath(subContext.inputPath, index, "variable");
-        subContext.depth++; // TODO test depth
+        subContext.depth++;
         body += `
             if (Array.isArray(${currentInput})) {
                 ${currentOutput} = [];

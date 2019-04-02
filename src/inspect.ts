@@ -1,15 +1,11 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
+ * Based on https://github.com/graphql/graphql-js/blob/master/src/jsutils/inspect.js
  */
 
 export const nodejsCustomInspectSymbol = Symbol.for("nodejs.util.inspect.custom");
 
 const MAX_ARRAY_LENGTH = 10;
-const MAX_RECURSIVE_DEPTH = 2;
+const MAX_RECURSIVE_DEPTH = 3;
 
 /**
  * Used to print values in error messages.

@@ -1,10 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- * @flow strict
+ * Based on https://github.com/graphql/graphql-js/blob/master/src/jsutils/__tests__/inspect-test.js
  */
 
 import inspect, { nodejsCustomInspectSymbol } from "../inspect";
@@ -52,7 +47,7 @@ describe("inspect", () => {
     expect(inspect([["a", "b"], "c"])).toEqual('[["a", "b"], "c"]');
 
     expect(inspect([[[]]])).toEqual("[[[]]]");
-    expect(inspect([[["a"]]])).toEqual("[[[Array]]]");
+    expect(inspect([[[["a"]]]])).toEqual("[[[[Array]]]]");
 
     expect(inspect([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])).toEqual(
       "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]"
@@ -74,7 +69,9 @@ describe("inspect", () => {
     expect(inspect({ array: [null, 0] })).toEqual("{ array: [null, 0] }");
 
     expect(inspect({ a: { b: {} } })).toEqual("{ a: { b: {} } }");
-    expect(inspect({ a: { b: { c: 1 } } })).toEqual("{ a: { b: [Object] } }");
+    expect(inspect({ a: { b: { c: { d: 1 } } } })).toEqual(
+      "{ a: { b: { c: [Object] } } }"
+    );
 
     const map = Object.create(null);
     map["a"] = true;
@@ -176,9 +173,9 @@ describe("inspect", () => {
       }
     }
 
-    expect(inspect([[new Foo()]])).toEqual("[[[Foo]]]");
+    expect(inspect([[[new Foo()]]])).toEqual("[[[[Foo]]]]");
 
     (Foo.prototype as any)[Symbol.toStringTag] = "Bar";
-    expect(inspect([[new Foo()]])).toEqual("[[[Bar]]]");
+    expect(inspect([[[new Foo()]]])).toEqual("[[[[Bar]]]]");
   });
 });
