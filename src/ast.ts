@@ -1,5 +1,5 @@
 import {
-  coerceValue,
+  ASTNode,
   DirectiveNode,
   FieldNode,
   FragmentDefinitionNode,
@@ -11,24 +11,19 @@ import {
   GraphQLField,
   GraphQLIncludeDirective,
   GraphQLObjectType,
-  GraphQLSchema,
   GraphQLSkipDirective,
   InlineFragmentNode,
-  isInputType,
   isNonNullType,
   print,
   SelectionSetNode,
   SourceLocation,
   typeFromAST,
   valueFromAST,
-  VariableDefinitionNode
 } from "graphql";
 import { ExecutionContext, getFieldDef } from "graphql/execution/execute";
-import { CoercedVariableValues } from "graphql/execution/values";
 import { Kind } from "graphql/language";
 import Maybe from "graphql/tsutils/Maybe";
 import { isAbstractType } from "graphql/type";
-import { inspect } from "util";
 
 /**
  * Given a selectionSet, adds all of the fields in that selection to
@@ -352,89 +347,10 @@ function keyMap<T>(
   );
 }
 
-/**
- * Prepares an object map of variableValues of the correct type based on the
- * provided variable definitions and arbitrary input. If the input cannot be
- * parsed to match the variable definitions, a GraphQLError will be thrown.
- */
-export function getVariableValues(
-  schema: GraphQLSchema,
-  varDefNodes: ReadonlyArray<VariableDefinitionNode>,
-  inputs: { [key: string]: any }
-): CoercedVariableValues {
-  const errors = [];
-  const coercedValues: { [key: string]: any } = Object.create(null);
-  for (const varDefNode of varDefNodes) {
-    const varName = varDefNode.variable.name.value;
-    const varType = typeFromAST(schema, varDefNode.type as any);
-    if (!varType || !isInputType(varType)) {
-      // Must use input types for variables. This should be caught during
-      // validation, however is checked again here for safety.
-      errors.push(
-        new GraphQLError(
-          `Variable "$${varName}" expected value of type ` +
-            `"${
-              varType ? varType : print(varDefNode.type)
-            }" which cannot be used as an input type.`,
-          [varDefNode.type]
-        )
-      );
-    } else {
-      const hasValue = hasOwnProperty(inputs, varName);
-      const value = hasValue ? inputs[varName] : undefined;
-      if (!hasValue && varDefNode.defaultValue) {
-        // If no value was provided to a variable with a default value,
-        // use the default value.
-        coercedValues[varName] = valueFromAST(varDefNode.defaultValue, varType);
-      } else if ((!hasValue || value === null) && isNonNullType(varType)) {
-        // If no value or a nullish value was provided to a variable with a
-        // non-null type (required), produce an error.
-        errors.push(
-          new GraphQLError(
-            hasValue
-              ? `Variable "$${varName}" of non-null type ` +
-                `"${varType}" must not be null.`
-              : `Variable "$${varName}" of required type ` +
-                `"${varType}" was not provided.`,
-            [varDefNode]
-          )
-        );
-      } else if (hasValue) {
-        if (value === null) {
-          // If the explicit value `null` was provided, an entry in the coerced
-          // values must exist as the value `null`.
-          coercedValues[varName] = null;
-        } else {
-          // Otherwise, a non-null value was provided, coerce it to the expected
-          // type or report an error if coercion fails.
-          const coerced = coerceValue(value, varType, varDefNode);
-          const coercionErrors = coerced.errors;
-          if (coercionErrors) {
-            coercionErrors.forEach((error: Error) => {
-              error.message =
-                `Variable "$${varName}" got invalid ` +
-                `value ${inspect(value)}; ${error.message}`;
-            });
-            errors.push(...coercionErrors);
-          } else {
-            coercedValues[varName] = coerced.value;
-          }
-        }
-      }
-    }
-  }
-  return errors.length === 0
-    ? { errors: undefined, coerced: coercedValues }
-    : { errors, coerced: undefined };
-}
-
 export function computeLocations(
-  nodes: FieldNode[]
-): SourceLocation[] | undefined {
-  if (!Array.isArray(nodes) || !nodes.length) {
-    return undefined;
-  }
-  const locations = nodes.reduce(
+  nodes: ASTNode[]
+): SourceLocation[] {
+  return nodes.reduce(
     (list, node) => {
       if (node.loc) {
         list.push(getLocation(node.loc.source, node.loc.start));
@@ -443,12 +359,24 @@ export function computeLocations(
     },
     [] as SourceLocation[]
   );
-  if (locations.length === 0) {
-    return undefined;
-  }
-  return locations;
 }
 
-function hasOwnProperty(obj: any, prop: string): boolean {
-  return Object.prototype.hasOwnProperty.call(obj, prop);
+export interface ObjectPath {
+  prev: ObjectPath | undefined;
+  key: string;
+  type: ResponsePathType;
+}
+
+// response path is used for identifying
+// the info resolver function as well as the path in errros,
+// the meta type is used for elements that are only to be used for
+// the function name
+type ResponsePathType = "variable" | "literal" | "meta";
+
+export function addPath(
+    responsePath: ObjectPath | undefined,
+    key: string,
+    type: ResponsePathType = "literal"
+): ObjectPath {
+  return { prev: responsePath, key, type };
 }
