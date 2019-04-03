@@ -1220,7 +1220,7 @@ function getErrorObject(
     return `new GraphQLError(${message},
     ${JSON.stringify(computeLocations(nodes))},
       ${serializeResponsePathAsArray(path)},
-      ${originalError ? originalError: "undefined"})`;
+      ${originalError ? originalError : "undefined"})`;
 }
 
 function getResolverName(parentName: string, name: string) {
