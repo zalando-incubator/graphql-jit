@@ -1217,19 +1217,10 @@ function getErrorObject(
     message: string,
     originalError?: string
 ): string {
-    const locations = computeLocations(nodes);
-    if (!originalError) {
-        return `{
-        message: ${message},
-        locations: ${JSON.stringify(locations)},
-        path: ${serializeResponsePathAsArray(path)},
-      }`;
-    }
-
     return `new GraphQLError(${message},
-    ${locations ? JSON.stringify(locations) : "undefined"},
+    ${JSON.stringify(computeLocations(nodes))},
       ${serializeResponsePathAsArray(path)},
-      ${originalError})`;
+      ${originalError ? originalError: "undefined"})`;
 }
 
 function getResolverName(parentName: string, name: string) {
