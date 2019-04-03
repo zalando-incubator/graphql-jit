@@ -86,8 +86,10 @@ export function compileVariableParsing(
         .apply(null, [coercedValues, GraphQLError, inspect].concat(Array.from(dependencies.values())));
 }
 
-const MAX_INT = 2147483647;
-const MIN_INT = -2147483648;
+// Int Scalars represent 32 bits
+// https://graphql.github.io/graphql-spec/June2018/#sec-Int
+const MAX_32BIT_INT = 2147483647;
+const MIN_32BIT_INT = -2147483648;
 
 function generateInput(context: CompilationContext, varType: GraphQLInputType,
                        varName: string, hasValueName: string, wrapInList: boolean) {
@@ -163,7 +165,7 @@ function generateInput(context: CompilationContext, varType: GraphQLInputType,
             case GraphQLInt.name:
                 body += `
                     if (Number.isInteger(${currentInput})) {
-                      if (${currentInput} > ${MAX_INT} || ${currentInput} < ${MIN_INT}) {
+                      if (${currentInput} > ${MAX_32BIT_INT} || ${currentInput} < ${MIN_32BIT_INT}) {
                         errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
                         + inspect(${currentInput}) + "; " +
                         'Expected type ${varType.name}; ${
