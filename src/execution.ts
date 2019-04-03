@@ -39,7 +39,6 @@ import {
     collectSubfields,
     computeLocations,
     getArgumentDefs,
-    getVariableValues,
     ObjectPath,
     resolveFieldDef
 } from "./ast";
@@ -55,8 +54,6 @@ export interface CompilerOptions {
     // which is responsible for coercion,
     // only safe for use if the output is completely correct.
     disableLeafSerialization: boolean;
-
-    enableVariableCompilation: boolean;
 
     // Map of serializers to override
     // the key should be the name passed to the Scalar or Enum type
@@ -139,7 +136,6 @@ export function compileQuery(
         const options = {
             customJSONSerializer: false,
             disableLeafSerialization: false,
-            enableVariableCompilation: false,
             customSerializers: {},
             ...partialOptions
         };
@@ -160,10 +156,7 @@ export function compileQuery(
         } else {
             stringify = JSON.stringify;
         }
-        const getVariables = options.enableVariableCompilation ?
-            compileVariableParsing(schema, context.operation.variableDefinitions || []) :
-            (inputs: { [key: string]: any }) => getVariableValues(schema,
-                context.operation.variableDefinitions || [], inputs);
+        const getVariables = compileVariableParsing(schema, context.operation.variableDefinitions || []);
 
         const mainBody = compileOperation(context);
         const functionBody = `

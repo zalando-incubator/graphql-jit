@@ -1,6 +1,6 @@
 {
   "name": "graphql-jit",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "description": "GraphQL JIT Compiler to JS",
   "main": "dist/index.js",
   "types": "./dist/index.d.ts",
@@ -36,7 +36,7 @@
     },
     "coverageThreshold": {
       "global": {
-        "branches": 88,
+        "branches": 89,
         "functions": 93,
         "lines": 95,
         "statements": 95

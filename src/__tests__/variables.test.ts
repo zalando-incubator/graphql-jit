@@ -150,9 +150,7 @@ const schema = new GraphQLSchema({ query: TestType });
 
 function executeQuery(query: string, variableValues?: any) {
   const document = parse(query);
-  const prepared: any = compileQuery(schema, document, "", {
-    enableVariableCompilation: true
-  });
+  const prepared: any = compileQuery(schema, document, "");
   if (prepared.errors) {
     return prepared;
   }
@@ -736,13 +734,15 @@ describe("Execute: Handles inputs", () => {
       });
     });
 
-
     test("does not allow 64bit integers to be set", async () => {
-      const result = await executeQuery(`
+      const result = await executeQuery(
+        `
          query ($int: Int) {
           fieldWithNullableIntInput(input: $int)
         }
-      `, {int: Number.MAX_SAFE_INTEGER + 1});
+      `,
+        { int: Number.MAX_SAFE_INTEGER + 1 }
+      );
 
       expect(result).toEqual({
         errors: [
@@ -753,12 +753,12 @@ describe("Execute: Handles inputs", () => {
                 line: 2
               }
             ],
-            message: "Variable \"$int\" got invalid value 9007199254740992; Expected type Int; Int cannot represent non 32-bit signed integer value: 9007199254740992"
+            message:
+              'Variable "$int" got invalid value 9007199254740992; Expected type Int; Int cannot represent non 32-bit signed integer value: 9007199254740992'
           }
         ]
       });
     });
-
 
     test("does not bad inputs to be set to a value in a variable", async () => {
       const result = await executeQuery(doc, {

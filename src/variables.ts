@@ -167,7 +167,8 @@ function generateInput(context: CompilationContext, varType: GraphQLInputType,
                         errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
                         + inspect(${currentInput}) + "; " +
                         'Expected type ${varType.name}; ${
-                  varType.name} cannot represent non 32-bit signed integer value: ' + inspect(${currentInput}), ${errorLocation}));
+                  varType.name} cannot represent non 32-bit signed integer value: ' + inspect(${
+                    currentInput}), ${errorLocation}));
                       } else {
                         ${currentOutput} = ${currentInput};
                       }
