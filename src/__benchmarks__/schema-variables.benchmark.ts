@@ -54,12 +54,10 @@ const { query: compilerParserNoLeaf }: any = compileQuery(
   document,
   "",
   {
-    enableVariableCompilation: true,
     disableLeafSerialization: true
   }
 );
 const compilerParser: any = compileQuery(schema, document, "", {
-  enableVariableCompilation: true,
   customSerializers: {
     String: String,
     ID: String,
@@ -67,20 +65,6 @@ const compilerParser: any = compileQuery(schema, document, "", {
     Int: Number,
     Float: Number
   }
-});
-const { query: defaultParser }: any = compileQuery(schema, document, "", {
-  enableVariableCompilation: false,
-  customSerializers: {
-    String: String,
-    ID: String,
-    Boolean: Boolean,
-    Int: Number,
-    Float: Number
-  }
-});
-const { query: defaultParserNoLeaf }: any = compileQuery(schema, document, "", {
-  enableVariableCompilation: false,
-  disableLeafSerialization: true
 });
 const vars = { id: "1" };
 
@@ -94,21 +78,7 @@ suite
       p.then(() => deferred.resolve());
     }
   })
-  .add("graphql-jit - default", {
-    defer: true,
-    fn(deferred: any) {
-      defaultParser(undefined, undefined, vars).then(() => deferred.resolve());
-    }
-  })
-  .add("graphql-jit - default no leaf", {
-    defer: true,
-    fn(deferred: any) {
-      defaultParserNoLeaf(undefined, undefined, vars).then(() =>
-        deferred.resolve()
-      );
-    }
-  })
-  .add("graphql-jit - compiled", {
+  .add("graphql-jit", {
     defer: true,
     fn(deferred: any) {
       compilerParser
@@ -116,7 +86,7 @@ suite
         .then(() => deferred.resolve());
     }
   })
-  .add("graphql-jit - compiled no leaf", {
+  .add("graphql-jit - no leaf", {
     defer: true,
     fn(deferred: any) {
       compilerParserNoLeaf(undefined, undefined, vars).then(() =>
