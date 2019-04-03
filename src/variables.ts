@@ -86,6 +86,9 @@ export function compileVariableParsing(
         .apply(null, [coercedValues, GraphQLError, inspect].concat(Array.from(dependencies.values())));
 }
 
+const MAX_INT = 2147483647;
+const MIN_INT = -2147483648;
+
 function generateInput(context: CompilationContext, varType: GraphQLInputType,
                        varName: string, hasValueName: string, wrapInList: boolean) {
     const currentOutput = getObjectPath(context.responsePath);
@@ -120,6 +123,19 @@ function generateInput(context: CompilationContext, varType: GraphQLInputType,
     if (isScalarType(varType)) {
         switch (varType.name) {
             case GraphQLID.name:
+                body += `
+                    if (typeof ${currentInput} === "string") {
+                        ${currentOutput} = ${currentInput};
+                    } else if (Number.isInteger(${currentInput})) {
+                        ${currentOutput} = ${currentInput}.toString();
+                    } else {
+                        errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
+                        + inspect(${currentInput}) + "; " +
+                        'Expected type ${varType.name}; ${
+                  varType.name} cannot represent value: ' + inspect(${currentInput}), ${errorLocation}));
+                    }
+                    `;
+                break;
             case GraphQLString.name:
                 body += `
                     if (typeof ${currentInput} === "string") {
@@ -137,19 +153,29 @@ function generateInput(context: CompilationContext, varType: GraphQLInputType,
                     if (typeof ${currentInput} === "boolean") {
                         ${currentOutput} = ${currentInput};
                     } else {
-                        errors.push(new GraphQLError('Variable "$${
-                    varName}" of required type "${varType}" was bad.', ${errorLocation}));
+                        errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
+                        + inspect(${currentInput}) + "; " +
+                        'Expected type ${varType.name}; ${
+                  varType.name} cannot represent a non boolean value: ' + inspect(${currentInput}), ${errorLocation}));
                     }
                     `;
                 break;
             case GraphQLInt.name:
-                // TODO validate 32 bit
                 body += `
                     if (Number.isInteger(${currentInput})) {
+                      if (${currentInput} > ${MAX_INT} || ${currentInput} < ${MIN_INT}) {
+                        errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
+                        + inspect(${currentInput}) + "; " +
+                        'Expected type ${varType.name}; ${
+                  varType.name} cannot represent non 32-bit signed integer value: ' + inspect(${currentInput}), ${errorLocation}));
+                      } else {
                         ${currentOutput} = ${currentInput};
+                      }
                     } else {
-                        errors.push(new GraphQLError('Variable "$${
-                    varName}" of required type "${varType}" was bad.', ${errorLocation}));
+                        errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
+                        + inspect(${currentInput}) + "; " +
+                        'Expected type ${varType.name}; ${
+                  varType.name} cannot represent non-integer value: ' + inspect(${currentInput}), ${errorLocation}));
                     }
                     `;
                 break;
@@ -158,8 +184,10 @@ function generateInput(context: CompilationContext, varType: GraphQLInputType,
                     if (Number.isFinite(${currentInput})) {
                         ${currentOutput} = ${currentInput};
                     } else {
-                        errors.push(new GraphQLError('Variable "$${
-                    varName}" of required type "${varType}" was bad.', ${errorLocation}));
+                        errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
+                        + inspect(${currentInput}) + "; " +
+                        'Expected type ${varType.name}; ${
+                  varType.name} cannot represent non numeric value: ' + inspect(${currentInput}), ${errorLocation}));
                     }
                     `;
                 break;
@@ -262,8 +290,6 @@ function generateInput(context: CompilationContext, varType: GraphQLInputType,
     body += "}\n";
     return body;
 }
-
-// TODO test conflicts
 
 function hasValue(path: ObjectPath) {
     const flattened = [];

@@ -735,6 +735,95 @@ describe("Execute: Handles inputs", () => {
         }
       });
     });
+
+
+    test("does not allow 64bit integers to be set", async () => {
+      const result = await executeQuery(`
+         query ($int: Int) {
+          fieldWithNullableIntInput(input: $int)
+        }
+      `, {int: Number.MAX_SAFE_INTEGER + 1});
+
+      expect(result).toEqual({
+        errors: [
+          {
+            locations: [
+              {
+                column: 17,
+                line: 2
+              }
+            ],
+            message: "Variable \"$int\" got invalid value 9007199254740992; Expected type Int; Int cannot represent non 32-bit signed integer value: 9007199254740992"
+          }
+        ]
+      });
+    });
+
+
+    test("does not bad inputs to be set to a value in a variable", async () => {
+      const result = await executeQuery(doc, {
+        string: ["a"],
+        id: ["id"],
+        int: 1.5,
+        float: NaN,
+        boolean: "hello"
+      });
+
+      expect(result).toEqual({
+        errors: [
+          {
+            locations: [
+              {
+                column: 16,
+                line: 2
+              }
+            ],
+            message:
+              'Variable "$string" got invalid value ["a"]; Expected type String; String cannot represent a non string value: ["a"]'
+          },
+          {
+            locations: [
+              {
+                column: 33,
+                line: 2
+              }
+            ],
+            message:
+              'Variable "$id" got invalid value ["id"]; Expected type ID; ID cannot represent value: ["id"]'
+          },
+          {
+            locations: [
+              {
+                column: 42,
+                line: 2
+              }
+            ],
+            message:
+              'Variable "$int" got invalid value 1.5; Expected type Int; Int cannot represent non-integer value: 1.5'
+          },
+          {
+            locations: [
+              {
+                column: 53,
+                line: 2
+              }
+            ],
+            message:
+              'Variable "$float" got invalid value NaN; Expected type Float; Float cannot represent non numeric value: NaN'
+          },
+          {
+            locations: [
+              {
+                column: 68,
+                line: 2
+              }
+            ],
+            message:
+              'Variable "$boolean" got invalid value "hello"; Expected type Boolean; Boolean cannot represent a non boolean value: "hello"'
+          }
+        ]
+      });
+    });
   });
 
   describe("Handles non-nullable scalars", () => {
@@ -879,7 +968,7 @@ describe("Execute: Handles inputs", () => {
     test("allows non-nullable inputs to be set to a value in a variable", async () => {
       const result = await executeQuery(doc, {
         string: "a",
-        id: "id",
+        id: 1234,
         int: 1,
         float: 1.5,
         boolean: true
@@ -888,7 +977,7 @@ describe("Execute: Handles inputs", () => {
       expect(result).toEqual({
         data: {
           fieldWithNonNullableStringInput: '"a"',
-          fieldWithNonNullableIDInput: '"id"',
+          fieldWithNonNullableIDInput: '"1234"',
           fieldWithNonNullableIntInput: "1",
           fieldWithNonNullableFloatInput: "1.5",
           fieldWithNonNullableBooleanInput: "true"
