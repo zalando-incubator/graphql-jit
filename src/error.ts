@@ -8,7 +8,8 @@ export function GraphQLError(
         message: string,
         locations?: ReadonlyArray<SourceLocation>,
         path?: ReadonlyArray<string | number>,
-        originalError?: Error & { extensions?: any }
+        originalError?: Error & { extensions?: any },
+        skipStackCapturing?: boolean
     ) {
         const extensions = originalError && originalError.extensions;
         Object.defineProperties(this, {
@@ -42,14 +43,16 @@ export function GraphQLError(
                 writable: true,
                 configurable: true,
             });
-        } else if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, GraphQLError);
-        } else {
-            Object.defineProperty(this, "stack", {
-                value: Error().stack,
-                writable: true,
-                configurable: true,
-            });
+        } else if (!skipStackCapturing) {
+            if (Error.captureStackTrace) {
+                Error.captureStackTrace(this, GraphQLError);
+            } else {
+                Object.defineProperty(this, "stack", {
+                    value: Error().stack,
+                    writable: true,
+                    configurable: true,
+                });
+            }
         }
 }
 
