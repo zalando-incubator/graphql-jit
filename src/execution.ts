@@ -956,9 +956,6 @@ function getExecutionInfo(
  * @returns {string}
  */
 function getArguments(args: Arguments): string {
-    if (!args) {
-        return "{}";
-    }
     const staticValues = objectStringify(args.values);
     if (Object.keys(args.missing).length === 0) {
         return staticValues;

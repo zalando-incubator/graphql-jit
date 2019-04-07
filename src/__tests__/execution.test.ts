@@ -16,7 +16,9 @@ import {
   parse
 } from "graphql";
 import {
+  CompiledQuery,
   compileQuery,
+  isCompiledQuery,
   loosePromiseExecutor,
   serialPromiseExecutor
 } from "../execution";
@@ -53,13 +55,12 @@ function executeQuery(
     document as any,
     operationName || ""
   );
-  if (prepared.errors) {
+  if (!isCompiledQuery(prepared)) {
     return prepared;
   }
   return prepared.query(rootValue, contextValue, variableValues || {});
 }
 
-// tslint:disable-next-line
 describe("Execute: Handles basic execution tasks", () => {
   test("handles global errors", async () => {
     const spy = jest.fn();
@@ -1166,5 +1167,19 @@ describe("Execute: Handles basic execution tasks", () => {
         foo: null
       }
     });
+  });
+});
+
+describe("Checks if the output of the compilation was a compiled query", () => {
+  test("returns false for Execution Result", () => {
+    expect(isCompiledQuery({ errors: [] })).toBeFalsy();
+  });
+  test("returns true for a compiled query object", () => {
+    expect(
+      isCompiledQuery({
+        query: ((() => {}) as unknown) as CompiledQuery["query"],
+        stringify: JSON.stringify
+      })
+    ).toBeTruthy();
   });
 });

@@ -184,10 +184,10 @@ describe("Execute: Handles execution of abstract types", () => {
         return obj instanceof Dog
           ? DogType
           : obj instanceof Cat
-            ? CatType
-            : obj instanceof Human
-              ? HumanType
-              : null;
+          ? CatType
+          : obj instanceof Human
+          ? HumanType
+          : null;
       },
       fields: {
         name: { type: GraphQLString }
@@ -308,10 +308,10 @@ describe("Execute: Handles execution of abstract types", () => {
         return obj instanceof Dog
           ? DogType
           : obj instanceof Cat
-            ? CatType
-            : obj instanceof Human
-              ? HumanType
-              : null;
+          ? CatType
+          : obj instanceof Human
+          ? HumanType
+          : null;
       },
       types: [DogType, CatType]
     });
@@ -530,10 +530,10 @@ describe("Execute: Handles execution of abstract types", () => {
                           return obj instanceof Dog
                             ? DogType
                             : obj instanceof Cat
-                              ? CatType
-                              : obj instanceof Human
-                                ? HumanType
-                                : null;
+                            ? CatType
+                            : obj instanceof Human
+                            ? HumanType
+                            : null;
                         },
                         types: [CatType]
                       })
@@ -554,10 +554,10 @@ describe("Execute: Handles execution of abstract types", () => {
         return obj instanceof Dog
           ? DogType
           : obj instanceof Cat
-            ? CatType
-            : obj instanceof Human
-              ? HumanType
-              : null;
+          ? CatType
+          : obj instanceof Human
+          ? HumanType
+          : null;
       },
       types: [DogType, CatType]
     });
