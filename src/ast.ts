@@ -265,10 +265,7 @@ export function getArgumentDefs(
   const values: {[key: string]: any} = {};
   const missing: {[key: string]: string} = {};
   const argDefs = def.args;
-  const argNodes = node.arguments;
-  if (!argDefs || !argNodes) {
-    return { values, missing };
-  }
+  const argNodes = node.arguments || [];
   const argNodeMap = keyMap(argNodes, arg => arg.name.value);
   for (const argDef of argDefs) {
     const name = argDef.name;

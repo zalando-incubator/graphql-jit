@@ -132,10 +132,18 @@ describe("json schema creator", () => {
       expect(typeof fastJson(jsonSchema) === "function").toBeTruthy();
     });
     test("valid response serialization", async () => {
-      const stringify = fastJson(jsonSchema);
-      const prepared: any = compileQuery(blogSchema, parse(query), "");
+      const prepared: any = compileQuery(blogSchema, parse(query), "", {
+        customJSONSerializer: true
+      });
       const response = await prepared.query(undefined, undefined, {});
-      expect(stringify(response)).toEqual(JSON.stringify(response));
+      expect(prepared.stringify).not.toBe(JSON.stringify);
+      expect(prepared.stringify(response)).toEqual(JSON.stringify(response));
+    });
+    test("valid response serialization", async () => {
+      const prepared: any = compileQuery(blogSchema, parse(query), "", {
+        customJSONSerializer: false
+      });
+      expect(prepared.stringify).toBe(JSON.stringify);
     });
     test("error response serialization", async () => {
       const stringify = fastJson(jsonSchema);
