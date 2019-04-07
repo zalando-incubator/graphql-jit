@@ -262,8 +262,8 @@ export function getArgumentDefs(
   def: GraphQLField<any, any> | GraphQLDirective,
   node: FieldNode | DirectiveNode
 ): Arguments {
-  const values: any = {};
-  const missing: any = {};
+  const values: {[key: string]: any} = {};
+  const missing: {[key: string]: string} = {};
   const argDefs = def.args;
   const argNodes = node.arguments;
   if (!argDefs || !argNodes) {
