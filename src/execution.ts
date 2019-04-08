@@ -55,10 +55,8 @@ export interface CompilerOptions {
     // only safe for use if the output is completely correct.
     disableLeafSerialization: boolean;
 
-    // Disable builtin scalars and enum serialization
-    // which is responsible for coercion,
-    // only safe for use if the output is completely correct.
-    captureStackErrors: boolean;
+    // Disable capturing the stack trace of errors.
+    disablingCapturingStackErrors: boolean;
 
     // Map of serializers to override
     // the key should be the name passed to the Scalar or Enum type
@@ -139,7 +137,7 @@ export function compileQuery(
     }
     try {
         const options = {
-            captureStackErrors: true,
+            disablingCapturingStackErrors: false,
             customJSONSerializer: false,
             disableLeafSerialization: false,
             customSerializers: {},
@@ -1233,7 +1231,7 @@ function createErrorObject(
     ${JSON.stringify(computeLocations(nodes))},
       ${serializeResponsePathAsArray(path)},
       ${originalError ? originalError : "undefined"},
-      ${context.options.captureStackErrors ? "false" : "true"})`;
+      ${context.options.disablingCapturingStackErrors ? "true" : "false"})`;
 }
 
 function getResolverName(parentName: string, name: string) {
