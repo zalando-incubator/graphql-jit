@@ -46,6 +46,7 @@ describe("error generation", () => {
   test("is instanceOf upstream error", () => {
     const resp = executeTestQuery("{ b }", true, { b: new Error() });
     expect(resp.errors[0] instanceof GraphQLError).toBeTruthy();
+    expect(resp.errors[0] instanceof Error).toBeTruthy();
   });
   describe("stack capture", () => {
     test("capture the stack", () => {

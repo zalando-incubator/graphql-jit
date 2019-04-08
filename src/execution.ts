@@ -42,7 +42,7 @@ import {
     ObjectPath,
     resolveFieldDef
 } from "./ast";
-import {GraphQLError as CustomGraphQLError} from "./error";
+import {GraphQLError as GraphqlJitError} from "./error";
 import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
 import {compileVariableParsing} from "./variables";
@@ -265,7 +265,7 @@ export function createBoundQuery(
             executor,
             resolveIfDone,
             safeMap,
-            CustomGraphQLError,
+            GraphqlJitError,
             ...resolvers
         ]);
         if (result) {
@@ -789,7 +789,7 @@ function unpromisify(
         value
             .then(
                 (res: any) => cb(res, null),
-                (err: Error) => (err != null ? cb(null, err) : cb(null, new (CustomGraphQLError as any)("")))
+                (err: Error) => (err != null ? cb(null, err) : cb(null, new (GraphqlJitError as any)("")))
             )
             .catch(errorHandler);
         return;
@@ -1440,7 +1440,7 @@ function normalizeErrors(err: Error[] | Error): GraphQLError[] {
 
 function normalizeError(err: Error): GraphQLError {
     return err instanceof GraphQLError ? err :
-        new (CustomGraphQLError as any)(err.message, (err as any).locations, (err as any).path, err);
+        new (GraphqlJitError as any)(err.message, (err as any).locations, (err as any).path, err);
 }
 
 /**
