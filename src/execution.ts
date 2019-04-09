@@ -42,7 +42,7 @@ import {
     ObjectPath,
     resolveFieldDef
 } from "./ast";
-import {GraphQLError as CustomGraphQLError} from "./error";
+import {GraphQLError as GraphqlJitError} from "./error";
 import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
 import {compileVariableParsing} from "./variables";
@@ -54,6 +54,9 @@ export interface CompilerOptions {
     // which is responsible for coercion,
     // only safe for use if the output is completely correct.
     disableLeafSerialization: boolean;
+
+    // Disable capturing the stack trace of errors.
+    disablingCapturingStackErrors: boolean;
 
     // Map of serializers to override
     // the key should be the name passed to the Scalar or Enum type
@@ -134,6 +137,7 @@ export function compileQuery(
     }
     try {
         const options = {
+            disablingCapturingStackErrors: false,
             customJSONSerializer: false,
             disableLeafSerialization: false,
             customSerializers: {},
@@ -259,7 +263,7 @@ export function createBoundQuery(
             executor,
             resolveIfDone,
             safeMap,
-            CustomGraphQLError,
+            GraphqlJitError,
             ...resolvers
         ]);
         if (result) {
@@ -385,12 +389,13 @@ function compileDeferredFields(context: CompilationContext): string {
                 isNonNullType(fieldType)
                     ? GLOBAL_NULL_ERRORS_NAME
                     : GLOBAL_ERRORS_NAME
-                }.push(${getErrorObject(
+                }.push(${createErrorObject(
+                context,
                 fieldNodes,
                 responsePath,
                 "err.message != null ? err.message : err",
                 "err"
-            )});
+            )/* TODO: test why no return here*/});
     }
     ${generateUniqueDeclarations(subContext)}
     parent.${name} = ${nodeBody};\n
@@ -434,7 +439,8 @@ function compileType(
         const nullErrorStr = `"Cannot return null for non-nullable field ${
             parentType.name
             }.${getFieldNodesName(fieldNodes)}."`;
-        body += `(${GLOBAL_NULL_ERRORS_NAME}.push(${getErrorObject(
+        body += `(${GLOBAL_NULL_ERRORS_NAME}.push(${createErrorObject(
+            context,
             fieldNodes,
             previousPath,
             nullErrorStr
@@ -447,7 +453,8 @@ function compileType(
     body += "(";
     // value can be an error obj
     const errorPath = `${sourcePath}.message != null ? ${sourcePath}.message : ${sourcePath}`;
-    body += `${sourcePath} instanceof Error ? (${errorDestination}.push(${getErrorObject(
+    body += `${sourcePath} instanceof Error ? (${errorDestination}.push(${createErrorObject(
+        context,
         fieldNodes,
         previousPath,
         errorPath,
@@ -521,7 +528,8 @@ function compileLeafType(
         body += getSerializerName(type.name);
         body += `(${originPaths.join(
             "."
-        )}, (message) => {${errorDestination}.push(${getErrorObject(
+        )}, (message) => {${errorDestination}.push(${createErrorObject(
+            context,
             fieldNodes,
             previousPath,
             "message"
@@ -660,7 +668,8 @@ function compileAbstractType(
     return `((nodeType, err) =>
   {
     if (err != null) {
-      ${errorDestination}.push(${getErrorObject(
+      ${errorDestination}.push(${createErrorObject(
+        context,
         fieldNodes,
         previousPath,
         "err.message != null ? err.message : err",
@@ -669,7 +678,8 @@ function compileAbstractType(
       return null;
     }
     if (nodeType == null) {
-      ${errorDestination}.push(${getErrorObject(
+      ${errorDestination}.push(${createErrorObject(
+        context,
         fieldNodes,
         previousPath,
         nullTypeError
@@ -680,7 +690,8 @@ function compileAbstractType(
     switch(${finalTypeName}) {
       ${collectedTypes}
       default:
-      ${errorDestination}.push(${getErrorObject(
+      ${errorDestination}.push(${createErrorObject(
+        context,
         fieldNodes,
         previousPath,
         noTypeError
@@ -738,7 +749,8 @@ function compileListType(
     const errorMessage = `"Expected Iterable, but did not find one for field ${
         parentType.name
         }.${getFieldNodesName(fieldNodes)}."`;
-    const errorCase = `(${errorDestination}.push(${getErrorObject(
+    const errorCase = `(${errorDestination}.push(${createErrorObject(
+        context,
         fieldNodes,
         responsePath,
         errorMessage
@@ -775,7 +787,7 @@ function unpromisify(
         value
             .then(
                 (res: any) => cb(res, null),
-                (err: Error) => (err != null ? cb(null, err) : cb(null, new Error("")))
+                (err: Error) => (err != null ? cb(null, err) : cb(null, new (GraphqlJitError as any)("")))
             )
             .catch(errorHandler);
         return;
@@ -1208,7 +1220,8 @@ function getFieldNodesName(nodes: FieldNode[]) {
         : nodes[0].name.value;
 }
 
-function getErrorObject(
+function createErrorObject(
+    context: CompilationContext,
     nodes: FieldNode[],
     path: ObjectPath,
     message: string,
@@ -1217,7 +1230,8 @@ function getErrorObject(
     return `new GraphQLError(${message},
     ${JSON.stringify(computeLocations(nodes))},
       ${serializeResponsePathAsArray(path)},
-      ${originalError ? originalError : "undefined"})`;
+      ${originalError ? originalError : "undefined"},
+      ${context.options.disablingCapturingStackErrors ? "true" : "false"})`;
 }
 
 function getResolverName(parentName: string, name: string) {
@@ -1424,7 +1438,7 @@ function normalizeErrors(err: Error[] | Error): GraphQLError[] {
 
 function normalizeError(err: Error): GraphQLError {
     return err instanceof GraphQLError ? err :
-        new (CustomGraphQLError as any)(err.message, (err as any).locations, (err as any).path, err);
+        new (GraphqlJitError as any)(err.message, (err as any).locations, (err as any).path, err);
 }
 
 /**
