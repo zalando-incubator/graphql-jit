@@ -32,10 +32,8 @@ export function compileVariableParsing(
 ): (inputs: { [key: string]: any }) => CoercedVariableValues {
     const errors = [];
     const coercedValues: { [key: string]: any } = Object.create(null);
-    let body = `
-    return function getVariables (input) {
-    const errors = [];
-    `;
+
+    let mainBody = "";
     const dependencies = new Map();
     for (const varDefNode of varDefNodes) {
         const context: CompilationContext = {
@@ -68,22 +66,28 @@ export function compileVariableParsing(
         }
 
         const hasValueName = hasValue(addPath(context.inputPath, varName));
-        body += `const ${hasValueName} = Object.prototype.hasOwnProperty.call(${
+        mainBody += `const ${hasValueName} = Object.prototype.hasOwnProperty.call(${
             getObjectPath(context.inputPath)}, "${varName}");\n`;
         context.inputPath = addPath(context.inputPath, varName);
         context.responsePath = addPath(context.responsePath, varName);
-        body += generateInput(context, varType, varName, hasValueName, false);
+        mainBody += generateInput(context, varType, varName, hasValueName, false);
     }
 
     if (errors.length > 0) {
         throw errors;
     }
-
-    body += "if (errors.length > 0) {return {errors, coerced: undefined};}";
-    body += "return {errors: undefined, coerced};\n}";
+    const  body = `
+    return function getVariables (input) {
+    const errors = [];
+    const coerced = ${JSON.stringify(coercedValues)}
+    ${mainBody}
+    if (errors.length > 0) {return {errors, coerced: undefined};}
+    return {errors: undefined, coerced};
+    }
+    `;
     return Function
-        .apply(null, ["coerced", "GraphQLError", "inspect"].concat(Array.from(dependencies.keys())).concat(body))
-        .apply(null, [coercedValues, GraphQLError, inspect].concat(Array.from(dependencies.values())));
+        .apply(null, ["GraphQLError", "inspect"].concat(Array.from(dependencies.keys())).concat(body))
+        .apply(null, [GraphQLError, inspect].concat(Array.from(dependencies.values())));
 }
 
 // Int Scalars represent 32 bits

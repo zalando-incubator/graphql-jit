@@ -712,6 +712,43 @@ describe("Execute: Handles inputs", () => {
       });
     });
 
+    test("does not reuse previous inputs", async () => {
+      const spy = jest.fn().mockReturnValue("test");
+      const schema = new GraphQLSchema({
+        query: new GraphQLObjectType({
+          name: "TestType",
+          fields: {
+            inputRecorder: {
+              type: GraphQLString,
+              args: { input: { type: GraphQLString } },
+              resolve: spy
+            }
+          }
+        })
+      });
+
+      const document = `
+        query ($string: String) {
+          inputRecorder(input: $string)
+        }
+      `;
+      const compiled: any = compileQuery(schema, parse(document), "");
+      compiled.query(undefined, undefined, { string: "id" });
+      expect(spy).toHaveBeenCalledWith(
+        undefined,
+        { input: "id" },
+        undefined,
+        expect.any(Object)
+      );
+      compiled.query(undefined, undefined, {});
+      expect(spy).toHaveBeenCalledWith(
+        undefined,
+        {},
+        undefined,
+        expect.any(Object)
+      );
+    });
+
     test("allows nullable inputs to be set to a value directly", async () => {
       const result = await executeQuery(`
         {
