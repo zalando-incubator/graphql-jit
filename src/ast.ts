@@ -18,7 +18,7 @@ import {
   SelectionSetNode,
   SourceLocation,
   typeFromAST,
-  valueFromAST,
+  valueFromAST
 } from "graphql";
 import { ExecutionContext, getFieldDef } from "graphql/execution/execute";
 import { Kind } from "graphql/language";
@@ -262,8 +262,8 @@ export function getArgumentDefs(
   def: GraphQLField<any, any> | GraphQLDirective,
   node: FieldNode | DirectiveNode
 ): Arguments {
-  const values: {[key: string]: any} = {};
-  const missing: {[key: string]: string} = {};
+  const values: { [key: string]: any } = {};
+  const missing: { [key: string]: string } = {};
   const argDefs = def.args;
   const argNodes = node.arguments || [];
   const argNodeMap = keyMap(argNodes, arg => arg.name.value);
@@ -280,7 +280,9 @@ export function getArgumentDefs(
         // execution. This is a runtime check to ensure execution does not
         // continue with an invalid argument value.
         throw new GraphQLError(
-          `Argument "${name}" of type \"${argType}\" has invalid value ${print(argumentNode.value)}.`,
+          `Argument "${name}" of type \"${argType}\" has invalid value ${print(
+            argumentNode.value
+          )}.`,
           [argumentNode.value]
         );
       }
@@ -344,9 +346,7 @@ function keyMap<T>(
   );
 }
 
-export function computeLocations(
-  nodes: ASTNode[]
-): SourceLocation[] {
+export function computeLocations(nodes: ASTNode[]): SourceLocation[] {
   return nodes.reduce(
     (list, node) => {
       if (node.loc) {
@@ -371,9 +371,9 @@ export interface ObjectPath {
 type ResponsePathType = "variable" | "literal" | "meta";
 
 export function addPath(
-    responsePath: ObjectPath | undefined,
-    key: string,
-    type: ResponsePathType = "literal"
+  responsePath: ObjectPath | undefined,
+  key: string,
+  type: ResponsePathType = "literal"
 ): ObjectPath {
   return { prev: responsePath, key, type };
 }
