@@ -1,16 +1,16 @@
 import {
-  GraphQLResolveInfo,
   FieldNode,
-  SelectionSetNode,
-  SelectionNode,
+  GraphQLList,
   GraphQLObjectType,
   GraphQLOutputType,
-  isScalarType,
-  isListType,
-  GraphQLList,
+  GraphQLResolveInfo,
+  GraphQLSchema,
   GraphQLType,
+  isListType,
+  isScalarType,
   isTypeSubTypeOf,
-  GraphQLSchema
+  SelectionNode,
+  SelectionSetNode
 } from "graphql";
 import { ObjectPath } from "./ast";
 
@@ -42,7 +42,7 @@ export function createResolveInfoThunk({
   fieldName: string;
   fieldNodes: FieldNode[];
 }) {
-  let fields: GraphQLJitResolveInfo["fields"] = {};
+  const fields: GraphQLJitResolveInfo["fields"] = {};
   const returnType = getEndReturnType(fieldType);
 
   if (returnType != null) {
@@ -52,7 +52,7 @@ export function createResolveInfoThunk({
       returnType,
       fragments
     );
-    for (let fieldType in selections) {
+    for (const fieldType in selections) {
       if (Object.prototype.hasOwnProperty.call(selections, fieldType)) {
         // Get unique names of fields from the fieldNodes list for
         // each return Type

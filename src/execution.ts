@@ -42,8 +42,8 @@ import {
 import { GraphQLError as GraphqlJitError } from "./error";
 import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
-import { compileVariableParsing } from "./variables";
 import { createResolveInfoThunk } from "./resolve-info";
+import { compileVariableParsing } from "./variables";
 
 export interface CompilerOptions {
   customJSONSerializer: boolean;
