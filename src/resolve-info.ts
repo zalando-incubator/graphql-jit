@@ -177,12 +177,9 @@ function handleSelection(
       break;
 
     case "InlineFragment":
-      if (node.typeCondition == null) {
-        throw new Error(`TypeCondition is undefined for ${node}`);
-      }
       handleSelectionSet(
         fragments,
-        node.typeCondition.name.value,
+        node.typeCondition == null ? returnType : node.typeCondition.name.value,
         node.selectionSet,
         collector
       );

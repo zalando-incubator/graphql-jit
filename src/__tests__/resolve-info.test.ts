@@ -36,7 +36,7 @@ describe("GraphQLJitResolveInfo", () => {
       });
     });
 
-    test("interface fields", async () => {
+    test("with fragments", async () => {
       await executeQuery(
         schema,
         parse(
@@ -55,6 +55,54 @@ describe("GraphQLJitResolveInfo", () => {
           fragment fooFragment1 on Foo {
             a
             b
+          }
+          `
+        )
+      );
+
+      expect(inf.fields).toMatchObject({
+        Foo: expect.arrayContaining(["a", "b", "c"])
+      });
+    });
+
+    test("inline fragments", async () => {
+      await executeQuery(
+        schema,
+        parse(
+          `
+          query {
+            foo {
+              ... {
+                ... {
+                  a
+                }
+              }
+            }
+          }
+          `
+        )
+      );
+
+      expect(inf.fields).toMatchObject({
+        Foo: expect.arrayContaining(["a"])
+      });
+    });
+
+    test("aggregate multiple selections of the same field", async () => {
+      await executeQuery(
+        schema,
+        parse(
+          `
+          query {
+            foo {
+              a
+            }
+            foo {
+              b
+            }
+            foo {
+              c
+            }
           }
           `
         )
@@ -191,6 +239,40 @@ describe("GraphQLJitResolveInfo", () => {
         Bar2: expect.arrayContaining(["id", "title", "b2"])
       });
     });
+
+    test("aggregate multiple selections of the same field", async () => {
+      await executeQuery(
+        schema,
+        parse(
+          `
+            query {
+              iBar {
+                id
+              }
+              iBar {
+                title
+              }
+              iBar {
+                ... on Bar1 {
+                  b1
+                }
+              }
+              iBar {
+                ... on Bar2 {
+                  b2
+                }
+              }
+            }
+          `
+        )
+      );
+
+      expect(inf.fields).toMatchObject({
+        IBar: expect.arrayContaining(["id", "title"]),
+        Bar1: expect.arrayContaining(["id", "title", "b1"]),
+        Bar2: expect.arrayContaining(["id", "title", "b2"])
+      });
+    });
   });
 
   describe("unions", () => {
@@ -264,6 +346,37 @@ describe("GraphQLJitResolveInfo", () => {
               uBaz {
                 ...foo
                 ...bar
+              }
+            }
+            fragment foo on Foo {
+              foo
+            }
+            fragment bar on Bar {
+              bar
+            }
+          `
+        )
+      );
+
+      expect(inf.fields).toMatchObject({
+        Foo: expect.arrayContaining(["foo"]),
+        Bar: expect.arrayContaining(["bar"])
+      });
+    });
+
+    test("aggregate multiple selections of the same field", async () => {
+      await executeQuery(
+        schema,
+        parse(
+          `
+            query {
+              uBaz {
+                ...bar
+              }
+              ... {
+                uBaz {
+                  ...foo
+                }
               }
             }
             fragment foo on Foo {
