@@ -43,6 +43,7 @@ import { GraphQLError as GraphqlJitError } from "./error";
 import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
 import { compileVariableParsing } from "./variables";
+import { createResolveInfoThunk } from "./resolve-info";
 
 export interface CompilerOptions {
   customJSONSerializer: boolean;
@@ -947,21 +948,14 @@ function getExecutionInfo(
 
   context.dependencies.set(
     resolveInfoName,
-    (
-      rootValue: any,
-      variableValues: any,
-      path: ObjectPath
-    ): GraphQLResolveInfo => ({
-      fieldName,
-      fieldNodes,
-      returnType: fieldType,
-      parentType,
-      path,
+    createResolveInfoThunk({
       schema,
       fragments,
-      rootValue,
       operation,
-      variableValues
+      parentType,
+      fieldName,
+      fieldType,
+      fieldNodes
     })
   );
   return `${resolveInfoName}(${GLOBAL_ROOT_NAME}, ${GLOBAL_VARIABLES_NAME}, ${serializeResponsePath(
