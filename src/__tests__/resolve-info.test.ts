@@ -441,6 +441,34 @@ describe("GraphQLJitResolveInfo", () => {
       `);
     });
 
+    test("__typename", async () => {
+      const result = await executeQuery(
+        schema,
+        parse(`
+          query {
+            uBaz {
+              __typename
+              alias: __typename
+            }
+          }
+        `)
+      );
+      expect(result.errors).not.toBeDefined();
+      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+        Object {
+          "Bar": Object {
+            "__typename": true,
+          },
+          "Baz": Object {
+            "__typename": true,
+          },
+          "Foo": Object {
+            "__typename": true,
+          },
+        }
+      `);
+    });
+
     test("unions with fragments", async () => {
       const result = await executeQuery(
         schema,
