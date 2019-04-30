@@ -433,15 +433,12 @@ describe("GraphQLJitResolveInfo", () => {
           "Bar": Object {
             "bar": true,
           },
+          "Baz": Object {},
           "Foo": Object {
             "foo": true,
           },
         }
       `);
-
-      // should not contain the union type as there cannot
-      // be a selection set for unions without a specific type
-      expect(Object.keys(inf.fieldExpansion)).not.toContain("Baz");
     });
 
     test("unions with fragments", async () => {
@@ -471,6 +468,7 @@ describe("GraphQLJitResolveInfo", () => {
           "Bar": Object {
             "bar": true,
           },
+          "Baz": Object {},
           "Foo": Object {
             "foo": true,
           },
@@ -509,12 +507,95 @@ describe("GraphQLJitResolveInfo", () => {
           "Bar": Object {
             "bar": true,
           },
+          "Baz": Object {},
           "Foo": Object {
             "foo": true,
           },
         }
       `);
     });
+  });
+
+  describe("lists", () => {
+    let infFoos: any;
+    let infFooOrBars: any;
+    let infMedia: any;
+    let infFooBars: any;
+    const schema = makeExecutableSchema({
+      typeDefs: `
+        type Query {
+          foos: [Foo!]
+          fooOrBars: [FooOrBar!]
+          media: [Media!]!
+        }
+        type Foo {
+          bars: [Bar]
+        }
+        type Bar {
+          strs: [String!]
+        }
+        union FooOrBar = Foo | Bar
+        interface Media {
+          url: String
+        }
+        type Image implements Media {
+          url: String
+          width: Int
+        }
+        type Video implements Media {
+          url: String
+          kind: VideoKind
+        }
+        enum VideoKind {
+          YOUTUBE
+          VIMEO
+        }
+      `,
+      resolverValidationOptions: { requireResolversForResolveType: false },
+      resolvers: {
+        Query: {
+          foos(_: any, _1: any, _2: any, info: any) {
+            infFoos = info;
+          },
+          fooOrBars(_: any, _1: any, _2: any, info: any) {
+            infFooOrBars = info;
+          },
+          media(_: any, _1: any, _2: any, info: any) {
+            infMedia = info;
+          }
+        },
+        Foo: {
+          bars(_: any, _1: any, _2: any, info: any) {
+            infFooBars = info;
+          }
+        }
+      }
+    });
+
+    afterEach(() => {
+      infFoos = undefined;
+      infFooOrBars = undefined;
+      infMedia = undefined;
+      infFooBars = undefined;
+    });
+
+    test("object", async () => {
+      const result = await executeQuery(
+        schema,
+        parse(`
+          query {
+            foos {
+              bars {
+                strs
+              }
+            }
+          }
+        `)
+      );
+      expect(result.errors).not.toBeDefined();
+    });
+
+    // TODO
   });
 });
 

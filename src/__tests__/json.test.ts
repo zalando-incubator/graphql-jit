@@ -9,7 +9,9 @@ import {
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
-  parse
+  parse,
+  GraphQLInt,
+  GraphQLScalarType
 } from "graphql";
 import { buildExecutionContext } from "graphql/execution/execute";
 import { compileQuery } from "../index";
@@ -20,7 +22,20 @@ describe("json schema creator", () => {
     name: "Author",
     fields: () => ({
       id: { type: new GraphQLNonNull(GraphQLID) },
-      name: { type: GraphQLString }
+      name: { type: GraphQLString },
+      pic: {
+        type: new GraphQLObjectType({
+          name: "Pic",
+          fields: {
+            width: { type: GraphQLInt },
+            height: { type: GraphQLInt },
+            url: { type: GraphQLString }
+          }
+        })
+      },
+      recentArticle: {
+        type: BlogArticle
+      }
     })
   });
 
@@ -139,7 +154,7 @@ describe("json schema creator", () => {
       expect(prepared.stringify).not.toBe(JSON.stringify);
       expect(prepared.stringify(response)).toEqual(JSON.stringify(response));
     });
-    test("valid response serialization", async () => {
+    test("valid response serialization 2", async () => {
       const prepared: any = compileQuery(blogSchema, parse(query), "", {
         customJSONSerializer: false
       });

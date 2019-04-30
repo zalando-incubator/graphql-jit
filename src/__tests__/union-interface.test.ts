@@ -37,7 +37,7 @@ function execute(
   root?: any,
   context?: any
 ) {
-  const { query }: any = compileQuery(schema, document, "");
+  const { query, errors }: any = compileQuery(schema, document, "");
   return query(root, context, {});
 }
 

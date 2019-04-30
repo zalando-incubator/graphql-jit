@@ -268,7 +268,7 @@ describe("Execute: Handles basic execution tasks", () => {
       "rootValue",
       "operation",
       "variableValues",
-      "fields"
+      "fieldExpansion"
     ]);
     expect(info.fieldName).toEqual("test");
     expect(info.fieldNodes).toHaveLength(1);

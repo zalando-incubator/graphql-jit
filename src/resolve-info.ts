@@ -1,20 +1,20 @@
 import {
   FieldNode,
-  GraphQLList,
   GraphQLObjectType,
   GraphQLOutputType,
   GraphQLResolveInfo,
   GraphQLSchema,
   GraphQLType,
   isListType,
-  isScalarType,
   SelectionNode,
   SelectionSetNode,
   isOutputType,
   isObjectType,
   isInterfaceType,
   isCompositeType,
-  GraphQLCompositeType
+  GraphQLCompositeType,
+  isNonNullType,
+  doTypesOverlap
 } from "graphql";
 import { ObjectPath } from "./ast";
 
@@ -47,7 +47,7 @@ export function createResolveInfoThunk({
   fieldName: string;
   fieldNodes: FieldNode[];
 }) {
-  const returnType = getEndReturnType(fieldType);
+  const returnType = resolveEndType(fieldType);
   const fieldExpansion: FieldExpansion = {};
 
   if (returnType != null) {
@@ -73,16 +73,6 @@ export function createResolveInfoThunk({
     variableValues,
     fieldExpansion
   });
-}
-
-function getEndReturnType(fieldType: GraphQLOutputType): string | undefined {
-  if (isScalarType(fieldType)) {
-    return;
-  }
-  if (isListType(fieldType)) {
-    return getEndReturnType(fieldType.ofType);
-  }
-  return fieldType.name;
 }
 
 type FragmentsType = GraphQLResolveInfo["fragments"];
@@ -126,8 +116,6 @@ function handleFieldNode(
       node.selectionSet,
       fieldExpansion
     );
-  } else {
-    throw new Error("should not be called");
   }
 }
 
@@ -208,10 +196,7 @@ function getReturnType(
     throw new Error(`Field ${fieldName} does not exist in ${parentType}`);
   }
   const outputType = fields[fieldName].type;
-  if (isListType(outputType)) {
-    return resolveListType(outputType);
-  }
-  return outputType.name;
+  return resolveEndType(outputType);
 }
 
 function getPossibleTypes(
@@ -232,12 +217,16 @@ function getPossibleTypes(
     return [resolvedType.name];
   }
 
-  const possibleTypes = schema.getPossibleTypes(resolvedType);
-  const fieldTypes: string[] = [];
-  if (isInterfaceType(resolvedType)) {
-    fieldTypes.push(resolvedType.name);
+  const possibleTypes: string[] = [];
+  const types = schema.getTypeMap();
+  for (let typeName in types) {
+    const typ = types[typeName];
+    if (isCompositeType(typ) && doTypesOverlap(schema, typ, resolvedType)) {
+      possibleTypes.push(typ.name);
+    }
   }
-  return [...fieldTypes, ...possibleTypes.map(objectType => objectType.name)];
+
+  return possibleTypes;
 }
 
 function resolveOutputFieldType(typ: GraphQLOutputType): GraphQLCompositeType {
@@ -251,10 +240,9 @@ function resolveOutputFieldType(typ: GraphQLOutputType): GraphQLCompositeType {
   return typ;
 }
 
-function resolveListType(typ: GraphQLType): string {
-  if (isListType(typ)) {
-    return resolveListType(typ.ofType);
+function resolveEndType(typ: GraphQLType): string {
+  if (isListType(typ) || isNonNullType(typ)) {
+    return resolveEndType(typ.ofType);
   }
-
   return typ.name;
 }
