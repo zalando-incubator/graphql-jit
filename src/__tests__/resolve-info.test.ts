@@ -593,6 +593,17 @@ describe("GraphQLJitResolveInfo", () => {
         `)
       );
       expect(result.errors).not.toBeDefined();
+      expect(infFoos.fieldExpansion).toMatchInlineSnapshot(`
+        Object {
+          "Foo": Object {
+            "bars": Object {
+              "Bar": Object {
+                "strs": true,
+              },
+            },
+          },
+        }
+      `);
     });
 
     // TODO

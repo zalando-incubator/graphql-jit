@@ -1,20 +1,20 @@
 import {
+  doTypesOverlap,
   FieldNode,
+  GraphQLCompositeType,
   GraphQLObjectType,
   GraphQLOutputType,
   GraphQLResolveInfo,
   GraphQLSchema,
   GraphQLType,
-  isListType,
-  SelectionNode,
-  SelectionSetNode,
-  isOutputType,
-  isObjectType,
-  isInterfaceType,
   isCompositeType,
-  GraphQLCompositeType,
+  isInterfaceType,
+  isListType,
   isNonNullType,
-  doTypesOverlap
+  isObjectType,
+  isOutputType,
+  SelectionNode,
+  SelectionSetNode
 } from "graphql";
 import { ObjectPath } from "./ast";
 
@@ -219,10 +219,12 @@ function getPossibleTypes(
 
   const possibleTypes: string[] = [];
   const types = schema.getTypeMap();
-  for (let typeName in types) {
-    const typ = types[typeName];
-    if (isCompositeType(typ) && doTypesOverlap(schema, typ, resolvedType)) {
-      possibleTypes.push(typ.name);
+  for (const typeName in types) {
+    if (Object.prototype.hasOwnProperty.call(types, typeName)) {
+      const typ = types[typeName];
+      if (isCompositeType(typ) && doTypesOverlap(schema, typ, resolvedType)) {
+        possibleTypes.push(typ.name);
+      }
     }
   }
 
