@@ -8,13 +8,11 @@ import {
   GraphQLOutputType,
   GraphQLResolveInfo,
   GraphQLSchema,
-  GraphQLType,
   isCompositeType,
   isInterfaceType,
   isListType,
   isNonNullType,
   isObjectType,
-  isOutputType,
   SelectionNode,
   SelectionSetNode
 } from "graphql";
