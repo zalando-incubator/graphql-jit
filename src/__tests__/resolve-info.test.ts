@@ -608,6 +608,57 @@ describe("GraphQLJitResolveInfo", () => {
 
     // TODO
   });
+
+  // user errors that happen during resolve info computation
+  describe("errors", () => {
+    const schema = makeExecutableSchema({
+      typeDefs: `
+        type Query {
+          foo: Foo!
+        }
+        type Foo {
+          baz: Int!
+        }
+      `,
+      resolvers: {
+        Query: {
+          foo() {
+            return {
+              baz: 10
+            };
+          }
+        }
+      }
+    });
+
+    test("non-existant field in type", async () => {
+      const result = await executeQuery(
+        schema,
+        parse(`query { foo { fieldDoesNotExist1 { id } } }`)
+      );
+      expect(result.errors).toBeDefined();
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0].message).toContain("fieldDoesNotExist1");
+    });
+
+    test("invalid inline fragment - type does not exist", async () => {
+      const result = await executeQuery(
+        schema,
+        parse(`query { foo { ... on NotFound { bar } } }`)
+      );
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0].message).toContain("NotFound");
+    });
+
+    test("invalid fragment - type does not exist", async () => {
+      const result = await executeQuery(
+        schema,
+        parse(`query { foo { ...frag } } fragment frag on NotFound2 { id }`)
+      );
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0].message).toContain("NotFound2");
+    });
+  });
 });
 
 function executeQuery(

@@ -2,6 +2,8 @@ import {
   doTypesOverlap,
   FieldNode,
   GraphQLCompositeType,
+  GraphQLError,
+  GraphQLNamedType,
   GraphQLObjectType,
   GraphQLOutputType,
   GraphQLResolveInfo,
@@ -76,11 +78,12 @@ export function createResolveInfoThunk({
 }
 
 type FragmentsType = GraphQLResolveInfo["fragments"];
+type GraphQLNamedOutputType = GraphQLNamedType & GraphQLOutputType;
 
 function handleSelectionSet(
   schema: GraphQLSchema,
   fragments: FragmentsType,
-  possibleTypes: string[],
+  possibleTypes: GraphQLCompositeType[],
   selectionSet: SelectionSetNode,
   fieldExpansion: FieldExpansion
 ) {
@@ -98,17 +101,25 @@ function handleSelectionSet(
 function handleFieldNode(
   schema: GraphQLSchema,
   fragments: FragmentsType,
-  returnType: string,
+  returnType: GraphQLOutputType,
   node: FieldNode,
   fieldExpansion: FieldExpansion
 ) {
   if (node.selectionSet != null) {
-    const possibleTypes = getPossibleTypes(schema, returnType);
+    const resolvedType = resolveEndType(returnType);
+    const possibleTypes = getPossibleTypes(
+      schema,
+      // if there is a selectionSet, the resolved type must be a composite type
+      resolvedType as GraphQLCompositeType,
+      node.name.value
+    );
+
     for (const typ of possibleTypes) {
-      if (!Object.prototype.hasOwnProperty.call(fieldExpansion, typ)) {
-        fieldExpansion[typ] = {};
+      if (!Object.prototype.hasOwnProperty.call(fieldExpansion, typ.name)) {
+        fieldExpansion[typ.name] = {};
       }
     }
+
     handleSelectionSet(
       schema,
       fragments,
@@ -122,7 +133,7 @@ function handleFieldNode(
 function handleSelection(
   schema: GraphQLSchema,
   fragments: FragmentsType,
-  possibleTypes: string[],
+  possibleTypes: GraphQLCompositeType[],
   node: SelectionNode,
   fieldExpansion: FieldExpansion
 ) {
@@ -143,87 +154,108 @@ function handleSelection(
           nextFieldExpansion
         );
         for (const typ of possibleTypes) {
-          fieldExpansion[typ][node.name.value] = nextFieldExpansion;
+          fieldExpansion[typ.name][node.name.value] = nextFieldExpansion;
         }
       } else {
         for (const typ of possibleTypes) {
-          fieldExpansion[typ][node.name.value] = true;
+          fieldExpansion[typ.name][node.name.value] = true;
         }
       }
       break;
 
     case "InlineFragment":
-      handleSelectionSet(
-        schema,
-        fragments,
-        node.typeCondition == null
-          ? possibleTypes
-          : [node.typeCondition.name.value],
-        node.selectionSet,
-        fieldExpansion
-      );
+      {
+        let nextPossibleTypes = possibleTypes;
+        if (node.typeCondition != null) {
+          const typeConditionType = schema.getType(
+            node.typeCondition.name.value
+          );
+          if (typeConditionType == null) {
+            throw new GraphQLError(
+              `Invalid InlineFragment: Type "${
+                node.typeCondition.name.value
+              }" does not exist in schema.`
+            );
+          }
+          // here we are inside a fragment and it's possible only for Composite Types
+          nextPossibleTypes = [typeConditionType as GraphQLCompositeType];
+        }
+
+        handleSelectionSet(
+          schema,
+          fragments,
+          nextPossibleTypes,
+          node.selectionSet,
+          fieldExpansion
+        );
+      }
       break;
 
     case "FragmentSpread":
-      const fragment = fragments[node.name.value];
-      handleSelectionSet(
-        schema,
-        fragments,
-        [fragment.typeCondition.name.value],
-        fragment.selectionSet,
-        fieldExpansion
-      );
+      {
+        const fragment = fragments[node.name.value];
+        const typeConditionType = schema.getType(
+          fragment.typeCondition.name.value
+        );
+        if (typeConditionType == null) {
+          throw new GraphQLError(
+            `Invalid Fragment: Type "${
+              fragment.typeCondition.name.value
+            }" does not exist in schema.`
+          );
+        }
+
+        handleSelectionSet(
+          schema,
+          fragments,
+          [typeConditionType as GraphQLCompositeType],
+          fragment.selectionSet,
+          fieldExpansion
+        );
+      }
       break;
   }
 }
 
 function getReturnType(
   schema: GraphQLSchema,
-  parentType: string,
+  parentType: GraphQLCompositeType,
   fieldName: string
-): string {
-  const typ = schema.getType(parentType);
-  if (typ == null) {
-    throw new Error(`Type not found in schema ${parentType}`);
-  }
-  if (!(isInterfaceType(typ) || isObjectType(typ))) {
-    throw new Error(
-      `Field ${fieldName} selected for ${parentType} - not objectlike`
+): GraphQLNamedOutputType {
+  if (!(isInterfaceType(parentType) || isObjectType(parentType))) {
+    throw new GraphQLError(
+      `Invalid selection: Field "${fieldName}" for type "${parentType.name}"`
     );
   }
-  const fields = typ.getFields();
+
+  const fields = parentType.getFields();
   if (!Object.prototype.hasOwnProperty.call(fields, fieldName)) {
-    throw new Error(`Field ${fieldName} does not exist in ${parentType}`);
+    throw new GraphQLError(
+      `Field "${fieldName}" does not exist in "${parentType}"`
+    );
   }
+
   const outputType = fields[fieldName].type;
   return resolveEndType(outputType);
 }
 
 function getPossibleTypes(
   schema: GraphQLSchema,
-  currentType: string
-): string[] {
-  const typ = schema.getType(currentType);
-  if (typ == null) {
-    throw new Error(`Type not found in schema "${currentType}"`);
-  }
-  if (!isOutputType(typ)) {
-    throw new Error(`Expected GraphQL Output type. Got ${currentType}`);
-  }
-
-  const resolvedType = resolveOutputFieldType(typ);
-
+  resolvedType: GraphQLCompositeType,
+  // this is only used for errors
+  fieldName: string
+): GraphQLCompositeType[] {
   if (isObjectType(resolvedType)) {
-    return [resolvedType.name];
+    return [resolvedType];
   }
 
-  const possibleTypes: string[] = [];
+  const possibleTypes: GraphQLCompositeType[] = [];
   const types = schema.getTypeMap();
   for (const typeName in types) {
     if (Object.prototype.hasOwnProperty.call(types, typeName)) {
       const typ = types[typeName];
       if (isCompositeType(typ) && doTypesOverlap(schema, typ, resolvedType)) {
-        possibleTypes.push(typ.name);
+        possibleTypes.push(typ);
       }
     }
   }
@@ -231,20 +263,9 @@ function getPossibleTypes(
   return possibleTypes;
 }
 
-function resolveOutputFieldType(typ: GraphQLOutputType): GraphQLCompositeType {
-  if (isListType(typ)) {
-    return resolveOutputFieldType(typ.ofType);
-  }
-  if (!isCompositeType(typ)) {
-    throw new Error(`Expected a Composite Type. Got ${typ.name}`);
-  }
-
-  return typ;
-}
-
-function resolveEndType(typ: GraphQLType): string {
+function resolveEndType(typ: GraphQLOutputType): GraphQLNamedOutputType {
   if (isListType(typ) || isNonNullType(typ)) {
     return resolveEndType(typ.ofType);
   }
-  return typ.name;
+  return typ;
 }
