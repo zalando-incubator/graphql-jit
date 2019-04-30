@@ -23,13 +23,22 @@ export interface GraphQLJitResolveInfo extends GraphQLResolveInfo {
 }
 
 export interface FieldExpansion {
+  // The possible return types that the field can return
+  // It includes all the types in the Schema that intersect with the actual return type
   [returnType: string]: TypeExpansion;
 }
 
 export interface TypeExpansion {
+  // The fields that are requested in the Query for a particular type
+  // `true` indicates a leaf node
   [fieldName: string]: FieldExpansion | true;
 }
 
+/**
+ * Compute the GraphQLJitResolveInfo's `fieldExpansion` and return a function
+ * that returns the computed resolveInfo. This thunk is registered in
+ * context.dependencies for the field's resolveInfoName
+ */
 export function createResolveInfoThunk({
   schema,
   fragments,
@@ -48,6 +57,8 @@ export function createResolveInfoThunk({
   fieldNodes: FieldNode[];
 }) {
   const returnType = resolveEndType(fieldType);
+
+  // Result
   const fieldExpansion: FieldExpansion = {};
 
   if (returnType != null) {
@@ -96,6 +107,11 @@ function handleSelectionSet(
   }
 }
 
+/**
+ * Compute a list of possible Types from the returnType of the field and
+ * build the TypeExpansion object for the Field. Pass it down to other
+ * handlers to populate.
+ */
 function handleFieldNode(
   schema: GraphQLSchema,
   fragments: FragmentsType,
@@ -127,6 +143,13 @@ function handleFieldNode(
   }
 }
 
+/**
+ * Handle different kinds of selection nodes accordingly.
+ *
+ * For a field, add the field to the TypeExpansion. Create and link
+ * the next FieldExpansion object to be handled recursively
+ *
+ */
 function handleSelection(
   schema: GraphQLSchema,
   fragments: FragmentsType,
@@ -137,11 +160,7 @@ function handleSelection(
   switch (node.kind) {
     case "Field":
       if (node.selectionSet != null) {
-        const returnType = getReturnType(
-          schema,
-          possibleTypes[0],
-          node.name.value
-        );
+        const returnType = getReturnType(possibleTypes[0], node.name.value);
         const nextFieldExpansion: FieldExpansion = {};
         handleFieldNode(
           schema,
@@ -214,8 +233,14 @@ function handleSelection(
   }
 }
 
+/**
+ * Given an (Object|Interface)Type, and a fieldName, find the
+ * appropriate `end` return type for the field in the Composite Type.
+ *
+ * Note: The `end` return type is the type by unwrapping non-null types
+ * and list types. Check `resolveEndType`
+ */
 function getReturnType(
-  schema: GraphQLSchema,
   parentType: GraphQLCompositeType,
   fieldName: string
 ): GraphQLNamedOutputType {
@@ -236,6 +261,32 @@ function getReturnType(
   return resolveEndType(outputType);
 }
 
+/**
+ * Returns a list of Possible types that one can get to from the
+ * resolvedType. As an analogy, these are the same types that one
+ * can use in a fragment's typeCondition.
+ *
+ * Note: This is different from schema.getPossibleTypes() that this
+ * returns all possible types and not just the ones from the type definition.
+ *
+ * Example:
+ * interface Node {
+ *   id: ID!
+ * }
+ * type User implements Node {
+ *   id: ID!
+ *   name: String
+ * }
+ * type Article implements Node {
+ *   id: ID!
+ *   title: String
+ * }
+ * union Card = User | Article
+ *
+ * - schema.getPossibleTypes(Card) would give [User, Article]
+ * - This function getPossibleTypes(schema, Card) would give [User, Article, Node]
+ *
+ */
 function getPossibleTypes(
   schema: GraphQLSchema,
   resolvedType: GraphQLCompositeType
@@ -258,6 +309,9 @@ function getPossibleTypes(
   return possibleTypes;
 }
 
+/**
+ * Resolve to the end type of the Output type unwrapping non-null types and lists
+ */
 function resolveEndType(typ: GraphQLOutputType): GraphQLNamedOutputType {
   if (isListType(typ) || isNonNullType(typ)) {
     return resolveEndType(typ.ofType);
