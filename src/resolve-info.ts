@@ -110,8 +110,7 @@ function handleFieldNode(
     const possibleTypes = getPossibleTypes(
       schema,
       // if there is a selectionSet, the resolved type must be a composite type
-      resolvedType as GraphQLCompositeType,
-      node.name.value
+      resolvedType as GraphQLCompositeType
     );
 
     for (const typ of possibleTypes) {
@@ -241,9 +240,7 @@ function getReturnType(
 
 function getPossibleTypes(
   schema: GraphQLSchema,
-  resolvedType: GraphQLCompositeType,
-  // this is only used for errors
-  fieldName: string
+  resolvedType: GraphQLCompositeType
 ): GraphQLCompositeType[] {
   if (isObjectType(resolvedType)) {
     return [resolvedType];
