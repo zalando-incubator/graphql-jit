@@ -230,7 +230,7 @@ function getReturnType(
   const fields = parentType.getFields();
   if (!Object.prototype.hasOwnProperty.call(fields, fieldName)) {
     throw new GraphQLError(
-      `Field "${fieldName}" does not exist in "${parentType}"`
+      `Field "${fieldName}" does not exist in "${parentType.name}"`
     );
   }
 

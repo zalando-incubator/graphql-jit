@@ -646,20 +646,37 @@ describe("GraphQLJitResolveInfo", () => {
         }
         type Foo {
           baz: Int!
+          uni: Uni!
+        }
+        union Uni = Bar | Baz
+        type Bar {
+          a: [String!]!
+        }
+        type Baz {
+          b: [Int!]!
         }
       `,
       resolvers: {
         Query: {
           foo() {
             return {
-              baz: 10
+              baz: 10,
+              uni: {
+                a: ["a"]
+              }
             };
+          }
+        },
+        Uni: {
+          __resolveType() {
+            return "Bar";
           }
         }
       }
     });
 
     test("non-existant field in type", async () => {
+      // Field "${fieldName}" does not exist in "${parentType.name}"
       const result = await executeQuery(
         schema,
         parse(`query { foo { fieldDoesNotExist1 { id } } }`)
@@ -670,6 +687,7 @@ describe("GraphQLJitResolveInfo", () => {
     });
 
     test("invalid inline fragment - type does not exist", async () => {
+      // Invalid InlineFragment: Type "${typeName}" does not exist in schema.
       const result = await executeQuery(
         schema,
         parse(`query { foo { ... on NotFound { bar } } }`)
@@ -679,12 +697,23 @@ describe("GraphQLJitResolveInfo", () => {
     });
 
     test("invalid fragment - type does not exist", async () => {
+      // Invalid Fragment: Type "${typeName}" does not exist in schema.
       const result = await executeQuery(
         schema,
         parse(`query { foo { ...frag } } fragment frag on NotFound2 { id }`)
       );
       expect(result.errors.length).toBe(1);
       expect(result.errors[0].message).toContain("NotFound2");
+    });
+
+    test("invalid union selection", async () => {
+      // Invalid selection: Field "${fieldName}" for type "${parentType.name}"
+      const result = await executeQuery(
+        schema,
+        parse(`query { foo { uni { wrongField { withSelection } } } }`)
+      );
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0].message).toContain("wrongField");
     });
   });
 });
