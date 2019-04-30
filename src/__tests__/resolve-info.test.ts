@@ -3,7 +3,7 @@ import { compileQuery, isCompiledQuery } from "../execution";
 import { makeExecutableSchema } from "graphql-tools";
 
 describe("GraphQLJitResolveInfo", () => {
-  describe("simple types", () => {
+  describe.only("simple types", () => {
     let inf: any;
     const schema = makeExecutableSchema({
       typeDefs: `
@@ -14,6 +14,11 @@ describe("GraphQLJitResolveInfo", () => {
           a: String
           b: Int
           c: Boolean!
+          d: Bar
+        }
+        type Bar {
+          e: String!
+          f: Boolean!
         }
       `,
       resolvers: {
@@ -30,10 +35,24 @@ describe("GraphQLJitResolveInfo", () => {
     });
 
     test("all selection fields of the current resolver", async () => {
-      await executeQuery(schema, parse(`query { foo { a b c } }`));
-      expect(inf.fields).toMatchObject({
-        Foo: expect.arrayContaining(["a", "b", "c"])
-      });
+      const result = await executeQuery(
+        schema,
+        parse(`query { foo { a d { e } } }`)
+      );
+      expect(result.errors).not.toBeDefined();
+
+      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+        Object {
+          "Foo": Object {
+            "a": true,
+            "d": Object {
+              "Bar": Object {
+                "e": true,
+              },
+            },
+          },
+        }
+      `);
     });
 
     test("with fragments", async () => {
@@ -60,9 +79,15 @@ describe("GraphQLJitResolveInfo", () => {
         )
       );
 
-      expect(inf.fields).toMatchObject({
-        Foo: expect.arrayContaining(["a", "b", "c"])
-      });
+      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+        Object {
+          "Foo": Object {
+            "a": true,
+            "b": true,
+            "c": true,
+          },
+        }
+      `);
     });
 
     test("inline fragments", async () => {
@@ -74,7 +99,11 @@ describe("GraphQLJitResolveInfo", () => {
             foo {
               ... {
                 ... {
-                  a
+                  d {
+                    ... {
+                      e
+                    }
+                  }
                 }
               }
             }
@@ -83,9 +112,17 @@ describe("GraphQLJitResolveInfo", () => {
         )
       );
 
-      expect(inf.fields).toMatchObject({
-        Foo: expect.arrayContaining(["a"])
-      });
+      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+        Object {
+          "Foo": Object {
+            "d": Object {
+              "Bar": Object {
+                "e": true,
+              },
+            },
+          },
+        }
+      `);
     });
 
     test("aggregate multiple selections of the same field", async () => {
@@ -108,13 +145,19 @@ describe("GraphQLJitResolveInfo", () => {
         )
       );
 
-      expect(inf.fields).toMatchObject({
-        Foo: expect.arrayContaining(["a", "b", "c"])
-      });
+      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+        Object {
+          "Foo": Object {
+            "a": true,
+            "b": true,
+            "c": true,
+          },
+        }
+      `);
     });
   });
 
-  describe("interfaces", () => {
+  describe.only("interfaces", () => {
     let inf: any;
     const schema = makeExecutableSchema({
       typeDefs: `
@@ -155,7 +198,7 @@ describe("GraphQLJitResolveInfo", () => {
     });
 
     test("compute interface field nodes", async () => {
-      await executeQuery(
+      const result = await executeQuery(
         schema,
         parse(
           `
@@ -169,13 +212,28 @@ describe("GraphQLJitResolveInfo", () => {
         )
       );
 
-      expect(inf.fields).toMatchObject({
-        IBar: expect.arrayContaining(["id", "title"])
-      });
+      expect(result.errors).not.toBeDefined();
+
+      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+        Object {
+          "Bar1": Object {
+            "id": true,
+            "title": true,
+          },
+          "Bar2": Object {
+            "id": true,
+            "title": true,
+          },
+          "IBar": Object {
+            "id": true,
+            "title": true,
+          },
+        }
+      `);
     });
 
     test("fields per type", async () => {
-      await executeQuery(
+      const result = await executeQuery(
         schema,
         parse(
           `
@@ -194,16 +252,29 @@ describe("GraphQLJitResolveInfo", () => {
           `
         )
       );
-
-      expect(inf.fields).toMatchObject({
-        IBar: expect.arrayContaining(["id", "title"]),
-        Bar1: expect.arrayContaining(["id", "title", "b1"]),
-        Bar2: expect.arrayContaining(["id", "title", "b2"])
-      });
+      expect(result.errors).not.toBeDefined();
+      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+        Object {
+          "Bar1": Object {
+            "b1": true,
+            "id": true,
+            "title": true,
+          },
+          "Bar2": Object {
+            "b2": true,
+            "id": true,
+            "title": true,
+          },
+          "IBar": Object {
+            "id": true,
+            "title": true,
+          },
+        }
+      `);
     });
 
     test("fields per type - with fragments", async () => {
-      await executeQuery(
+      const result = await executeQuery(
         schema,
         parse(
           `
@@ -233,15 +304,29 @@ describe("GraphQLJitResolveInfo", () => {
         )
       );
 
-      expect(inf.fields).toMatchObject({
-        IBar: expect.arrayContaining(["id", "title"]),
-        Bar1: expect.arrayContaining(["id", "title", "b1"]),
-        Bar2: expect.arrayContaining(["id", "title", "b2"])
-      });
+      expect(result.errors).not.toBeDefined();
+      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+        Object {
+          "Bar1": Object {
+            "b1": true,
+            "id": true,
+            "title": true,
+          },
+          "Bar2": Object {
+            "b2": true,
+            "id": true,
+            "title": true,
+          },
+          "IBar": Object {
+            "id": true,
+            "title": true,
+          },
+        }
+      `);
     });
 
     test("aggregate multiple selections of the same field", async () => {
-      await executeQuery(
+      const result = await executeQuery(
         schema,
         parse(
           `
@@ -267,11 +352,26 @@ describe("GraphQLJitResolveInfo", () => {
         )
       );
 
-      expect(inf.fields).toMatchObject({
-        IBar: expect.arrayContaining(["id", "title"]),
-        Bar1: expect.arrayContaining(["id", "title", "b1"]),
-        Bar2: expect.arrayContaining(["id", "title", "b2"])
-      });
+      expect(result.errors).not.toBeDefined();
+
+      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+        Object {
+          "Bar1": Object {
+            "b1": true,
+            "id": true,
+            "title": true,
+          },
+          "Bar2": Object {
+            "b2": true,
+            "id": true,
+            "title": true,
+          },
+          "IBar": Object {
+            "id": true,
+            "title": true,
+          },
+        }
+      `);
     });
   });
 
@@ -308,8 +408,8 @@ describe("GraphQLJitResolveInfo", () => {
       inf = undefined;
     });
 
-    test("union field nodes", async () => {
-      await executeQuery(
+    test.only("union field nodes", async () => {
+      const result = await executeQuery(
         schema,
         parse(
           `
@@ -327,14 +427,17 @@ describe("GraphQLJitResolveInfo", () => {
         )
       );
 
-      expect(inf.fields).toMatchObject({
-        Foo: expect.arrayContaining(["foo"]),
-        Bar: expect.arrayContaining(["bar"])
-      });
+      expect(result.errors).not.toBeDefined();
+      expect(inf.fieldExpansion).toMatchInlineSnapshot();
+
+      // expect(inf.fields).toMatchObject({
+      //   Foo: expect.arrayContaining(["foo"]),
+      //   Bar: expect.arrayContaining(["bar"])
+      // });
 
       // should not contain the union type as there cannot
       // be a selection set for unions without a specific type
-      expect(Object.keys(inf.fields)).not.toContain("Baz");
+      expect(Object.keys(inf.fieldExpansion)).not.toContain("Baz");
     });
 
     test("unions with fragments", async () => {
