@@ -1,4 +1,4 @@
-import { GraphQLSchema, DocumentNode, parse } from "graphql";
+import { GraphQLSchema, DocumentNode, parse, validate } from "graphql";
 import { compileQuery, isCompiledQuery } from "../execution";
 import { makeExecutableSchema } from "graphql-tools";
 
@@ -433,7 +433,6 @@ describe("GraphQLJitResolveInfo", () => {
           "Bar": Object {
             "bar": true,
           },
-          "Baz": Object {},
           "Foo": Object {
             "foo": true,
           },
@@ -456,15 +455,8 @@ describe("GraphQLJitResolveInfo", () => {
       expect(result.errors).not.toBeDefined();
       expect(inf.fieldExpansion).toMatchInlineSnapshot(`
         Object {
-          "Bar": Object {
-            "__typename": true,
-          },
-          "Baz": Object {
-            "__typename": true,
-          },
-          "Foo": Object {
-            "__typename": true,
-          },
+          "Bar": Object {},
+          "Foo": Object {},
         }
       `);
     });
@@ -496,7 +488,6 @@ describe("GraphQLJitResolveInfo", () => {
           "Bar": Object {
             "bar": true,
           },
-          "Baz": Object {},
           "Foo": Object {
             "foo": true,
           },
@@ -535,7 +526,6 @@ describe("GraphQLJitResolveInfo", () => {
           "Bar": Object {
             "bar": true,
           },
-          "Baz": Object {},
           "Foo": Object {
             "foo": true,
           },
@@ -544,176 +534,251 @@ describe("GraphQLJitResolveInfo", () => {
     });
   });
 
-  describe("lists", () => {
-    let infFoos: any;
-    let infFooOrBars: any;
+  describe("lists, inputs, unions and interfaces 2", () => {
+    let infNode: any;
+    let infElements: any;
     let infMedia: any;
-    let infFooBars: any;
     const schema = makeExecutableSchema({
       typeDefs: `
         type Query {
-          foos: [Foo!]
-          fooOrBars: [FooOrBar!]
-          media: [Media!]!
+          node(id: ID!): Node!
+          elements(like: String!): [DocumentElement!]!
+          media(tags: [String!]!): [Media!]!
         }
-        type Foo {
-          bars: [Bar]
+        interface Node {
+          id: ID!
         }
-        type Bar {
-          strs: [String!]
-        }
-        union FooOrBar = Foo | Bar
         interface Media {
-          url: String
+          url: String!
+          tags: [Tag!]
         }
-        type Image implements Media {
-          url: String
+        type Tag implements Node {
+          id: ID!
+          name: String!
+        }
+        union DocumentElement = Image | Video | Div
+        type Div {
+          children: [DocumentElement!]
+        }
+        type Image implements Node & Media {
+          id: ID!
+          url: String!
+          tags: [Tag!]
           width: Int
         }
-        type Video implements Media {
-          url: String
-          kind: VideoKind
+        type Video implements Node & Media {
+          id: ID!
+          url: String!
+          tags: [Tag!]
+          source: VideoSource
         }
-        enum VideoKind {
+        enum VideoSource {
           YOUTUBE
           VIMEO
         }
       `,
-      resolverValidationOptions: { requireResolversForResolveType: false },
       resolvers: {
         Query: {
-          foos(_: any, _1: any, _2: any, info: any) {
-            infFoos = info;
+          node(_: any, { id }: any, _2: any, info: any) {
+            infNode = info;
+            return {
+              id,
+              url: "https://example.com",
+              children: [],
+              width: 50
+            };
           },
-          fooOrBars(_: any, _1: any, _2: any, info: any) {
-            infFooOrBars = info;
+          elements(_: any, _1: any, _2: any, info: any) {
+            infElements = info;
+            return [];
           },
           media(_: any, _1: any, _2: any, info: any) {
             infMedia = info;
+            return [];
           }
         },
-        Foo: {
-          bars(_: any, _1: any, _2: any, info: any) {
-            infFooBars = info;
+        Node: {
+          __resolveType() {
+            return "Image";
+          }
+        },
+        Media: {
+          __resolveType() {
+            return "Video";
+          }
+        },
+        DocumentElement: {
+          __resolveType() {
+            return "Div";
           }
         }
       }
     });
 
     afterEach(() => {
-      infFoos = undefined;
-      infFooOrBars = undefined;
+      infNode = undefined;
+      infElements = undefined;
       infMedia = undefined;
-      infFooBars = undefined;
     });
 
-    test("object", async () => {
-      const result = await executeQuery(
-        schema,
-        parse(`
-          query {
-            foos {
-              bars {
-                strs
+    test("node", async () => {
+      const doc = parse(`
+        query {
+          node(id: "root") {
+            id
+            ... on Image {
+              width
+            }
+            ... on DocumentElement {
+              __typename
+              ... on Image {
+                url
+                tags {
+                  name
+                }
+              }
+              ... on Media {
+                tags {
+                  id
+                }
               }
             }
           }
-        `)
-      );
+        }
+      `);
+      const result = await executeQuery(schema, doc);
+      const validationErrors = validate(schema, doc);
+      if (validationErrors.length > 0) {
+        console.error(validationErrors);
+      }
+      expect(validationErrors.length).toBe(0);
       expect(result.errors).not.toBeDefined();
-      expect(infFoos.fieldExpansion).toMatchInlineSnapshot(`
+      expect(infNode.fieldExpansion).toMatchInlineSnapshot(`
         Object {
-          "Foo": Object {
-            "bars": Object {
-              "Bar": Object {
-                "strs": true,
+          "Image": Object {
+            "id": true,
+            "tags": Object {
+              "Tag": Object {
+                "id": true,
+                "name": true,
               },
             },
+            "url": true,
+            "width": true,
+          },
+          "Media": Object {
+            "tags": Object {
+              "Tag": Object {
+                "id": true,
+                "name": true,
+              },
+            },
+            "url": true,
+          },
+          "Node": Object {
+            "id": true,
+          },
+          "Tag": Object {
+            "id": true,
+          },
+          "Video": Object {
+            "id": true,
+            "tags": Object {
+              "Tag": Object {
+                "id": true,
+                "name": true,
+              },
+            },
+            "url": true,
           },
         }
       `);
     });
 
-    // TODO
-  });
-
-  // user errors that happen during resolve info computation
-  describe("errors", () => {
-    const schema = makeExecutableSchema({
-      typeDefs: `
-        type Query {
-          foo: Foo!
-        }
-        type Foo {
-          baz: Int!
-          uni: Uni!
-        }
-        union Uni = Bar | Baz
-        type Bar {
-          a: [String!]!
-        }
-        type Baz {
-          b: [Int!]!
-        }
-      `,
-      resolvers: {
-        Query: {
-          foo() {
-            return {
-              baz: 10,
-              uni: {
-                a: ["a"]
+    test("elements", async () => {
+      const doc = parse(`
+        query {
+          elements(like: "div") {
+            __typename
+            ... on Node {
+              id
+            }
+            ... on Media {
+              url
+            }
+            ... on Div {
+              children {
+                ... on Node {
+                  id
+                }
+                ...mediaContainer
               }
-            };
-          }
-        },
-        Uni: {
-          __resolveType() {
-            return "Bar";
+            }
           }
         }
+        fragment mediaContainer on Div {
+          children {
+            ... on Media {
+              url
+            }
+          }
+        }
+      `);
+      const result = await executeQuery(schema, doc);
+      const validationErrors = validate(schema, doc);
+      if (validationErrors.length > 0) {
+        console.error(validationErrors);
       }
-    });
+      expect(validationErrors.length).toBe(0);
 
-    test("non-existant field in type", async () => {
-      // Field "${fieldName}" does not exist in "${parentType.name}"
-      const result = await executeQuery(
-        schema,
-        parse(`query { foo { fieldDoesNotExist1 { id } } }`)
-      );
-      expect(result.errors).toBeDefined();
-      expect(result.errors.length).toBe(1);
-      expect(result.errors[0].message).toContain("fieldDoesNotExist1");
-    });
-
-    test("invalid inline fragment - type does not exist", async () => {
-      // Invalid InlineFragment: Type "${typeName}" does not exist in schema.
-      const result = await executeQuery(
-        schema,
-        parse(`query { foo { ... on NotFound { bar } } }`)
-      );
-      expect(result.errors.length).toBe(1);
-      expect(result.errors[0].message).toContain("NotFound");
-    });
-
-    test("invalid fragment - type does not exist", async () => {
-      // Invalid Fragment: Type "${typeName}" does not exist in schema.
-      const result = await executeQuery(
-        schema,
-        parse(`query { foo { ...frag } } fragment frag on NotFound2 { id }`)
-      );
-      expect(result.errors.length).toBe(1);
-      expect(result.errors[0].message).toContain("NotFound2");
-    });
-
-    test("invalid union selection", async () => {
-      // Invalid selection: Field "${fieldName}" for type "${parentType.name}"
-      const result = await executeQuery(
-        schema,
-        parse(`query { foo { uni { wrongField { withSelection } } } }`)
-      );
-      expect(result.errors.length).toBe(1);
-      expect(result.errors[0].message).toContain("wrongField");
+      expect(result.errors).not.toBeDefined();
+      expect(infElements.fieldExpansion).toMatchInlineSnapshot(`
+        Object {
+          "Div": Object {
+            "children": Object {
+              "Div": Object {
+                "children": Object {
+                  "Div": Object {},
+                  "Image": Object {
+                    "url": true,
+                  },
+                  "Media": Object {
+                    "url": true,
+                  },
+                  "Node": Object {},
+                  "Video": Object {
+                    "url": true,
+                  },
+                },
+              },
+              "Image": Object {
+                "id": true,
+              },
+              "Media": Object {},
+              "Node": Object {
+                "id": true,
+              },
+              "Video": Object {
+                "id": true,
+              },
+            },
+          },
+          "Image": Object {
+            "id": true,
+            "url": true,
+          },
+          "Media": Object {
+            "url": true,
+          },
+          "Node": Object {
+            "id": true,
+          },
+          "Video": Object {
+            "id": true,
+            "url": true,
+          },
+        }
+      `);
     });
   });
 });
