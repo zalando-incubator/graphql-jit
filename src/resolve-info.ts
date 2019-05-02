@@ -62,12 +62,11 @@ export function createResolveInfoThunk({
   // Result
   const fieldExpansion: FieldExpansion = {};
 
-  const expander = new Expander(schema, fragments);
   if (returnType != null) {
     for (const fieldNode of fieldNodes) {
       deepMerge(
         fieldExpansion,
-        expander.expandFieldNode(fieldNode, returnType)
+        expandFieldNode(schema, fragments, fieldNode, returnType)
       );
     }
   }
@@ -94,117 +93,125 @@ export function createResolveInfoThunk({
 type FragmentsType = GraphQLResolveInfo["fragments"];
 type GraphQLNamedOutputType = GraphQLNamedType & GraphQLOutputType;
 
-class Expander {
-  constructor(
-    private readonly schema: Readonly<GraphQLSchema>,
-    private readonly fragments: Readonly<FragmentsType>
-  ) {}
+function expandFieldNode(
+  schema: GraphQLSchema,
+  fragments: FragmentsType,
+  node: FieldNode,
+  fieldType: GraphQLOutputType
+): FieldExpansion | true {
+  if (node.selectionSet == null) {
+    return true;
+  }
 
-  public expandFieldNode(
-    node: FieldNode,
-    fieldType: GraphQLOutputType
-  ): FieldExpansion | true {
-    if (node.selectionSet == null) {
-      return true;
+  // there is a selectionSet which makes the fieldType a CompositeType
+  const typ = resolveEndType(fieldType) as GraphQLCompositeType;
+  const possibleTypes = getPossibleTypes(schema, fragments, typ);
+
+  const fieldExpansion: FieldExpansion = {};
+  for (const possibleType of possibleTypes) {
+    if (!isUnionType(possibleType)) {
+      fieldExpansion[possibleType.name] = expandFieldNodeType(
+        schema,
+        fragments,
+        possibleType,
+        node.selectionSet
+      );
     }
+  }
 
-    // there is a selectionSet which makes the fieldType a CompositeType
-    const typ = resolveEndType(fieldType) as GraphQLCompositeType;
-    const possibleTypes = this.getPossibleTypes(typ);
+  return fieldExpansion;
+}
 
-    const fieldExpansion: FieldExpansion = {};
-    for (const possibleType of possibleTypes) {
-      if (!isUnionType(possibleType)) {
-        fieldExpansion[possibleType.name] = this.expandFieldNodeType(
-          possibleType,
-          node.selectionSet
+function expandFieldNodeType(
+  schema: GraphQLSchema,
+  fragments: FragmentsType,
+  parentType: GraphQLCompositeType,
+  selectionSet: SelectionSetNode,
+  level = 0
+): TypeExpansion {
+  const typeExpansion: TypeExpansion = {};
+
+  for (const selection of selectionSet.selections) {
+    if (selection.kind === "Field") {
+      if (
+        !isUnionType(parentType) &&
+        hasField(parentType, selection.name.value)
+      ) {
+        typeExpansion[selection.name.value] = expandFieldNode(
+          schema,
+          fragments,
+          selection,
+          getReturnType(parentType, selection.name.value)
         );
       }
+    } else {
+      const selectionSet =
+        selection.kind === "InlineFragment"
+          ? selection.selectionSet
+          : fragments[selection.name.value].selectionSet;
+      deepMerge(
+        typeExpansion,
+        expandFieldNodeType(
+          schema,
+          fragments,
+          parentType,
+          selectionSet,
+          level + 1
+        )
+      );
     }
-
-    return fieldExpansion;
   }
 
-  public expandFieldNodeType(
-    parentType: GraphQLCompositeType,
-    selectionSet: SelectionSetNode,
-    level = 0
-  ): TypeExpansion {
-    const typeExpansion: TypeExpansion = {};
+  return typeExpansion;
+}
 
-    for (const selection of selectionSet.selections) {
-      if (selection.kind === "Field") {
-        if (
-          !isUnionType(parentType) &&
-          hasField(parentType, selection.name.value)
-        ) {
-          typeExpansion[selection.name.value] = this.expandFieldNode(
-            selection,
-            getReturnType(parentType, selection.name.value)
-          );
-        }
-      } else {
-        const selectionSet =
-          selection.kind === "InlineFragment"
-            ? selection.selectionSet
-            : this.fragments[selection.name.value].selectionSet;
-        deepMerge(
-          typeExpansion,
-          this.expandFieldNodeType(parentType, selectionSet, level + 1)
-        );
+/**
+ * Returns a list of Possible types that one can get to from the
+ * resolvedType. As an analogy, these are the same types that one
+ * can use in a fragment's typeCondition.
+ *
+ * Note: This is different from schema.getPossibleTypes() that this
+ * returns all possible types and not just the ones from the type definition.
+ *
+ * Example:
+ * interface Node {
+ *   id: ID!
+ * }
+ * type User implements Node {
+ *   id: ID!
+ *   name: String
+ * }
+ * type Article implements Node {
+ *   id: ID!
+ *   title: String
+ * }
+ * union Card = User | Article
+ *
+ * - schema.getPossibleTypes(Card) would give [User, Article]
+ * - This function getPossibleTypes(schema, Card) would give [User, Article, Node]
+ *
+ */
+function getPossibleTypes(
+  schema: GraphQLSchema,
+  fragments: FragmentsType,
+  compositeType: GraphQLCompositeType
+) {
+  if (isObjectType(compositeType)) {
+    return [compositeType];
+  }
+
+  const possibleTypes: GraphQLCompositeType[] = [];
+  const types = schema.getTypeMap();
+  for (const typeName in types) {
+    if (Object.prototype.hasOwnProperty.call(types, typeName)) {
+      const typ = types[typeName];
+      if (isCompositeType(typ) && doTypesOverlap(schema, typ, compositeType)) {
+        possibleTypes.push(typ);
       }
     }
-
-    return typeExpansion;
   }
 
-  /**
-   * Returns a list of Possible types that one can get to from the
-   * resolvedType. As an analogy, these are the same types that one
-   * can use in a fragment's typeCondition.
-   *
-   * Note: This is different from schema.getPossibleTypes() that this
-   * returns all possible types and not just the ones from the type definition.
-   *
-   * Example:
-   * interface Node {
-   *   id: ID!
-   * }
-   * type User implements Node {
-   *   id: ID!
-   *   name: String
-   * }
-   * type Article implements Node {
-   *   id: ID!
-   *   title: String
-   * }
-   * union Card = User | Article
-   *
-   * - schema.getPossibleTypes(Card) would give [User, Article]
-   * - This function getPossibleTypes(schema, Card) would give [User, Article, Node]
-   *
-   */
-  public getPossibleTypes(compositeType: GraphQLCompositeType) {
-    if (isObjectType(compositeType)) {
-      return [compositeType];
-    }
-
-    const possibleTypes: GraphQLCompositeType[] = [];
-    const types = this.schema.getTypeMap();
-    for (const typeName in types) {
-      if (Object.prototype.hasOwnProperty.call(types, typeName)) {
-        const typ = types[typeName];
-        if (
-          isCompositeType(typ) &&
-          doTypesOverlap(this.schema, typ, compositeType)
-        ) {
-          possibleTypes.push(typ);
-        }
-      }
-    }
-
-    return possibleTypes;
-  }
+  return possibleTypes;
 }
 
 /**
