@@ -16,8 +16,10 @@ import {
   isUnionType,
   SelectionSetNode
 } from "graphql";
+import memoize from "lodash.memoize";
 import deepMerge from "lodash.merge";
 import { ObjectPath } from "./ast";
+import { memoize2, memoize4 } from "./memoize";
 
 export interface GraphQLJitResolveInfo extends GraphQLResolveInfo {
   fieldExpansion: FieldExpansion | true;
@@ -57,7 +59,7 @@ export function createResolveInfoThunk({
   fieldName: string;
   fieldNodes: FieldNode[];
 }) {
-  const returnType = resolveEndType(fieldType);
+  const returnType = memoizedResolveEndType(fieldType);
 
   // Result
   const fieldExpansion: FieldExpansion = {};
@@ -66,7 +68,7 @@ export function createResolveInfoThunk({
     for (const fieldNode of fieldNodes) {
       deepMerge(
         fieldExpansion,
-        expandFieldNode(schema, fragments, fieldNode, returnType)
+        memoizedExpandFieldNode(schema)(fragments)(fieldNode)(returnType)
       );
     }
   }
@@ -92,6 +94,14 @@ export function createResolveInfoThunk({
 
 type FragmentsType = GraphQLResolveInfo["fragments"];
 type GraphQLNamedOutputType = GraphQLNamedType & GraphQLOutputType;
+type GraphQLObjectLike = GraphQLInterfaceType | GraphQLObjectType;
+
+const memoizedGetReturnType = memoize2(getReturnType);
+const memoizedHasField = memoize2(hasField);
+const memoizedResolveEndType = memoize(resolveEndType);
+const memoizedGetPossibleTypes = memoize2(getPossibleTypes);
+const memoizedExpandFieldNodeType = memoize4(expandFieldNodeType);
+const memoizedExpandFieldNode = memoize4(expandFieldNode);
 
 function expandFieldNode(
   schema: GraphQLSchema,
@@ -104,18 +114,15 @@ function expandFieldNode(
   }
 
   // there is a selectionSet which makes the fieldType a CompositeType
-  const typ = resolveEndType(fieldType) as GraphQLCompositeType;
-  const possibleTypes = getPossibleTypes(schema, fragments, typ);
+  const typ = memoizedResolveEndType(fieldType) as GraphQLCompositeType;
+  const possibleTypes = memoizedGetPossibleTypes(schema)(typ);
 
   const fieldExpansion: FieldExpansion = {};
   for (const possibleType of possibleTypes) {
     if (!isUnionType(possibleType)) {
-      fieldExpansion[possibleType.name] = expandFieldNodeType(
-        schema,
-        fragments,
-        possibleType,
-        node.selectionSet
-      );
+      fieldExpansion[possibleType.name] = memoizedExpandFieldNodeType(schema)(
+        fragments
+      )(possibleType)(node.selectionSet);
     }
   }
 
@@ -126,8 +133,7 @@ function expandFieldNodeType(
   schema: GraphQLSchema,
   fragments: FragmentsType,
   parentType: GraphQLCompositeType,
-  selectionSet: SelectionSetNode,
-  level = 0
+  selectionSet: SelectionSetNode
 ): TypeExpansion {
   const typeExpansion: TypeExpansion = {};
 
@@ -135,14 +141,11 @@ function expandFieldNodeType(
     if (selection.kind === "Field") {
       if (
         !isUnionType(parentType) &&
-        hasField(parentType, selection.name.value)
+        memoizedHasField(parentType)(selection.name.value)
       ) {
-        typeExpansion[selection.name.value] = expandFieldNode(
-          schema,
-          fragments,
-          selection,
-          getReturnType(parentType, selection.name.value)
-        );
+        typeExpansion[selection.name.value] = memoizedExpandFieldNode(schema)(
+          fragments
+        )(selection)(memoizedGetReturnType(parentType)(selection.name.value));
       }
     } else {
       const selectionSet =
@@ -151,13 +154,7 @@ function expandFieldNodeType(
           : fragments[selection.name.value].selectionSet;
       deepMerge(
         typeExpansion,
-        expandFieldNodeType(
-          schema,
-          fragments,
-          parentType,
-          selectionSet,
-          level + 1
-        )
+        memoizedExpandFieldNodeType(schema)(fragments)(parentType)(selectionSet)
       );
     }
   }
@@ -193,7 +190,6 @@ function expandFieldNodeType(
  */
 function getPossibleTypes(
   schema: GraphQLSchema,
-  fragments: FragmentsType,
   compositeType: GraphQLCompositeType
 ) {
   if (isObjectType(compositeType)) {
@@ -222,7 +218,7 @@ function getPossibleTypes(
  * and list types. Check `resolveEndType`
  */
 function getReturnType(
-  parentType: GraphQLInterfaceType | GraphQLObjectType,
+  parentType: GraphQLObjectLike,
   fieldName: string
 ): GraphQLNamedOutputType {
   const fields = parentType.getFields();
@@ -233,7 +229,7 @@ function getReturnType(
   }
 
   const outputType = fields[fieldName].type;
-  return resolveEndType(outputType);
+  return memoizedResolveEndType(outputType);
 }
 
 /**
@@ -241,14 +237,11 @@ function getReturnType(
  */
 function resolveEndType(typ: GraphQLOutputType): GraphQLNamedOutputType {
   if (isListType(typ) || isNonNullType(typ)) {
-    return resolveEndType(typ.ofType);
+    return memoizedResolveEndType(typ.ofType);
   }
   return typ;
 }
 
-function hasField(
-  typ: GraphQLInterfaceType | GraphQLObjectType,
-  fieldName: string
-) {
+function hasField(typ: GraphQLObjectLike, fieldName: string) {
   return Object.prototype.hasOwnProperty.call(typ.getFields(), fieldName);
 }
