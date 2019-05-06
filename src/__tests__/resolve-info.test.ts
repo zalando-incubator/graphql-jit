@@ -40,14 +40,17 @@ describe("GraphQLJitResolveInfo", () => {
         parse(`query { foo { a d { e } } }`)
       );
       expect(result.errors).not.toBeDefined();
-
       expect(inf.fieldExpansion).toMatchInlineSnapshot(`
         Object {
           "Foo": Object {
-            "a": true,
+            "a": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
             "d": Object {
               "Bar": Object {
-                "e": true,
+                "e": Object {
+                  Symbol(LeafFieldSymbol): true,
+                },
               },
             },
           },
@@ -82,9 +85,15 @@ describe("GraphQLJitResolveInfo", () => {
       expect(inf.fieldExpansion).toMatchInlineSnapshot(`
         Object {
           "Foo": Object {
-            "a": true,
-            "b": true,
-            "c": true,
+            "a": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "b": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "c": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
         }
       `);
@@ -117,7 +126,9 @@ describe("GraphQLJitResolveInfo", () => {
           "Foo": Object {
             "d": Object {
               "Bar": Object {
-                "e": true,
+                "e": Object {
+                  Symbol(LeafFieldSymbol): true,
+                },
               },
             },
           },
@@ -148,9 +159,15 @@ describe("GraphQLJitResolveInfo", () => {
       expect(inf.fieldExpansion).toMatchInlineSnapshot(`
         Object {
           "Foo": Object {
-            "a": true,
-            "b": true,
-            "c": true,
+            "a": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "b": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "c": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
         }
       `);
@@ -217,16 +234,28 @@ describe("GraphQLJitResolveInfo", () => {
       expect(inf.fieldExpansion).toMatchInlineSnapshot(`
         Object {
           "Bar1": Object {
-            "id": true,
-            "title": true,
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "title": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "Bar2": Object {
-            "id": true,
-            "title": true,
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "title": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "IBar": Object {
-            "id": true,
-            "title": true,
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "title": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
         }
       `);
@@ -256,18 +285,34 @@ describe("GraphQLJitResolveInfo", () => {
       expect(inf.fieldExpansion).toMatchInlineSnapshot(`
         Object {
           "Bar1": Object {
-            "b1": true,
-            "id": true,
-            "title": true,
+            "b1": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "title": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "Bar2": Object {
-            "b2": true,
-            "id": true,
-            "title": true,
+            "b2": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "title": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "IBar": Object {
-            "id": true,
-            "title": true,
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "title": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
         }
       `);
@@ -308,18 +353,34 @@ describe("GraphQLJitResolveInfo", () => {
       expect(inf.fieldExpansion).toMatchInlineSnapshot(`
         Object {
           "Bar1": Object {
-            "b1": true,
-            "id": true,
-            "title": true,
+            "b1": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "title": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "Bar2": Object {
-            "b2": true,
-            "id": true,
-            "title": true,
+            "b2": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "title": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "IBar": Object {
-            "id": true,
-            "title": true,
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "title": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
         }
       `);
@@ -357,18 +418,34 @@ describe("GraphQLJitResolveInfo", () => {
       expect(inf.fieldExpansion).toMatchInlineSnapshot(`
         Object {
           "Bar1": Object {
-            "b1": true,
-            "id": true,
-            "title": true,
+            "b1": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "title": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "Bar2": Object {
-            "b2": true,
-            "id": true,
-            "title": true,
+            "b2": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "title": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "IBar": Object {
-            "id": true,
-            "title": true,
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "title": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
         }
       `);
@@ -431,10 +508,14 @@ describe("GraphQLJitResolveInfo", () => {
       expect(inf.fieldExpansion).toMatchInlineSnapshot(`
         Object {
           "Bar": Object {
-            "bar": true,
+            "bar": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "Foo": Object {
-            "foo": true,
+            "foo": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
         }
       `);
@@ -486,10 +567,14 @@ describe("GraphQLJitResolveInfo", () => {
       expect(inf.fieldExpansion).toMatchInlineSnapshot(`
         Object {
           "Bar": Object {
-            "bar": true,
+            "bar": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "Foo": Object {
-            "foo": true,
+            "foo": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
         }
       `);
@@ -524,10 +609,14 @@ describe("GraphQLJitResolveInfo", () => {
       expect(inf.fieldExpansion).toMatchInlineSnapshot(`
         Object {
           "Bar": Object {
-            "bar": true,
+            "bar": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "Foo": Object {
-            "foo": true,
+            "foo": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
         }
       `);
@@ -656,40 +745,68 @@ describe("GraphQLJitResolveInfo", () => {
       expect(infNode.fieldExpansion).toMatchInlineSnapshot(`
         Object {
           "Image": Object {
-            "id": true,
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
             "tags": Object {
               "Tag": Object {
-                "id": true,
-                "name": true,
+                "id": Object {
+                  Symbol(LeafFieldSymbol): true,
+                },
+                "name": Object {
+                  Symbol(LeafFieldSymbol): true,
+                },
               },
             },
-            "url": true,
-            "width": true,
+            "url": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "width": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "Media": Object {
             "tags": Object {
               "Tag": Object {
-                "id": true,
-                "name": true,
+                "id": Object {
+                  Symbol(LeafFieldSymbol): true,
+                },
+                "name": Object {
+                  Symbol(LeafFieldSymbol): true,
+                },
               },
             },
-            "url": true,
+            "url": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "Node": Object {
-            "id": true,
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "Tag": Object {
-            "id": true,
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "Video": Object {
-            "id": true,
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
             "tags": Object {
               "Tag": Object {
-                "id": true,
-                "name": true,
+                "id": Object {
+                  Symbol(LeafFieldSymbol): true,
+                },
+                "name": Object {
+                  Symbol(LeafFieldSymbol): true,
+                },
               },
             },
-            "url": true,
+            "url": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
         }
       `);
@@ -740,42 +857,66 @@ describe("GraphQLJitResolveInfo", () => {
                 "children": Object {
                   "Div": Object {},
                   "Image": Object {
-                    "url": true,
+                    "url": Object {
+                      Symbol(LeafFieldSymbol): true,
+                    },
                   },
                   "Media": Object {
-                    "url": true,
+                    "url": Object {
+                      Symbol(LeafFieldSymbol): true,
+                    },
                   },
                   "Node": Object {},
                   "Video": Object {
-                    "url": true,
+                    "url": Object {
+                      Symbol(LeafFieldSymbol): true,
+                    },
                   },
                 },
               },
               "Image": Object {
-                "id": true,
+                "id": Object {
+                  Symbol(LeafFieldSymbol): true,
+                },
               },
               "Media": Object {},
               "Node": Object {
-                "id": true,
+                "id": Object {
+                  Symbol(LeafFieldSymbol): true,
+                },
               },
               "Video": Object {
-                "id": true,
+                "id": Object {
+                  Symbol(LeafFieldSymbol): true,
+                },
               },
             },
           },
           "Image": Object {
-            "id": true,
-            "url": true,
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "url": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "Media": Object {
-            "url": true,
+            "url": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "Node": Object {
-            "id": true,
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
           "Video": Object {
-            "id": true,
-            "url": true,
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "url": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
           },
         }
       `);

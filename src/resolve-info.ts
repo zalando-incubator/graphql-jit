@@ -17,12 +17,12 @@ import {
   SelectionSetNode
 } from "graphql";
 import memoize from "lodash.memoize";
-import deepMerge from "lodash.merge";
+import mergeWith from "lodash.mergewith";
 import { ObjectPath } from "./ast";
 import { memoize2, memoize4 } from "./memoize";
 
 export interface GraphQLJitResolveInfo extends GraphQLResolveInfo {
-  fieldExpansion: FieldExpansion | true;
+  fieldExpansion: FieldExpansion | LeafField;
 }
 
 export interface FieldExpansion {
@@ -34,7 +34,26 @@ export interface FieldExpansion {
 export interface TypeExpansion {
   // The fields that are requested in the Query for a particular type
   // `true` indicates a leaf node
-  [fieldName: string]: FieldExpansion | true;
+  [fieldName: string]: FieldExpansion | LeafField;
+}
+
+const LeafFieldSymbol = Symbol("LeafFieldSymbol");
+
+export interface LeafField {
+  [LeafFieldSymbol]: true;
+}
+
+function createLeafField<T extends object>(props: T): T & LeafField {
+  return {
+    [LeafFieldSymbol]: true,
+    ...props
+  };
+}
+
+export function isLeafField(obj: LeafField | FieldExpansion): obj is LeafField {
+  return (
+    obj != null && Object.prototype.hasOwnProperty.call(obj, LeafFieldSymbol)
+  );
 }
 
 /**
@@ -59,18 +78,13 @@ export function createResolveInfoThunk({
   fieldName: string;
   fieldNodes: FieldNode[];
 }) {
-  const returnType = memoizedResolveEndType(fieldType);
+  const fieldExpansion: FieldExpansion | LeafField = {};
 
-  // Result
-  const fieldExpansion: FieldExpansion = {};
-
-  if (returnType != null) {
-    for (const fieldNode of fieldNodes) {
-      deepMerge(
-        fieldExpansion,
-        memoizedExpandFieldNode(schema)(fragments)(fieldNode)(returnType)
-      );
-    }
+  for (const fieldNode of fieldNodes) {
+    deepMerge(
+      fieldExpansion,
+      memoizedExpandFieldNode(schema, fragments, fieldNode, fieldType)
+    );
   }
 
   return (
@@ -108,21 +122,24 @@ function expandFieldNode(
   fragments: FragmentsType,
   node: FieldNode,
   fieldType: GraphQLOutputType
-): FieldExpansion | true {
+): FieldExpansion | LeafField {
   if (node.selectionSet == null) {
-    return true;
+    return createLeafField({});
   }
 
   // there is a selectionSet which makes the fieldType a CompositeType
   const typ = memoizedResolveEndType(fieldType) as GraphQLCompositeType;
-  const possibleTypes = memoizedGetPossibleTypes(schema)(typ);
+  const possibleTypes = memoizedGetPossibleTypes(schema, typ);
 
   const fieldExpansion: FieldExpansion = {};
   for (const possibleType of possibleTypes) {
     if (!isUnionType(possibleType)) {
-      fieldExpansion[possibleType.name] = memoizedExpandFieldNodeType(schema)(
-        fragments
-      )(possibleType)(node.selectionSet);
+      fieldExpansion[possibleType.name] = memoizedExpandFieldNodeType(
+        schema,
+        fragments,
+        possibleType,
+        node.selectionSet
+      );
     }
   }
 
@@ -141,11 +158,14 @@ function expandFieldNodeType(
     if (selection.kind === "Field") {
       if (
         !isUnionType(parentType) &&
-        memoizedHasField(parentType)(selection.name.value)
+        memoizedHasField(parentType, selection.name.value)
       ) {
-        typeExpansion[selection.name.value] = memoizedExpandFieldNode(schema)(
-          fragments
-        )(selection)(memoizedGetReturnType(parentType)(selection.name.value));
+        typeExpansion[selection.name.value] = memoizedExpandFieldNode(
+          schema,
+          fragments,
+          selection,
+          memoizedGetReturnType(parentType, selection.name.value)
+        );
       }
     } else {
       const selectionSet =
@@ -154,7 +174,7 @@ function expandFieldNodeType(
           : fragments[selection.name.value].selectionSet;
       deepMerge(
         typeExpansion,
-        memoizedExpandFieldNodeType(schema)(fragments)(parentType)(selectionSet)
+        memoizedExpandFieldNodeType(schema, fragments, parentType, selectionSet)
       );
     }
   }
@@ -244,4 +264,25 @@ function resolveEndType(typ: GraphQLOutputType): GraphQLNamedOutputType {
 
 function hasField(typ: GraphQLObjectLike, fieldName: string) {
   return Object.prototype.hasOwnProperty.call(typ.getFields(), fieldName);
+}
+
+// This is because lodash does not support merging keys
+// which are symbols. We require them for leaf fields
+function deepMerge<TObject, TSource>(obj: TObject, src: TSource) {
+  mergeWith(obj, src, (objValue, srcValue) => {
+    if (isLeafField(objValue)) {
+      if (isLeafField(srcValue)) {
+        return {
+          ...objValue,
+          ...srcValue
+        };
+      }
+
+      return objValue;
+    } else if (isLeafField(srcValue)) {
+      return srcValue;
+    }
+
+    return;
+  });
 }

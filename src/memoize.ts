@@ -32,37 +32,49 @@ type Args4<T> = T extends (
     }
   : never;
 
-type Ret2<A, B, R> = (a: A) => (b: B) => R;
-type Ret3<A, B, C, R> = (a: A) => (b: B) => (c: C) => R;
-type Ret4<A, B, C, D, R> = (a: A) => (b: B) => (c: C) => (d: D) => R;
+function uncurry2<A, B, R>(fn: (a: A) => (b: B) => R) {
+  return (a: A, b: B) => fn(a)(b);
+}
 
-export function memoize2<T extends Fn>(fn: T) {
+function uncurry3<A, B, C, R>(fn: (a: A) => (b: B) => (c: C) => R) {
+  return (a: A, b: B, c: C) => fn(a)(b)(c);
+}
+
+function uncurry4<A, B, C, D, R>(
+  fn: (a: A) => (b: B) => (c: C) => (d: D) => R
+) {
+  return (a: A, b: B, c: C, d: D) => fn(a)(b)(c)(d);
+}
+
+export function memoize2<T extends Fn>(fn: T): T {
   type A = Args2<T>[0];
   type B = Args2<T>[1];
   type R = Args2<T>["return"];
 
-  return memoize((a: A) => memoize((b: B) => fn(a, b))) as Ret2<A, B, R>;
+  return uncurry2(memoize((a: A) => memoize((b: B) => fn(a, b)))) as T;
 }
 
-export function memoize3<T extends Fn>(fn: T) {
+export function memoize3<T extends Fn>(fn: T): T {
   type A = Args3<T>[0];
   type B = Args3<T>[1];
   type C = Args3<T>[2];
   type R = Args2<T>["return"];
 
-  return memoize((a: A) =>
-    memoize((b: B) => memoize((c: C) => fn(a, b, c)))
-  ) as Ret3<A, B, C, R>;
+  return uncurry3(
+    memoize((a: A) => memoize((b: B) => memoize((c: C) => fn(a, b, c))))
+  ) as T;
 }
 
-export function memoize4<T extends Fn>(fn: T) {
+export function memoize4<T extends Fn>(fn: T): T {
   type A = Args4<T>[0];
   type B = Args4<T>[1];
   type C = Args4<T>[2];
   type D = Args4<T>[3];
   type R = Args2<T>["return"];
 
-  return memoize((a: A) =>
-    memoize((b: B) => memoize((c: C) => memoize((d: D) => fn(a, b, c, d))))
-  ) as Ret4<A, B, C, D, R>;
+  return uncurry4(
+    memoize((a: A) =>
+      memoize((b: B) => memoize((c: C) => memoize((d: D) => fn(a, b, c, d))))
+    )
+  ) as T;
 }

@@ -12,10 +12,10 @@ describe("memoize", () => {
     });
     test("should call effect only once", () => {
       const memoizedAdd = memoize2(add);
-      memoizedAdd(1)(2);
-      memoizedAdd(1)(2);
-      memoizedAdd(1)(2);
-      memoizedAdd(1)(2);
+      memoizedAdd(1, 2);
+      memoizedAdd(1, 2);
+      memoizedAdd(1, 2);
+      memoizedAdd(1, 2);
       expect(effectCheck).toHaveBeenCalledTimes(1);
     });
   });
@@ -31,10 +31,10 @@ describe("memoize", () => {
     });
     test("should call effect only once", () => {
       const memoizedAdd = memoize3(add);
-      memoizedAdd(1)(2)(3);
-      memoizedAdd(1)(2)(3);
-      memoizedAdd(1)(2)(3);
-      memoizedAdd(1)(2)(3);
+      memoizedAdd(1, 2, 3);
+      memoizedAdd(1, 2, 3);
+      memoizedAdd(1, 2, 3);
+      memoizedAdd(1, 2, 3);
       expect(effectCheck).toHaveBeenCalledTimes(1);
     });
   });
@@ -50,10 +50,10 @@ describe("memoize", () => {
     });
     test("should call effect only once", () => {
       const memoizedAdd = memoize4(add);
-      memoizedAdd(1)(2)(3)(4);
-      memoizedAdd(1)(2)(3)(4);
-      memoizedAdd(1)(2)(3)(4);
-      memoizedAdd(1)(2)(3)(4);
+      memoizedAdd(1, 2, 3, 4);
+      memoizedAdd(1, 2, 3, 4);
+      memoizedAdd(1, 2, 3, 4);
+      memoizedAdd(1, 2, 3, 4);
       expect(effectCheck).toHaveBeenCalledTimes(1);
     });
   });
