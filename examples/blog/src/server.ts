@@ -103,7 +103,7 @@ function readRequestBody(req: IncomingMessage): Promise<string> {
 }
 
 function methodNotAllowed(res: ServerResponse) {
-  res.writeHead(403);
+  res.writeHead(405);
   res.end("Method Not Allowed");
 }
 
