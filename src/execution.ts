@@ -248,9 +248,9 @@ export function createBoundQuery(
     let executor;
     let resolveIfDone;
     if (operation === "mutation") {
-      const loose = serialPromiseExecutor(callback, globalErrorHandler);
-      executor = loose.addToQueue;
-      resolveIfDone = loose.startExecution;
+      const serial = serialPromiseExecutor(callback, globalErrorHandler);
+      executor = serial.addToQueue;
+      resolveIfDone = serial.startExecution;
     } else {
       const loose = loosePromiseExecutor(callback, globalErrorHandler);
       executor = loose.executor;
