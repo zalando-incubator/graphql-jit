@@ -921,6 +921,142 @@ describe("GraphQLJitResolveInfo", () => {
         }
       `);
     });
+
+    test("alias 1", async () => {
+      const doc = parse(`
+        query {
+          node(id: "tag:1") {
+            ... {
+              otherId: id
+            }
+            ... on Tag {
+              tagId: id,
+              tagName: name
+            }
+          }
+        }
+      `);
+      const result = await executeQuery(schema, doc);
+      const validationErrors = validate(schema, doc);
+      if (validationErrors.length > 0) {
+        console.error(validationErrors);
+      }
+      expect(validationErrors.length).toBe(0);
+      expect(result.errors).not.toBeDefined();
+      expect(infNode.fieldExpansion).toMatchInlineSnapshot(`
+        Object {
+          "Image": Object {
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+          },
+          "Media": Object {},
+          "Node": Object {
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+          },
+          "Tag": Object {
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "name": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+          },
+          "Video": Object {
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+          },
+        }
+      `);
+    });
+
+    test("aliases and __typename should not be included in resolveInfo", async () => {
+      const doc = parse(`
+        query {
+          node(id: "tag:1") {
+            __typename
+            ... {
+              __typename
+              otherId: id
+            }
+            ... on Tag {
+              tagId: id,
+              tagName: name
+            }
+            ... on DocumentElement {
+              __typename
+            }
+            ... on Media {
+              __typename
+              mediaTags: tags {
+                __typename
+                mediaTagName: name
+              }
+            }
+          }
+        }
+      `);
+      const result = await executeQuery(schema, doc);
+      const validationErrors = validate(schema, doc);
+      if (validationErrors.length > 0) {
+        console.error(validationErrors);
+      }
+      expect(validationErrors.length).toBe(0);
+      expect(result.errors).not.toBeDefined();
+      expect(infNode.fieldExpansion).toMatchInlineSnapshot(`
+        Object {
+          "Image": Object {
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "tags": Object {
+              "Tag": Object {
+                "name": Object {
+                  Symbol(LeafFieldSymbol): true,
+                },
+              },
+            },
+          },
+          "Media": Object {
+            "tags": Object {
+              "Tag": Object {
+                "name": Object {
+                  Symbol(LeafFieldSymbol): true,
+                },
+              },
+            },
+          },
+          "Node": Object {
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+          },
+          "Tag": Object {
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "name": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+          },
+          "Video": Object {
+            "id": Object {
+              Symbol(LeafFieldSymbol): true,
+            },
+            "tags": Object {
+              "Tag": Object {
+                "name": Object {
+                  Symbol(LeafFieldSymbol): true,
+                },
+              },
+            },
+          },
+        }
+      `);
+    });
   });
 });
 
