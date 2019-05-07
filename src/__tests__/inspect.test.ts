@@ -2,9 +2,10 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/jsutils/__tests__/inspect-test.js
  */
 
-import inspect, { nodejsCustomInspectSymbol } from "../inspect";
+import createInspect, { nodejsCustomInspectSymbol } from "../inspect";
 
 describe("inspect", () => {
+  const inspect = createInspect();
   it("undefined", () => {
     expect(inspect(undefined)).toEqual("undefined");
   });
@@ -47,7 +48,7 @@ describe("inspect", () => {
     expect(inspect([["a", "b"], "c"])).toEqual('[["a", "b"], "c"]');
 
     expect(inspect([[[]]])).toEqual("[[[]]]");
-    expect(inspect([[[["a"]]]])).toEqual("[[[[Array]]]]");
+    expect(inspect([[["a"]]])).toEqual("[[[Array]]]");
 
     expect(inspect([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])).toEqual(
       "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]"
@@ -69,13 +70,11 @@ describe("inspect", () => {
     expect(inspect({ array: [null, 0] })).toEqual("{ array: [null, 0] }");
 
     expect(inspect({ a: { b: {} } })).toEqual("{ a: { b: {} } }");
-    expect(inspect({ a: { b: { c: { d: 1 } } } })).toEqual(
-      "{ a: { b: { c: [Object] } } }"
-    );
+    expect(inspect({ a: { b: { c: 1 } } })).toEqual("{ a: { b: [Object] } }");
 
     const map = Object.create(null);
-    map["a"] = true;
-    map["b"] = null;
+    map.a = true;
+    map.b = null;
     expect(inspect(map)).toEqual("{ a: true, b: null }");
   });
 
@@ -166,16 +165,37 @@ describe("inspect", () => {
 
   it("Use class names for the shortform of an object", () => {
     class Foo {
-      foo: string;
+      public foo: string;
 
       constructor() {
         this.foo = "bar";
       }
     }
 
-    expect(inspect([[[new Foo()]]])).toEqual("[[[[Foo]]]]");
+    expect(inspect([[new Foo()]])).toEqual("[[[Foo]]]");
 
     (Foo.prototype as any)[Symbol.toStringTag] = "Bar";
-    expect(inspect([[[new Foo()]]])).toEqual("[[[[Bar]]]]");
+    expect(inspect([[new Foo()]])).toEqual("[[[Bar]]]");
+  });
+});
+
+describe("createInspect", () => {
+  test("can increase the depth", () => {
+    const inspect = createInspect();
+    const deeperInspect = createInspect(10, 3);
+    const deepArray = [[["a"]]];
+    expect(inspect(deepArray)).toEqual("[[[Array]]]");
+    expect(deeperInspect(deepArray)).toEqual('[[["a"]]]');
+  });
+  test("can increase the length", () => {
+    const inspect = createInspect();
+    const deeperInspect = createInspect(15);
+    const longArray = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+    expect(inspect(longArray)).toEqual(
+      "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, ... 2 more items]"
+    );
+    expect(deeperInspect(longArray)).toEqual(
+      "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]"
+    );
   });
 });
