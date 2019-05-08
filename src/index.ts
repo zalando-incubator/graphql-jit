@@ -4,4 +4,11 @@ export {
   CompilerOptions,
   CompiledQuery
 } from "./execution";
-export { GraphQLJitResolveInfo } from "./resolve-info";
+
+export {
+  GraphQLJitResolveInfo,
+  FieldExpansion,
+  LeafField,
+  TypeExpansion,
+  isLeafField
+} from "./resolve-info";
