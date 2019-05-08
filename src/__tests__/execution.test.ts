@@ -76,7 +76,7 @@ describe("Execute: Handles basic execution tasks", () => {
       [],
       []
     );
-    await Promise.resolve(); // For the promise to resolve
+    await new Promise(r => setImmediate(r)); // For the promise to resolve
     expect(spy).toHaveBeenCalledWith(new Error("bug"));
   });
   describe("serial executor", () => {
