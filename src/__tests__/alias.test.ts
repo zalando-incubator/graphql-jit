@@ -14,13 +14,13 @@ import {
 } from "graphql";
 import { compileQuery } from "../index";
 
-function executeQuery(
+async function executeQuery(
   schema: GraphQLSchema,
   document: DocumentNode,
   rootValue?: any,
   vars?: any
 ) {
-  const prepared: any = compileQuery(schema, document, "");
+  const prepared: any = await compileQuery(schema, document, "");
   return prepared.query(rootValue, undefined, vars);
 }
 

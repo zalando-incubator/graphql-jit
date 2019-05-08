@@ -127,7 +127,7 @@ function executeArgs(args: any) {
   );
 }
 
-function doExecute(
+async function doExecute(
   schema: GraphQLSchema,
   document: DocumentNode,
   rootValue: any,
@@ -135,7 +135,11 @@ function doExecute(
   variableValues?: any,
   operationName?: string
 ) {
-  const prepared: any = compileQuery(schema, document, operationName || "");
+  const prepared: any = await compileQuery(
+    schema,
+    document,
+    operationName || ""
+  );
   if (prepared.errors) {
     return prepared;
   }

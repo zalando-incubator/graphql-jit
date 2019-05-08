@@ -10,13 +10,13 @@ import {
 import { compileQuery } from "../index";
 import SpyInstance = jest.SpyInstance;
 
-function executeQuery(
+async function executeQuery(
   schema: GraphQLSchema,
   document: DocumentNode,
   rootValue?: any,
   vars?: any
 ) {
-  const prepared: any = compileQuery(schema, document, "");
+  const prepared: any = await compileQuery(schema, document, "");
   return prepared.query(rootValue, undefined, vars);
 }
 
@@ -157,9 +157,9 @@ describe("Scalars: Is able to serialize custom scalar", () => {
   });
 
   describe("can skip serialization", () => {
-    test("custom scalar are still supported", () => {
+    test("custom scalar are still supported", async () => {
       const spy = jest.fn((value: any) => value);
-      const prepared: any = compileQuery(
+      const prepared: any = await compileQuery(
         setupSchema(
           new GraphQLScalarType({
             name: "Custom",
@@ -190,8 +190,8 @@ describe("Scalars: Is able to serialize custom scalar", () => {
         serializeSpy.mockClear();
       });
 
-      test("builtin scalar are used", () => {
-        const prepared: any = compileQuery(
+      test("builtin scalar are used", async () => {
+        const prepared: any = await compileQuery(
           setupSchema(GraphQLString, "test"),
           parse("{scalar}"),
           "",
@@ -205,8 +205,8 @@ describe("Scalars: Is able to serialize custom scalar", () => {
         });
         expect(GraphQLString.serialize).toHaveBeenCalledWith("test");
       });
-      test("builtin scalar are skipped", () => {
-        const prepared: any = compileQuery(
+      test("builtin scalar are skipped", async () => {
+        const prepared: any = await compileQuery(
           setupSchema(GraphQLString, "test"),
           parse("{scalar}"),
           "",
@@ -220,9 +220,9 @@ describe("Scalars: Is able to serialize custom scalar", () => {
         });
         expect(GraphQLString.serialize).not.toHaveBeenCalledWith("test");
       });
-      test("custom serializer is called", () => {
+      test("custom serializer is called", async () => {
         const customSerializer = jest.fn(String);
-        const prepared: any = compileQuery(
+        const prepared: any = await compileQuery(
           setupSchema(GraphQLString, "test"),
           parse("{scalar}"),
           "",

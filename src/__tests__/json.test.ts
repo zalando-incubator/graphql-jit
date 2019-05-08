@@ -10,8 +10,7 @@ import {
   GraphQLSchema,
   GraphQLString,
   parse,
-  GraphQLInt,
-  GraphQLScalarType
+  GraphQLInt
 } from "graphql";
 import { buildExecutionContext } from "graphql/execution/execute";
 import { compileQuery } from "../index";
@@ -147,7 +146,7 @@ describe("json schema creator", () => {
       expect(typeof fastJson(jsonSchema) === "function").toBeTruthy();
     });
     test("valid response serialization", async () => {
-      const prepared: any = compileQuery(blogSchema, parse(query), "", {
+      const prepared: any = await compileQuery(blogSchema, parse(query), "", {
         customJSONSerializer: true
       });
       const response = await prepared.query(undefined, undefined, {});
@@ -155,7 +154,7 @@ describe("json schema creator", () => {
       expect(prepared.stringify(response)).toEqual(JSON.stringify(response));
     });
     test("valid response serialization 2", async () => {
-      const prepared: any = compileQuery(blogSchema, parse(query), "", {
+      const prepared: any = await compileQuery(blogSchema, parse(query), "", {
         customJSONSerializer: false
       });
       expect(prepared.stringify).toBe(JSON.stringify);

@@ -39,6 +39,7 @@ import {
   ObjectPath,
   resolveFieldDef
 } from "./ast";
+import { defer } from "./defer";
 import { GraphQLError as GraphqlJitError } from "./error";
 import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
@@ -121,12 +122,12 @@ export interface CompiledQuery {
  * @param partialOptions compilation options to tune the compiler features
  * @returns {CompiledQuery} the cacheable result
  */
-export function compileQuery(
+export async function compileQuery(
   schema: GraphQLSchema,
   document: DocumentNode,
   operationName?: string,
   partialOptions?: Partial<CompilerOptions>
-): CompiledQuery | ExecutionResult {
+): Promise<CompiledQuery | ExecutionResult> {
   if (!schema) {
     throw new Error(`Expected ${schema} to be a GraphQL schema.`);
   }
@@ -163,7 +164,7 @@ export function compileQuery(
       context.operation.variableDefinitions || []
     );
 
-    const mainBody = compileOperation(context);
+    const mainBody = await compileOperation(context);
     const functionBody = `
   ${getFunctionSignature(context)} {
   ${functionHeader}
@@ -309,7 +310,7 @@ function postProcessResult(
  * @param {CompilationContext} context compilation context with the execution context
  * @returns {string} a function body to be instantiated together with the header, footer
  */
-function compileOperation(context: CompilationContext) {
+async function compileOperation(context: CompilationContext) {
   const type = getOperationRootType(context.schema, context.operation);
   const fieldMap = collectFields(
     context,
@@ -318,7 +319,7 @@ function compileOperation(context: CompilationContext) {
     Object.create(null),
     Object.create(null)
   );
-  const topLevel = compileObjectType(
+  const topLevel = await compileObjectType(
     context,
     type,
     [GLOBAL_ROOT_NAME],
@@ -329,7 +330,7 @@ function compileOperation(context: CompilationContext) {
   );
   let body = generateUniqueDeclarations(context, true);
   body += `const ${GLOBAL_DATA_NAME} = ${topLevel}\n`;
-  body += compileDeferredFields(context);
+  body += await compileDeferredFields(context);
   return body;
 }
 
@@ -341,39 +342,43 @@ function compileOperation(context: CompilationContext) {
  * @param {CompilationContext} context compilation context
  * @returns {string} compiled transformations all of deferred nodes
  */
-function compileDeferredFields(context: CompilationContext): string {
+async function compileDeferredFields(
+  context: CompilationContext
+): Promise<string> {
   let body = "";
-  context.deferred.forEach(
-    (
-      {
-        name,
-        originPaths,
-        destinationPaths,
-        fieldNodes,
-        fieldType,
-        fieldName,
-        responsePath,
-        parentType,
-        args
-      },
-      index
-    ) => {
-      const subContext = createSubCompilationContext(context);
-      const nodeBody = compileType(
-        subContext,
-        parentType,
-        fieldType,
-        fieldNodes,
-        [fieldName],
-        [`parent.${name}`],
-        responsePath
-      );
-      body += `
+  let index = 0;
+  for (const item of context.deferred) {
+    const {
+      name,
+      originPaths,
+      destinationPaths,
+      fieldNodes,
+      fieldType,
+      fieldName,
+      responsePath,
+      parentType,
+      args
+    } = item;
+
+    const subContext = createSubCompilationContext(context);
+    const nodeBody = await defer(
+      async () =>
+        await compileType(
+          subContext,
+          parentType,
+          fieldType,
+          fieldNodes,
+          [fieldName],
+          [`parent.${name}`],
+          responsePath
+        )
+    );
+    body += `
   if (${SAFETY_CHECK_PREFIX}${index}) {
   ${GLOBAL_EXECUTOR_NAME}(() => ${getResolverName(
-        parentType.name,
-        fieldName
-      )}(${originPaths.join(".")},
+      parentType.name,
+      fieldName
+    )}(${originPaths.join(".")},
    ${getArguments(args)},
    ${GLOBAL_CONTEXT_NAME},
    ${getExecutionInfo(
@@ -391,24 +396,24 @@ function compileDeferredFields(context: CompilationContext): string {
             ? GLOBAL_NULL_ERRORS_NAME
             : GLOBAL_ERRORS_NAME
         }.push(${
-        createErrorObject(
-          context,
-          fieldNodes,
-          responsePath,
-          "err.message != null ? err.message : err",
-          "err"
-        ) /* TODO: test why no return here*/
-      });
+      createErrorObject(
+        context,
+        fieldNodes,
+        responsePath,
+        "err.message != null ? err.message : err",
+        "err"
+      ) /* TODO: test why no return here*/
+    });
     }
     ${generateUniqueDeclarations(subContext)}
     parent.${name} = ${nodeBody};\n
-    ${compileDeferredFields(subContext)}
+    ${await compileDeferredFields(subContext)}
   },${destinationPaths.join(
     "."
   )}, ${GLOBAL_DATA_NAME}, ${GLOBAL_ERRORS_NAME}, ${GLOBAL_NULL_ERRORS_NAME})
   }`;
-    }
-  );
+    index++;
+  }
   return body;
 }
 
@@ -425,7 +430,7 @@ function compileDeferredFields(context: CompilationContext): string {
  * @param previousPath response path until this node
  * @returns {string} body of the resolvable fieldNodes
  */
-function compileType(
+async function compileType(
   context: CompilationContext,
   parentType: GraphQLObjectType,
   type: GraphQLType,
@@ -433,7 +438,7 @@ function compileType(
   originPaths: string[],
   destinationPaths: string[],
   previousPath: ObjectPath
-): string {
+): Promise<string> {
   const sourcePath = originPaths.join(".");
   let body = `${sourcePath} == null ? `;
   let errorDestination;
@@ -475,7 +480,7 @@ function compileType(
     );
   } else if (isObjectType(type)) {
     const fieldMap = collectSubfields(context, type, fieldNodes);
-    body += compileObjectType(
+    body += await compileObjectType(
       context,
       type,
       originPaths,
@@ -485,7 +490,7 @@ function compileType(
       false
     );
   } else if (isAbstractType(type)) {
-    body += compileAbstractType(
+    body += await compileAbstractType(
       context,
       parentType,
       type,
@@ -495,7 +500,7 @@ function compileType(
       errorDestination
     );
   } else if (isListType(type)) {
-    body += compileListType(
+    body += await compileListType(
       context,
       parentType,
       type,
@@ -554,7 +559,7 @@ function compileLeafType(
  * @param alwaysDefer used to force the field to be resolved with a resolver ala graphql-js
  * @returns {string}
  */
-function compileObjectType(
+async function compileObjectType(
   context: CompilationContext,
   type: GraphQLObjectType,
   originPaths: string[],
@@ -562,7 +567,7 @@ function compileObjectType(
   responsePath: ObjectPath | undefined,
   fieldMap: { [key: string]: FieldNode[] },
   alwaysDefer: boolean
-): string {
+): Promise<string> {
   let body = `{`;
   for (const name of Object.keys(fieldMap)) {
     const fieldNodes = fieldMap[name];
@@ -599,7 +604,7 @@ function compileObjectType(
       body += `(${SAFETY_CHECK_PREFIX}${context.deferred.length -
         1} = true, null)`;
     } else {
-      body += compileType(
+      body += await compileType(
         context,
         type,
         field.type,
@@ -615,7 +620,7 @@ function compileObjectType(
   return body;
 }
 
-function compileAbstractType(
+async function compileAbstractType(
   context: CompilationContext,
   parentType: GraphQLObjectType,
   type: GraphQLAbstractType,
@@ -623,7 +628,7 @@ function compileAbstractType(
   originPaths: string[],
   previousPath: ObjectPath,
   errorDestination: string
-): string {
+): Promise<string> {
   let resolveType: GraphQLTypeResolver<any, any>;
   if (type.resolveType) {
     resolveType = type.resolveType;
@@ -632,11 +637,10 @@ function compileAbstractType(
       defaultResolveTypeFn(value, context, info, type);
   }
   context.dependencies.set(getTypeResolverName(type.name), resolveType);
-  const collectedTypes = context.schema
-    .getPossibleTypes(type)
-    .map(objectType => {
+  const collectedTypes = (await Promise.all(
+    context.schema.getPossibleTypes(type).map(async objectType => {
       const subContext = createSubCompilationContext(context);
-      const object = compileType(
+      const object = await compileType(
         subContext,
         parentType,
         objectType,
@@ -648,11 +652,11 @@ function compileAbstractType(
       return `case "${objectType.name}": {
                   ${generateUniqueDeclarations(subContext)}
                   const __concrete = ${object};
-                  ${compileDeferredFields(subContext)}
+                  ${await compileDeferredFields(subContext)}
                   return __concrete;
               }`;
     })
-    .join("\n");
+  )).join("\n");
   const finalTypeName = "finalType";
   const nullTypeError = `"Runtime Object type is not a possible type for \\"${
     type.name
@@ -728,7 +732,7 @@ function compileAbstractType(
  * @param errorDestination
  * @returns {string} compiled list transformation
  */
-function compileListType(
+async function compileListType(
   context: CompilationContext,
   parentType: GraphQLObjectType,
   type: GraphQLList<GraphQLType>,
@@ -736,12 +740,12 @@ function compileListType(
   originalObjectPaths: string[],
   responsePath: ObjectPath,
   errorDestination: string
-) {
+): Promise<string> {
   const name = originalObjectPaths.join(".");
   const listContext = createSubCompilationContext(context);
   // context depth will be mutated, so we cache the current value.
   const newDepth = ++listContext.depth;
-  const dataBody = compileType(
+  const dataBody = await compileType(
     listContext,
     parentType,
     type.ofType,
@@ -764,7 +768,7 @@ function compileListType(
   __safeMap(${name}, (__safeMapNode, idx${newDepth}) => {
      ${generateUniqueDeclarations(listContext)}
      const __child = ${dataBody};
-     ${compileDeferredFields(listContext)}
+     ${await compileDeferredFields(listContext)}
      return __child;
     })`;
 }

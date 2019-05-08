@@ -62,6 +62,7 @@
     "graphql-tools": "^4.0.4",
     "jest": "^24.7.1",
     "lint-staged": "^8.1.5",
+    "metrics": "^0.1.21",
     "prettier": "^1.16.4",
     "ts-jest": "^24.0.2",
     "ts-node": "^8.0.3",

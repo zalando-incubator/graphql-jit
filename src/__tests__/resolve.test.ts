@@ -12,7 +12,7 @@ import {
 import { GraphQLFieldConfig } from "graphql/type/definition";
 import { compileQuery } from "../index";
 
-function executeQuery(
+async function executeQuery(
   schema: GraphQLSchema,
   document: string,
   rootValue?: any,
@@ -20,7 +20,7 @@ function executeQuery(
   variableValues?: any,
   operationName?: string
 ) {
-  const { query }: any = compileQuery(
+  const { query }: any = await compileQuery(
     schema,
     parse(document),
     operationName || ""

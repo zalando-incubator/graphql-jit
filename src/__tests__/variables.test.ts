@@ -148,9 +148,9 @@ const TestType = new GraphQLObjectType({
 
 const schema = new GraphQLSchema({ query: TestType });
 
-function executeQuery(query: string, variableValues?: any) {
+async function executeQuery(query: string, variableValues?: any) {
   const document = parse(query);
-  const prepared: any = compileQuery(schema, document, "");
+  const prepared: any = await compileQuery(schema, document, "");
   if (prepared.errors) {
     return prepared;
   }
@@ -460,7 +460,7 @@ describe("Execute: Handles inputs", () => {
 
   describe("Handles custom enum values", () => {
     test("allows custom enum values as inputs", async () => {
-      const result = executeQuery(`
+      const result = await executeQuery(`
         {
           null: fieldWithEnumInput(input: NULL)
           NaN: fieldWithEnumInput(input: NAN)
@@ -732,7 +732,7 @@ describe("Execute: Handles inputs", () => {
           inputRecorder(input: $string)
         }
       `;
-      const compiled: any = compileQuery(schema, parse(document), "");
+      const compiled: any = await compileQuery(schema, parse(document), "");
       compiled.query(undefined, undefined, { string: "id" });
       expect(spy).toHaveBeenCalledWith(
         undefined,

@@ -1,6 +1,4 @@
-import Benchmark from "benchmark";
 import {
-  execute,
   GraphQLBoolean,
   GraphQLID,
   GraphQLInt,
@@ -11,21 +9,22 @@ import {
   GraphQLString,
   parse
 } from "graphql";
+import { Histogram } from "metrics";
 import { compileQuery } from "../";
 
 const schema = getSchema();
 const document = parse(`
-query ($id: ID! = "1", $width: Int = 640, $height: Int = 480){
+{
   feed {
     id,
     title
   },
-  article(id: $id) {
+  article(id: "1") {
     ...articleFields,
     author {
       id,
       name,
-      pic(width: $width, height: $height) {
+      pic(width: 640, height: 480) {
         url,
         width,
         height
@@ -47,62 +46,56 @@ fragment articleFields on Article {
   notdefined
 }
 `);
+type seconds = number;
+type nanoseconds = number;
+type milliseconds = number;
 
-const { query: compilerParserNoLeaf }: any = compileQuery(
-  schema,
-  document,
-  "",
-  {
-    disableLeafSerialization: true
+function getMillisecs(startTime: [seconds, nanoseconds]): milliseconds {
+  const hrTime = process.hrtime(startTime);
+  return hrTime && hrTime[0] * 1e3 + hrTime[1] / 1e6;
+}
+
+const histogram = new Histogram();
+let latencyCheckLoop: NodeJS.Timeout;
+function startEventLoopMonitoring() {
+  let prevTime = process.hrtime();
+  const interval = 100;
+  latencyCheckLoop = setInterval(() => {
+    const now = getMillisecs(prevTime);
+    const lag = now - interval;
+    prevTime = process.hrtime();
+    histogram.update(lag);
+  }, interval);
+}
+
+function stopEventLoopMonitoring() {
+  clearInterval(latencyCheckLoop);
+  console.log("Results");
+  console.log(JSON.stringify(histogram.printObj(), null, 4));
+}
+
+async function benchmark() {
+  const prevTime = process.hrtime();
+  startEventLoopMonitoring();
+  for (let i = 0; i < 40000; ++i) {
+    await compileQuery(schema, document, "", {
+      disableLeafSerialization: false,
+      customSerializers: {
+        String,
+        ID: String,
+        Boolean,
+        Int: Number,
+        Float: Number
+      }
+    });
   }
-);
-const compilerParser: any = compileQuery(schema, document, "", {
-  customSerializers: {
-    String: String,
-    ID: String,
-    Boolean: Boolean,
-    Int: Number,
-    Float: Number
-  }
-});
-const vars = { id: "1" };
+  setTimeout(() => {
+    stopEventLoopMonitoring();
+    console.log(`Total time: ${getMillisecs(prevTime)}ms`);
+  }, 0);
+}
 
-const suite = new Benchmark.Suite();
-
-suite
-  .add("graphql-js", {
-    defer: true,
-    fn(deferred: any) {
-      const p: any = execute(schema, document, undefined, undefined, vars);
-      p.then(() => deferred.resolve());
-    }
-  })
-  .add("graphql-jit", {
-    defer: true,
-    fn(deferred: any) {
-      compilerParser
-        .query(undefined, undefined, vars)
-        .then(() => deferred.resolve());
-    }
-  })
-  .add("graphql-jit - no leaf", {
-    defer: true,
-    fn(deferred: any) {
-      compilerParserNoLeaf(undefined, undefined, vars).then(() =>
-        deferred.resolve()
-      );
-    }
-  })
-  // add listeners
-  .on("cycle", (event: any) => {
-    // tslint:disable-next-line
-    console.log(String(event.target));
-  })
-  .on("complete", () => {
-    // tslint:disable-next-line
-    console.log("Fastest is " + suite.filter("fastest").map("name" as any));
-  })
-  .run();
+benchmark().catch(console.error);
 
 function getSchema() {
   const BlogImage = new GraphQLObjectType({

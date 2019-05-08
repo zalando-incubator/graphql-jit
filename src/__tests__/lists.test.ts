@@ -34,14 +34,18 @@ function check(testType: any, testData: any, expected: any) {
     const dataType: GraphQLObjectType = new GraphQLObjectType({
       name: "DataType",
       fields: () => ({
-        test: { type: testType, resolve: (data: any) => data.test },
+        test: {
+          type: testType,
+          resolve: (data: any) =>
+            typeof data.test === "function" ? data.test() : data.test
+        },
         nest: { type: dataType, resolve: () => data }
       })
     });
     const schema = new GraphQLSchema({ query: dataType });
 
     const ast = parse("{ nest { test } }");
-    const prepared: any = compileQuery(schema, ast, "");
+    const prepared: any = await compileQuery(schema, ast, "");
     const response = await prepared.query(data, undefined, {});
     expect(response).toEqual(expected);
   };
@@ -156,7 +160,7 @@ describe("Execute: Handles list nullability", () => {
 
       test(
         "Rejected",
-        check(type, rejected(new Error("bad")), {
+        check(type, () => rejected(new Error("bad")), {
           data: { nest: { test: null } },
           errors: [
             {
@@ -186,16 +190,20 @@ describe("Execute: Handles list nullability", () => {
 
       test(
         "Contains reject",
-        check(type, [resolved(1), rejected(new Error("bad")), resolved(2)], {
-          data: { nest: { test: [1, null, 2] } },
-          errors: [
-            {
-              message: "bad",
-              locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test", 1]
-            }
-          ]
-        })
+        check(
+          type,
+          () => [resolved(1), rejected(new Error("bad")), resolved(2)],
+          {
+            data: { nest: { test: [1, null, 2] } },
+            errors: [
+              {
+                message: "bad",
+                locations: [{ line: 1, column: 10 }],
+                path: ["nest", "test", 1]
+              }
+            ]
+          }
+        )
       );
     });
   });
@@ -260,7 +268,7 @@ describe("Execute: Handles list nullability", () => {
 
       test(
         "Rejected",
-        check(type, rejected(new Error("bad")), {
+        check(type, () => rejected(new Error("bad")), {
           data: { nest: null },
           errors: [
             {
@@ -291,16 +299,20 @@ describe("Execute: Handles list nullability", () => {
 
       test(
         "Contains reject",
-        check(type, [resolved(1), rejected(new Error("bad")), resolved(2)], {
-          data: { nest: { test: [1, null, 2] } },
-          errors: [
-            {
-              message: "bad",
-              locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test", 1]
-            }
-          ]
-        })
+        check(
+          type,
+          () => [resolved(1), rejected(new Error("bad")), resolved(2)],
+          {
+            data: { nest: { test: [1, null, 2] } },
+            errors: [
+              {
+                message: "bad",
+                locations: [{ line: 1, column: 10 }],
+                path: ["nest", "test", 1]
+              }
+            ]
+          }
+        )
       );
     });
   });
@@ -361,7 +373,7 @@ describe("Execute: Handles list nullability", () => {
 
       test(
         "Rejected",
-        check(type, rejected(new Error("bad")), {
+        check(type, () => rejected(new Error("bad")), {
           data: { nest: { test: null } },
           errors: [
             {
@@ -398,16 +410,20 @@ describe("Execute: Handles list nullability", () => {
 
       test(
         "Contains reject",
-        check(type, [resolved(1), rejected(new Error("bad")), resolved(2)], {
-          data: { nest: { test: null } },
-          errors: [
-            {
-              message: "bad",
-              locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test", 1]
-            }
-          ]
-        })
+        check(
+          type,
+          () => [resolved(1), rejected(new Error("bad")), resolved(2)],
+          {
+            data: { nest: { test: null } },
+            errors: [
+              {
+                message: "bad",
+                locations: [{ line: 1, column: 10 }],
+                path: ["nest", "test", 1]
+              }
+            ]
+          }
+        )
       );
     });
   });
@@ -488,7 +504,7 @@ describe("Execute: Handles list nullability", () => {
 
       test(
         "Rejected",
-        check(type, rejected(new Error("bad")), {
+        check(type, () => rejected(new Error("bad")), {
           data: { nest: null },
           errors: [
             {
@@ -525,16 +541,20 @@ describe("Execute: Handles list nullability", () => {
 
       test(
         "Contains reject",
-        check(type, [resolved(1), rejected(new Error("bad")), resolved(2)], {
-          data: { nest: null },
-          errors: [
-            {
-              message: "bad",
-              locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test", 1]
-            }
-          ]
-        })
+        check(
+          type,
+          () => [resolved(1), rejected(new Error("bad")), resolved(2)],
+          {
+            data: { nest: null },
+            errors: [
+              {
+                message: "bad",
+                locations: [{ line: 1, column: 10 }],
+                path: ["nest", "test", 1]
+              }
+            ]
+          }
+        )
       );
     });
   });
@@ -559,7 +579,7 @@ describe("Execute: Handles nested lists", () => {
       });
       const schema = new GraphQLSchema({ query: dataType });
       const ast = parse(query || "{ test }");
-      const prepared: any = compileQuery(schema, ast, "");
+      const prepared: any = await compileQuery(schema, ast, "");
       const response = await prepared.query(testData, undefined, {});
       expect(response).toEqual(expected);
     };
@@ -618,7 +638,7 @@ describe("resolved fields in object list", () => {
       }
     `;
 
-    const prepared: any = compileQuery(
+    const prepared: any = await compileQuery(
       getSchema([{ id: 123 }]),
       parse(request),
       ""
@@ -639,7 +659,7 @@ describe("resolved fields in object list", () => {
       }
     `;
 
-    const prepared: any = compileQuery(
+    const prepared: any = await compileQuery(
       getSchema([{ id: 123 }, null]),
       parse(request),
       ""
@@ -660,7 +680,7 @@ describe("resolved fields in object list", () => {
       }
     `;
 
-    const prepared: any = compileQuery(
+    const prepared: any = await compileQuery(
       getSchema([{ id: 123 }, new Error("test")]),
       parse(request),
       ""
@@ -692,7 +712,7 @@ describe("resolved fields in object list", () => {
     // Note: this is intentionally not validating the query to ensure appropriate
     // behavior occurs when executing an invalid query.
 
-    const prepared: any = compileQuery(getSchema([]), parse(request), "");
+    const prepared: any = await compileQuery(getSchema([]), parse(request), "");
     expect(prepared.query(undefined, undefined, undefined)).toEqual({
       data: { feed: [] }
     });

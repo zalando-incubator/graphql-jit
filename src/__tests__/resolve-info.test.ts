@@ -1060,7 +1060,7 @@ describe("GraphQLJitResolveInfo", () => {
   });
 });
 
-function executeQuery(
+async function executeQuery(
   schema?: GraphQLSchema,
   document?: DocumentNode,
   rootValue?: any,
@@ -1068,7 +1068,7 @@ function executeQuery(
   variableValues?: any,
   operationName?: string
 ) {
-  const prepared: any = compileQuery(
+  const prepared: any = await compileQuery(
     schema as any,
     document as any,
     operationName || ""

@@ -27,50 +27,50 @@ const schema = new GraphQLSchema({
   })
 });
 
-function executeTestQuery(
+async function executeTestQuery(
   query: string,
   disablingCapturingStackErrors: boolean,
   root: any = {}
 ) {
   const ast = parse(query);
-  const compiled: any = compileQuery(schema, ast, "", {
+  const compiled: any = await compileQuery(schema, ast, "", {
     disablingCapturingStackErrors
   });
   return compiled.query(root, undefined, {});
 }
 
 describe("error generation", () => {
-  test("includes original error", () => {
+  test("includes original error", async () => {
     const error = new Error("original");
-    const resp = executeTestQuery("{ b }", false, { b: error });
+    const resp = await executeTestQuery("{ b }", false, { b: error });
     expect(resp.errors[0].originalError).toBe(error);
   });
-  test("is instanceOf upstream error", () => {
-    const resp = executeTestQuery("{ b }", false, { b: new Error() });
+  test("is instanceOf upstream error", async () => {
+    const resp = await executeTestQuery("{ b }", false, { b: new Error() });
     expect(resp.errors[0] instanceof GraphQLError).toBeTruthy();
     expect(resp.errors[0] instanceof Error).toBeTruthy();
   });
   describe("stack capture", () => {
-    test("capture the stack", () => {
+    test("capture the stack", async () => {
       const error = "test";
-      const resp = executeTestQuery("{ b }", false, { b: error });
+      const resp = await executeTestQuery("{ b }", false, { b: error });
       expect(resp.errors[0].originalError).toBe(error);
       expect(resp.errors[0].stack).toBeDefined();
     });
-    test("copies the stack if available", () => {
-      const resp = executeTestQuery("{ b }", true, { b: new Error() });
+    test("copies the stack if available", async () => {
+      const resp = await executeTestQuery("{ b }", true, { b: new Error() });
       expect(resp.errors[0].stack).toBeDefined();
     });
-    test("does not capture the stack if set in options", () => {
+    test("does not capture the stack if set in options", async () => {
       const error = "test";
-      const resp = executeTestQuery("{ b }", true, { b: error });
+      const resp = await executeTestQuery("{ b }", true, { b: error });
       expect(resp.errors[0].originalError).toBe(error);
       expect(resp.errors[0].stack).not.toBeDefined();
     });
-    test("fallbacks if Error.captureStackTrace is not defined", () => {
+    test("fallbacks if Error.captureStackTrace is not defined", async () => {
       const captureStackTrace = Error.captureStackTrace;
       Error.captureStackTrace = (null as unknown) as any;
-      const resp = executeTestQuery("{ b }", false, { b: "error" });
+      const resp = await executeTestQuery("{ b }", false, { b: "error" });
       expect(resp.errors[0].stack).toBeDefined();
       Error.captureStackTrace = captureStackTrace;
     });

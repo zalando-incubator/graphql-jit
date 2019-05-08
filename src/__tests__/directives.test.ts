@@ -32,17 +32,17 @@ const schema = new GraphQLSchema({
 
 const data = {};
 
-function executeTestQuery(query: string) {
+async function executeTestQuery(query: string) {
   const ast = parse(query);
-  const compiled: any = compileQuery(schema, ast, "");
+  const compiled: any = await compileQuery(schema, ast, "");
   return compiled.query(data, undefined, {});
 }
 
 // tslint:disable-next-line
 describe("Execute: handles directives", () => {
   describe("works without directives", () => {
-    test("basic query works", () => {
-      const result = executeTestQuery("{ a, b }");
+    test("basic query works", async () => {
+      const result = await executeTestQuery("{ a, b }");
 
       expect(result).toEqual({
         data: { a: "a", b: "b" }
@@ -52,16 +52,16 @@ describe("Execute: handles directives", () => {
 
   describe("works on scalars", () => {
     // tslint:disable-next-line
-    test("if true includes scalar", () => {
-      const result = executeTestQuery("{ a, b @include(if: true) }");
+    test("if true includes scalar", async () => {
+      const result = await executeTestQuery("{ a, b @include(if: true) }");
 
       expect(result).toEqual({
         data: { a: "a", b: "b" }
       });
     });
 
-    test("if false omits on scalar", () => {
-      const result = executeTestQuery("{ a, b @include(if: false) }");
+    test("if false omits on scalar", async () => {
+      const result = await executeTestQuery("{ a, b @include(if: false) }");
 
       expect(result).toEqual({
         data: { a: "a" }
@@ -69,8 +69,8 @@ describe("Execute: handles directives", () => {
     });
 
     // tslint:disable-next-line
-    test("unless false includes scalar", () => {
-      const result = executeTestQuery("{ a, b @skip(if: false) }");
+    test("unless false includes scalar", async () => {
+      const result = await executeTestQuery("{ a, b @skip(if: false) }");
 
       expect(result).toEqual({
         data: { a: "a", b: "b" }
@@ -78,8 +78,8 @@ describe("Execute: handles directives", () => {
     });
 
     // tslint:disable-next-line
-    test("unless true omits scalar", () => {
-      const result = executeTestQuery("{ a, b @skip(if: true) }");
+    test("unless true omits scalar", async () => {
+      const result = await executeTestQuery("{ a, b @skip(if: true) }");
 
       expect(result).toEqual({
         data: { a: "a" }
@@ -88,8 +88,8 @@ describe("Execute: handles directives", () => {
   });
 
   describe("works on fragment spreads", () => {
-    test("if false omits fragment spread", () => {
-      const result = executeTestQuery(`
+    test("if false omits fragment spread", async () => {
+      const result = await executeTestQuery(`
         query {
           a
           ...Frag @include(if: false)
@@ -104,8 +104,8 @@ describe("Execute: handles directives", () => {
       });
     });
 
-    test("if true includes fragment spread", () => {
-      const result = executeTestQuery(`
+    test("if true includes fragment spread", async () => {
+      const result = await executeTestQuery(`
         query {
           a
           ...Frag @include(if: true)
@@ -120,8 +120,8 @@ describe("Execute: handles directives", () => {
       });
     });
 
-    test("unless false includes fragment spread", () => {
-      const result = executeTestQuery(`
+    test("unless false includes fragment spread", async () => {
+      const result = await executeTestQuery(`
         query {
           a
           ...Frag @skip(if: false)
@@ -136,8 +136,8 @@ describe("Execute: handles directives", () => {
       });
     });
 
-    test("unless true omits fragment spread", () => {
-      const result = executeTestQuery(`
+    test("unless true omits fragment spread", async () => {
+      const result = await executeTestQuery(`
         query {
           a
           ...Frag @skip(if: true)
@@ -154,8 +154,8 @@ describe("Execute: handles directives", () => {
   });
 
   describe("works on inline fragment", () => {
-    test("if false omits inline fragment", () => {
-      const result = executeTestQuery(`
+    test("if false omits inline fragment", async () => {
+      const result = await executeTestQuery(`
         query {
           a
           ... on TestType @include(if: false) {
@@ -169,8 +169,8 @@ describe("Execute: handles directives", () => {
       });
     });
 
-    test("if true includes inline fragment", () => {
-      const result = executeTestQuery(`
+    test("if true includes inline fragment", async () => {
+      const result = await executeTestQuery(`
         query {
           a
           ... on TestType @include(if: true) {
@@ -183,8 +183,8 @@ describe("Execute: handles directives", () => {
         data: { a: "a", b: "b" }
       });
     });
-    test("unless false includes inline fragment", () => {
-      const result = executeTestQuery(`
+    test("unless false includes inline fragment", async () => {
+      const result = await executeTestQuery(`
         query {
           a
           ... on TestType @skip(if: false) {
@@ -197,8 +197,8 @@ describe("Execute: handles directives", () => {
         data: { a: "a", b: "b" }
       });
     });
-    test("unless true includes inline fragment", () => {
-      const result = executeTestQuery(`
+    test("unless true includes inline fragment", async () => {
+      const result = await executeTestQuery(`
         query {
           a
           ... on TestType @skip(if: true) {
@@ -214,8 +214,8 @@ describe("Execute: handles directives", () => {
   });
 
   describe("works on anonymous inline fragment", () => {
-    test("if false omits anonymous inline fragment", () => {
-      const result = executeTestQuery(`
+    test("if false omits anonymous inline fragment", async () => {
+      const result = await executeTestQuery(`
         query {
           a
           ... @include(if: false) {
@@ -229,8 +229,8 @@ describe("Execute: handles directives", () => {
       });
     });
 
-    test("if true includes anonymous inline fragment", () => {
-      const result = executeTestQuery(`
+    test("if true includes anonymous inline fragment", async () => {
+      const result = await executeTestQuery(`
         query {
           a
           ... @include(if: true) {
@@ -243,8 +243,8 @@ describe("Execute: handles directives", () => {
         data: { a: "a", b: "b" }
       });
     });
-    test("unless false includes anonymous inline fragment", () => {
-      const result = executeTestQuery(`
+    test("unless false includes anonymous inline fragment", async () => {
+      const result = await executeTestQuery(`
         query Q {
           a
           ... @skip(if: false) {
@@ -257,8 +257,8 @@ describe("Execute: handles directives", () => {
         data: { a: "a", b: "b" }
       });
     });
-    test("unless true includes anonymous inline fragment", () => {
-      const result = executeTestQuery(`
+    test("unless true includes anonymous inline fragment", async () => {
+      const result = await executeTestQuery(`
         query {
           a
           ... @skip(if: true) {
@@ -274,8 +274,8 @@ describe("Execute: handles directives", () => {
   });
 
   describe("works with skip and include directives", () => {
-    test("include and no skip", () => {
-      const result = executeTestQuery(`
+    test("include and no skip", async () => {
+      const result = await executeTestQuery(`
         {
           a
           b @include(if: true) @skip(if: false)
@@ -287,8 +287,8 @@ describe("Execute: handles directives", () => {
       });
     });
 
-    test("include and skip", () => {
-      const result = executeTestQuery(`
+    test("include and skip", async () => {
+      const result = await executeTestQuery(`
         {
           a
           b @include(if: true) @skip(if: true)
@@ -300,8 +300,8 @@ describe("Execute: handles directives", () => {
       });
     });
 
-    test("no include or skip", () => {
-      const result = executeTestQuery(`
+    test("no include or skip", async () => {
+      const result = await executeTestQuery(`
         {
           a
           b @include(if: false) @skip(if: false)

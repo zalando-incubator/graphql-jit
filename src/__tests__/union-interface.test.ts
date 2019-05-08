@@ -31,13 +31,13 @@ class Person {
   ) {}
 }
 
-function execute(
+async function execute(
   schema: GraphQLSchema,
   document: DocumentNode,
   root?: any,
   context?: any
 ) {
-  const { query, errors }: any = compileQuery(schema, document, "");
+  const { query }: any = await compileQuery(schema, document, "");
   return query(root, context, {});
 }
 
@@ -105,7 +105,7 @@ const john = new Person("John", [garfield, odie], [liz, odie]);
 
 // tslint:disable-next-line
 describe("Execute: Union and intersection types", () => {
-  test("can introspect on union and intersection types", () => {
+  test("can introspect on union and intersection types", async () => {
     const ast = parse(`
       {
         Named: __type(name: "Named") {
@@ -129,7 +129,7 @@ describe("Execute: Union and intersection types", () => {
       }
     `);
 
-    expect(execute(schema, ast)).toEqual({
+    expect(await execute(schema, ast)).toEqual({
       data: {
         Named: {
           kind: "INTERFACE",
@@ -153,7 +153,7 @@ describe("Execute: Union and intersection types", () => {
     });
   });
 
-  test("executes union types with inline fragments", () => {
+  test("executes union types with inline fragments", async () => {
     // This is the valid version of the query in the above test.
     const ast = parse(`
       {
@@ -173,7 +173,7 @@ describe("Execute: Union and intersection types", () => {
       }
     `);
 
-    expect(execute(schema, ast, john)).toEqual({
+    expect(await execute(schema, ast, john)).toEqual({
       data: {
         __typename: "Person",
         name: "John",
@@ -185,7 +185,7 @@ describe("Execute: Union and intersection types", () => {
     });
   });
 
-  test("executes union types with inline fragments", () => {
+  test("executes union types with inline fragments", async () => {
     // This is the valid version of the query in the above test.
     const ast = parse(`
       {
@@ -204,7 +204,7 @@ describe("Execute: Union and intersection types", () => {
       }
     `);
 
-    expect(execute(schema, ast, john)).toEqual({
+    expect(await execute(schema, ast, john)).toEqual({
       data: {
         __typename: "Person",
         name: "John",
@@ -216,7 +216,7 @@ describe("Execute: Union and intersection types", () => {
     });
   });
 
-  test("allows fragment conditions to be abstract types", () => {
+  test("allows fragment conditions to be abstract types", async () => {
     const ast = parse(`
       {
         __typename
@@ -249,7 +249,7 @@ describe("Execute: Union and intersection types", () => {
       }
     `);
 
-    expect(execute(schema, ast, john)).toEqual({
+    expect(await execute(schema, ast, john)).toEqual({
       data: {
         __typename: "Person",
         name: "John",
@@ -265,7 +265,7 @@ describe("Execute: Union and intersection types", () => {
     });
   });
 
-  test("gets execution info in resolver", () => {
+  test("gets execution info in resolver", async () => {
     let encounteredContext;
     let encounteredSchema;
     let encounteredRootValue;
@@ -302,7 +302,7 @@ describe("Execute: Union and intersection types", () => {
 
     const ast = parse("{ name, friends { name } }");
 
-    expect(execute(schema2, ast, john2, context)).toEqual({
+    expect(await execute(schema2, ast, john2, context)).toEqual({
       data: { name: "John", friends: [{ name: "Liz" }] }
     });
 

@@ -100,12 +100,12 @@ const schema = new GraphQLSchema({
   })
 });
 
-function executeQuery(
+async function executeQuery(
   schema: GraphQLSchema,
   document: DocumentNode,
   rootValue: any
 ) {
-  const { query }: any = compileQuery(schema, document, "");
+  const { query }: any = await compileQuery(schema, document, "");
   return query(rootValue, undefined, {});
 }
 

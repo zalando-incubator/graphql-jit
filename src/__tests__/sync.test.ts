@@ -11,29 +11,12 @@ import {
 } from "graphql";
 import { compileQuery, isPromise } from "../execution";
 
-function graphqlSync(args: {
-  schema: GraphQLSchema;
-  rootValue?: any;
-  source: string;
-}) {
-  const result = executeQuery({
-    schema: args.schema,
-    document: parse(args.source),
-    rootValue: args.rootValue
-  });
-
-  // Assert that the execution was synchronous.
-  if (isPromise(result)) {
-    throw new Error("GraphQL execution failed to complete synchronously.");
-  }
-  return result;
-}
-function executeQuery(args: {
+async function executeQuery(args: {
   schema: GraphQLSchema;
   rootValue?: any;
   document: DocumentNode;
 }) {
-  const prepared: any = compileQuery(args.schema, args.document, "");
+  const prepared: any = await compileQuery(args.schema, args.document, "");
   if (prepared.errors) {
     return prepared;
   }
@@ -72,10 +55,10 @@ describe("Execute: synchronously when possible", () => {
     })
   });
 
-  test("does not return a Promise for initial errors", () => {
+  test("does not return a Promise for initial errors", async () => {
     const doc = "fragment Example on Query { syncField }";
     try {
-      executeQuery({
+      await executeQuery({
         schema,
         document: parse(doc),
         rootValue: "rootValue"
@@ -87,9 +70,9 @@ describe("Execute: synchronously when possible", () => {
     }
   });
 
-  test("does not return a Promise if fields are all synchronous", () => {
+  test("does not return a Promise if fields are all synchronous", async () => {
     const doc = "query Example { syncField }";
-    const result = executeQuery({
+    const result = await executeQuery({
       schema,
       document: parse(doc),
       rootValue: "rootValue"
@@ -97,9 +80,9 @@ describe("Execute: synchronously when possible", () => {
     expect(result).toEqual({ data: { syncField: "rootValue" } });
   });
 
-  test("does not return a Promise if mutation fields are all synchronous", () => {
+  test("does not return a Promise if mutation fields are all synchronous", async () => {
     const doc = "mutation Example { syncMutationField }";
-    const result = executeQuery({
+    const result = await executeQuery({
       schema,
       document: parse(doc),
       rootValue: "rootValue"
@@ -121,25 +104,16 @@ describe("Execute: synchronously when possible", () => {
   });
 
   describe("graphqlSync", () => {
-    test("does not return a Promise for sync execution", () => {
+    test("does not return a Promise for sync execution", async () => {
       const doc = "query Example { syncField }";
-      const result = graphqlSync({
-        schema,
-        source: doc,
-        rootValue: "rootValue"
-      });
-      expect(result).toEqual({ data: { syncField: "rootValue" } });
-    });
+      const prepared: any = await compileQuery(schema, parse(doc), "");
+      const result = prepared.query("rootValue", {}, undefined);
 
-    test("throws if encountering async execution", () => {
-      const doc = "query Example { syncField, asyncField }";
-      expect(() => {
-        graphqlSync({
-          schema,
-          source: doc,
-          rootValue: "rootValue"
-        });
-      }).toThrow("GraphQL execution failed to complete synchronously.");
+      // Assert that the execution was synchronous.
+      if (isPromise(result)) {
+        throw new Error("GraphQL execution failed to complete synchronously.");
+      }
+      expect(result).toEqual({ data: { syncField: "rootValue" } });
     });
   });
 });

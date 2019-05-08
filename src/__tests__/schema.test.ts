@@ -18,8 +18,8 @@ import {
 } from "graphql";
 import { compileQuery } from "../index";
 
-function executeQuery(schema: GraphQLSchema, document: DocumentNode) {
-  const prepared: any = compileQuery(schema, document, "");
+async function executeQuery(schema: GraphQLSchema, document: DocumentNode) {
+  const prepared: any = await compileQuery(schema, document, "");
   return prepared.query(undefined, undefined, undefined);
 }
 
@@ -393,9 +393,9 @@ describe("Execute: Handles execution with a complex schema", () => {
     });
   });
 
-  test("executes IntrospectionQuery", () => {
+  test("executes IntrospectionQuery", async () => {
     const queryAST = parse(getIntrospectionQuery({ descriptions: true }));
-    const result = executeQuery(BlogSchema, queryAST);
+    const result = await executeQuery(BlogSchema, queryAST);
     expect(result).toMatchSnapshot();
   });
 });

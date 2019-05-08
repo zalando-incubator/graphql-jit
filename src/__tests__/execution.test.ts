@@ -42,7 +42,7 @@ function executeArgs(args: any) {
   );
 }
 
-function executeQuery(
+async function executeQuery(
   schema?: GraphQLSchema,
   document?: DocumentNode,
   rootValue?: any,
@@ -50,7 +50,7 @@ function executeQuery(
   variableValues?: any,
   operationName?: string
 ) {
-  const prepared: any = compileQuery(
+  const prepared: any = await compileQuery(
     schema as any,
     document as any,
     operationName || ""
@@ -150,15 +150,17 @@ describe("Execute: Handles basic execution tasks", () => {
       })
     });
 
-    expect(() => executeQuery(schema)).toThrow("Must provide document");
+    return expect(executeQuery(schema)).rejects.toThrow(
+      "Must provide document"
+    );
   });
 
   test("throws if no schema is provided", async () => {
-    expect(() =>
+    return expect(
       executeArgs({
         document: parse("{ field }")
       })
-    ).toThrow("Expected undefined to be a GraphQL schema.");
+    ).rejects.toThrow("Expected undefined to be a GraphQL schema.");
   });
 
   test("accepts an object with named properties as arguments", async () => {
@@ -217,7 +219,7 @@ describe("Execute: Handles basic execution tasks", () => {
     });
     const schema = new GraphQLSchema({ query: Type });
 
-    expect(executeQuery(schema, ast)).toEqual({
+    expect(await executeQuery(schema, ast)).toEqual({
       data: {
         a: "Apple",
         b: "Banana",
@@ -255,7 +257,7 @@ describe("Execute: Handles basic execution tasks", () => {
 
     const rootValue = { root: "val" };
 
-    executeQuery(schema, ast, rootValue, null, { var: "abc" });
+    await executeQuery(schema, ast, rootValue, null, { var: "abc" });
 
     expect(Object.keys(info)).toEqual([
       "fieldName",
@@ -340,7 +342,7 @@ describe("Execute: Handles basic execution tasks", () => {
       })
     });
 
-    executeQuery(schema, parse(doc));
+    await executeQuery(schema, parse(doc));
 
     expect(resolvedArgs.numArg).toEqual(123);
     expect(resolvedArgs.stringArg).toEqual("foo");
@@ -785,7 +787,7 @@ describe("Execute: Handles basic execution tasks", () => {
       })
     });
 
-    expect(executeQuery(schema, ast, data)).toEqual({
+    expect(await executeQuery(schema, ast, data)).toEqual({
       errors: [{ message: "Must provide an operation." }]
     });
   });
@@ -804,7 +806,7 @@ describe("Execute: Handles basic execution tasks", () => {
       })
     });
 
-    expect(executeQuery(schema, ast, data)).toEqual({
+    expect(await executeQuery(schema, ast, data)).toEqual({
       errors: [
         {
           message:
@@ -827,7 +829,7 @@ describe("Execute: Handles basic execution tasks", () => {
     });
 
     expect(
-      executeArgs({
+      await executeArgs({
         schema,
         document: ast,
         operationName: "UnknownExample"
