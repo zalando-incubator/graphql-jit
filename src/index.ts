@@ -9,5 +9,6 @@ export {
   GraphQLJitResolveInfo,
   FieldExpansion,
   LeafField,
-  TypeExpansion
+  TypeExpansion,
+  isLeafField
 } from "./resolve-info";
