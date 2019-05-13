@@ -21,8 +21,22 @@ import mergeWith from "lodash.mergewith";
 import { ObjectPath } from "./ast";
 import { memoize2, memoize4 } from "./memoize";
 
+export type ResolveInfoEnricher<T extends ResolveInfoEnricherInput> = (
+  i: ResolveInfoEnricherInput
+) => T | undefined;
+
 export interface GraphQLJitResolveInfo extends GraphQLResolveInfo {
   fieldExpansion: FieldExpansion | LeafField;
+}
+
+export interface ResolveInfoEnricherInput {
+  schema: GraphQLResolveInfo["schema"];
+  fragments: GraphQLResolveInfo["fragments"];
+  operation: GraphQLResolveInfo["operation"];
+  parentType: GraphQLObjectType;
+  returnType: GraphQLOutputType;
+  fieldName: string;
+  fieldNodes: FieldNode[];
 }
 
 export interface FieldExpansion {
@@ -61,49 +75,83 @@ export function isLeafField(obj: LeafField | FieldExpansion): obj is LeafField {
  * that returns the computed resolveInfo. This thunk is registered in
  * context.dependencies for the field's resolveInfoName
  */
-export function createResolveInfoThunk({
-  schema,
-  fragments,
-  operation,
-  parentType,
-  fieldName,
-  fieldType,
-  fieldNodes
-}: {
-  schema: GraphQLResolveInfo["schema"];
-  fragments: GraphQLResolveInfo["fragments"];
-  operation: GraphQLResolveInfo["operation"];
-  parentType: GraphQLObjectType;
-  fieldType: GraphQLOutputType;
-  fieldName: string;
-  fieldNodes: FieldNode[];
-}) {
-  const fieldExpansion: FieldExpansion | LeafField = {};
-
-  for (const fieldNode of fieldNodes) {
-    deepMerge(
-      fieldExpansion,
-      memoizedExpandFieldNode(schema, fragments, fieldNode, fieldType)
-    );
+export function createResolveInfoThunk(
+  {
+    schema,
+    fragments,
+    operation,
+    parentType,
+    fieldName,
+    fieldType,
+    fieldNodes
+  }: {
+    schema: GraphQLResolveInfo["schema"];
+    fragments: GraphQLResolveInfo["fragments"];
+    operation: GraphQLResolveInfo["operation"];
+    parentType: GraphQLObjectType;
+    fieldType: GraphQLOutputType;
+    fieldName: string;
+    fieldNodes: FieldNode[];
+  },
+  enricher?: ResolveInfoEnricher<any>
+) {
+  if (!enricher) {
+    return (
+      rootValue: any,
+      variableValues: any,
+      path: ObjectPath
+    ): GraphQLResolveInfo => ({
+      fieldName,
+      fieldNodes,
+      returnType: fieldType,
+      parentType,
+      path,
+      schema,
+      fragments,
+      rootValue,
+      operation,
+      variableValues
+    });
   }
+
+  const input = {
+    fieldName,
+    fieldNodes,
+    returnType: fieldType,
+    parentType,
+    schema,
+    fragments,
+    operation
+  };
+
+  const enrichedResolvedInfo = enricher(input) || input;
 
   return (
     rootValue: any,
     variableValues: any,
     path: ObjectPath
   ): GraphQLJitResolveInfo => ({
-    fieldName,
-    fieldNodes,
-    returnType: fieldType,
-    parentType,
-    path,
-    schema,
-    fragments,
     rootValue,
-    operation,
     variableValues,
-    fieldExpansion
+    path,
+    ...enrichedResolvedInfo
   });
+}
+
+export function fieldExpansionEnricher(input: ResolveInfoEnricherInput) {
+  const { schema, fragments, returnType, fieldNodes } = input;
+  const fieldExpansion: FieldExpansion | LeafField = {};
+
+  for (const fieldNode of fieldNodes) {
+    deepMerge(
+      fieldExpansion,
+      memoizedExpandFieldNode(schema, fragments, fieldNode, returnType)
+    );
+  }
+  return {
+    ...input,
+    fieldExpansion
+  };
 }
 
 type FragmentsType = GraphQLResolveInfo["fragments"];
