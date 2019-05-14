@@ -21,13 +21,12 @@ import mergeWith from "lodash.mergewith";
 import { ObjectPath } from "./ast";
 import { memoize2, memoize4 } from "./memoize";
 
-export type ResolveInfoEnricher<T extends ResolveInfoEnricherInput> = (
-  i: ResolveInfoEnricherInput
-) => T | undefined;
+type NotGraphQLResolveInfo<T> = { [key in keyof T]: T[key] } &
+  { [key in keyof GraphQLResolveInfo]?: never };
 
-export interface GraphQLJitResolveInfo extends GraphQLResolveInfo {
-  fieldExpansion: FieldExpansion | LeafField;
-}
+export type GraphQLJitResolveInfo<
+  Enrichments extends NotGraphQLResolveInfo<Enrichments>
+> = GraphQLResolveInfo & Enrichments;
 
 export interface ResolveInfoEnricherInput {
   schema: GraphQLResolveInfo["schema"];
@@ -75,7 +74,9 @@ export function isLeafField(obj: LeafField | FieldExpansion): obj is LeafField {
  * that returns the computed resolveInfo. This thunk is registered in
  * context.dependencies for the field's resolveInfoName
  */
-export function createResolveInfoThunk(
+export function createResolveInfoThunk<
+  Enrichments extends NotGraphQLResolveInfo<Enrichments>
+>(
   {
     schema,
     fragments,
@@ -93,28 +94,10 @@ export function createResolveInfoThunk(
     fieldName: string;
     fieldNodes: FieldNode[];
   },
-  enricher?: ResolveInfoEnricher<any>
+  enricher: (inp: ResolveInfoEnricherInput) => Enrichments = () =>
+    ({} as Enrichments)
 ) {
-  if (!enricher) {
-    return (
-      rootValue: any,
-      variableValues: any,
-      path: ObjectPath
-    ): GraphQLResolveInfo => ({
-      fieldName,
-      fieldNodes,
-      returnType: fieldType,
-      parentType,
-      path,
-      schema,
-      fragments,
-      rootValue,
-      operation,
-      variableValues
-    });
-  }
-
-  const input = {
+  const enricherInput = {
     fieldName,
     fieldNodes,
     returnType: fieldType,
@@ -124,17 +107,20 @@ export function createResolveInfoThunk(
     operation
   };
 
-  const enrichedResolvedInfo = enricher(input) || input;
+  const enrichedInfo = {
+    ...enricherInput,
+    ...enricher(enricherInput)
+  };
 
   return (
     rootValue: any,
     variableValues: any,
     path: ObjectPath
-  ): GraphQLJitResolveInfo => ({
+  ): GraphQLJitResolveInfo<Enrichments> => ({
     rootValue,
     variableValues,
     path,
-    ...enrichedResolvedInfo
+    ...enrichedInfo
   });
 }
 
@@ -148,8 +134,8 @@ export function fieldExpansionEnricher(input: ResolveInfoEnricherInput) {
       memoizedExpandFieldNode(schema, fragments, fieldNode, returnType)
     );
   }
+
   return {
-    ...input,
     fieldExpansion
   };
 }
