@@ -44,7 +44,6 @@ import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
 import {
   createResolveInfoThunk,
-  ResolveInfoEnricher,
   ResolveInfoEnricherInput
 } from "./resolve-info";
 import { compileVariableParsing } from "./variables";
@@ -64,7 +63,7 @@ export interface CompilerOptions {
   // the key should be the name passed to the Scalar or Enum type
   customSerializers: { [key: string]: (v: any) => any };
 
-  resolverInfoEnricher?: ResolveInfoEnricher<any>;
+  resolverInfoEnricher?: (inp: ResolveInfoEnricherInput) => object;
 }
 
 /**

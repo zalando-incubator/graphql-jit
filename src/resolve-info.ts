@@ -21,12 +21,12 @@ import mergeWith from "lodash.mergewith";
 import { ObjectPath } from "./ast";
 import { memoize2, memoize4 } from "./memoize";
 
-type NotGraphQLResolveInfo<T> = { [key in keyof T]: T[key] } &
-  { [key in keyof GraphQLResolveInfo]?: never };
-
-export type GraphQLJitResolveInfo<
-  Enrichments extends NotGraphQLResolveInfo<Enrichments>
-> = GraphQLResolveInfo & Enrichments;
+// TODO(boopathi): Use negated types to express
+// Enrichments<T> = { [key in (string & not keyof GraphQLResolveInfo)]: T[key] }
+// in TypeScript 3.5
+// https://github.com/Microsoft/TypeScript/pull/29317
+export type GraphQLJitResolveInfo<Enrichments> = GraphQLResolveInfo &
+  Enrichments;
 
 export interface ResolveInfoEnricherInput {
   schema: GraphQLResolveInfo["schema"];
@@ -74,9 +74,7 @@ export function isLeafField(obj: LeafField | FieldExpansion): obj is LeafField {
  * that returns the computed resolveInfo. This thunk is registered in
  * context.dependencies for the field's resolveInfoName
  */
-export function createResolveInfoThunk<
-  Enrichments extends NotGraphQLResolveInfo<Enrichments>
->(
+export function createResolveInfoThunk<T>(
   {
     schema,
     fragments,
@@ -94,8 +92,7 @@ export function createResolveInfoThunk<
     fieldName: string;
     fieldNodes: FieldNode[];
   },
-  enricher: (inp: ResolveInfoEnricherInput) => Enrichments = () =>
-    ({} as Enrichments)
+  enricher: (inp: ResolveInfoEnricherInput) => T = () => ({} as T)
 ) {
   const enricherInput = {
     fieldName,
@@ -116,7 +113,7 @@ export function createResolveInfoThunk<
     rootValue: any,
     variableValues: any,
     path: ObjectPath
-  ): GraphQLJitResolveInfo<Enrichments> => ({
+  ): GraphQLJitResolveInfo<T> => ({
     rootValue,
     variableValues,
     path,
