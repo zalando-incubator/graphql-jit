@@ -1,6 +1,7 @@
 import { GraphQLSchema, DocumentNode, parse, validate } from "graphql";
 import { compileQuery, isCompiledQuery } from "../execution";
 import { makeExecutableSchema } from "graphql-tools";
+import { fieldExpansionEnricher } from "../resolve-info";
 
 describe("GraphQLJitResolveInfo", () => {
   describe("simple types", () => {
@@ -1071,7 +1072,8 @@ function executeQuery(
   const prepared: any = compileQuery(
     schema as any,
     document as any,
-    operationName || ""
+    operationName || "",
+    { resolverInfoEnricher: fieldExpansionEnricher }
   );
   if (!isCompiledQuery(prepared)) {
     return prepared;

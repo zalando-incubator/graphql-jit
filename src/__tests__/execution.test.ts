@@ -152,6 +152,22 @@ describe("Execute: Handles basic execution tasks", () => {
 
     expect(() => executeQuery(schema)).toThrow("Must provide document");
   });
+  test("throws if no resolve info enricher is not a function", async () => {
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Type",
+        fields: {
+          a: { type: GraphQLString }
+        }
+      })
+    });
+
+    expect(() =>
+      compileQuery(schema, parse("{ field }"), "", {
+        resolverInfoEnricher: "bad" as any
+      })
+    ).toThrow("resolverInfoEnricher must be a function");
+  });
 
   test("throws if no schema is provided", async () => {
     expect(() =>
@@ -257,19 +273,20 @@ describe("Execute: Handles basic execution tasks", () => {
 
     executeQuery(schema, ast, rootValue, null, { var: "abc" });
 
-    expect(Object.keys(info)).toEqual([
-      "fieldName",
-      "fieldNodes",
-      "returnType",
-      "parentType",
-      "path",
-      "schema",
-      "fragments",
-      "rootValue",
-      "operation",
-      "variableValues",
-      "fieldExpansion"
-    ]);
+    expect(Object.keys(info).sort()).toEqual(
+      [
+        "fieldName",
+        "fieldNodes",
+        "returnType",
+        "parentType",
+        "path",
+        "schema",
+        "fragments",
+        "rootValue",
+        "operation",
+        "variableValues"
+      ].sort()
+    );
     expect(info.fieldName).toEqual("test");
     expect(info.fieldNodes).toHaveLength(1);
     expect(info.fieldNodes[0]).toEqual(

@@ -10,5 +10,6 @@ export {
   FieldExpansion,
   LeafField,
   TypeExpansion,
+  fieldExpansionEnricher,
   isLeafField
 } from "./resolve-info";

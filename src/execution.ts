@@ -42,7 +42,10 @@ import {
 import { GraphQLError as GraphqlJitError } from "./error";
 import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
-import { createResolveInfoThunk } from "./resolve-info";
+import {
+  createResolveInfoThunk,
+  ResolveInfoEnricherInput
+} from "./resolve-info";
 import { compileVariableParsing } from "./variables";
 
 export interface CompilerOptions {
@@ -59,6 +62,8 @@ export interface CompilerOptions {
   // Map of serializers to override
   // the key should be the name passed to the Scalar or Enum type
   customSerializers: { [key: string]: (v: any) => any };
+
+  resolverInfoEnricher?: (inp: ResolveInfoEnricherInput) => object;
 }
 
 /**
@@ -132,6 +137,14 @@ export function compileQuery(
   }
   if (!document) {
     throw new Error("Must provide document");
+  }
+
+  if (
+    partialOptions &&
+    partialOptions.resolverInfoEnricher &&
+    typeof partialOptions.resolverInfoEnricher !== "function"
+  ) {
+    throw new Error("resolverInfoEnricher must be a function");
   }
   try {
     const options = {
@@ -948,15 +961,18 @@ function getExecutionInfo(
 
   context.dependencies.set(
     resolveInfoName,
-    createResolveInfoThunk({
-      schema,
-      fragments,
-      operation,
-      parentType,
-      fieldName,
-      fieldType,
-      fieldNodes
-    })
+    createResolveInfoThunk(
+      {
+        schema,
+        fragments,
+        operation,
+        parentType,
+        fieldName,
+        fieldType,
+        fieldNodes
+      },
+      context.options.resolverInfoEnricher
+    )
   );
   return `${resolveInfoName}(${GLOBAL_ROOT_NAME}, ${GLOBAL_VARIABLES_NAME}, ${serializeResponsePath(
     responsePath
