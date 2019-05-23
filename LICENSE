@@ -1,6 +1,10 @@
+Copyright for portions of GraphQL-JIT are held by Facebook, Inc as part of graphql-js.
+All other copyright for GraphQL-JIT are held by Zalando.
+
 MIT License
 
-Copyright (c) 2018 Rui Araujo
+Copyright (c) 2015-present, Facebook, Inc.
+Copyright (c) 2019-present Zalando SE
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
