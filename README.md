@@ -8,7 +8,7 @@
 ### Why?
 
 GraphQL-JS is a very well written runtime implementation of the latest GraphQL spec. However, by compiling to JS, V8 is able to create optimized
-code while yields much better performance.
+code which yields much better performance.
 
 ### Support
 
@@ -154,16 +154,16 @@ module.exports = function setupHandler(schema) {
 Compiles the `document` AST, using an optional operationName and  compiler options.
 
 - `schema` {GraphQLSchema} - `graphql-js` schema object
-- `document` {DocumentNode} - document query AST ,can be obtained by `parse` from  `graphql-js` 
+- `document` {DocumentNode} - document query AST ,can be obtained by `parse` from  `graphql-js`
 - `operationName` {string} - optional operation name in case the document contains multiple queries/operations.
 - `compilerOptions` {Object} - Configurable options on the agent pool
 
-  - `disableLeafSerialization` {boolean, default: false} - disables leaf node serializers. The serializers validate the content of the field 
+  - `disableLeafSerialization` {boolean, default: false} - disables leaf node serializers. The serializers validate the content of the field
   so this option should only be set to true if there are strong assurances that the values are valid.
-  - `customSerializers` {Object as Map, default: {}} - Replace serializer functions for specific types. Can be used as a safer alternative 
-  for overly expensive 
+  - `customSerializers` {Object as Map, default: {}} - Replace serializer functions for specific types. Can be used as a safer alternative
+  for overly expensive
   - `customJSONSerializer` {boolean, default: false} - Whether to produce also a JSON serializer function using `fast-json-stringify`,
-  otherwise the stringify function is just `JSON.stringify` 
+  otherwise the stringify function is just `JSON.stringify`
 
 #### compiledQuery.compiled(root: any, context: any, variables: Maybe<{ [key: string]: any }>)
 
