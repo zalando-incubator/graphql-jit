@@ -1,7 +1,7 @@
 # GraphQL JIT
 
-[![Build Status](https://travis-ci.org/ruiaraujo/graphql-jit.svg?branch=master)](https://travis-ci.org/ruiaraujo/graphql-jit)
-[![codecov](https://codecov.io/gh/ruiaraujo/graphql-jit/branch/master/graph/badge.svg)](https://codecov.io/gh/ruiaraujo/graphql-jit)
+[![Build Status](https://travis-ci.org/zalando-incubator/graphql-jit.svg?branch=master)](https://travis-ci.org/zalando-incubator/graphql-jit)
+[![codecov](https://codecov.io/gh/zalando-incubator/graphql-jit/branch/master/graph/badge.svg)](https://codecov.io/gh/zalando-incubator/graphql-jit)
 
 ### Why?
 
