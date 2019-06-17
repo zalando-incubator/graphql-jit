@@ -733,7 +733,16 @@ describe("Execute: handles non-nullable types", () => {
       expect(result).toEqual({
         data: {
           withNonNullArg: null
-        }
+        },
+        errors: [
+          {
+            message:
+              'Argument "cannotBeNull" of required type "String!" was provided the variable ' +
+              '"$testVar" which was not provided a runtime value.',
+            locations: [{ line: 3, column: 42 }],
+            path: ["withNonNullArg"]
+          }
+        ]
       });
     });
 
@@ -753,7 +762,15 @@ describe("Execute: handles non-nullable types", () => {
       expect(result).toEqual({
         data: {
           withNonNullArg: null
-        }
+        },
+        errors: [
+          {
+            message:
+              'Argument "cannotBeNull" of non-null type "String!" must not be null.',
+            locations: [{ line: 3, column: 43 }],
+            path: ["withNonNullArg"]
+          }
+        ]
       });
     });
   });

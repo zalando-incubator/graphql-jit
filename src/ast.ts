@@ -1,4 +1,5 @@
 import {
+  ArgumentNode,
   ASTNode,
   DirectiveNode,
   FieldNode,
@@ -6,25 +7,34 @@ import {
   FragmentSpreadNode,
   getDirectiveValues,
   getLocation,
+  GraphQLArgument,
   GraphQLDirective,
   GraphQLError,
   GraphQLField,
   GraphQLIncludeDirective,
+  GraphQLInputType,
   GraphQLObjectType,
   GraphQLSkipDirective,
   InlineFragmentNode,
+  isEnumType,
+  isInputObjectType,
+  isListType,
   isNonNullType,
+  isScalarType,
   print,
   SelectionSetNode,
   SourceLocation,
   typeFromAST,
-  valueFromAST
+  ValueNode,
+  VariableNode
 } from "graphql";
 import { ExecutionContext, getFieldDef } from "graphql/execution/execute";
 import { Kind } from "graphql/language";
 import Maybe from "graphql/tsutils/Maybe";
 import { isAbstractType } from "graphql/type";
+import createInspect from "./inspect";
 
+const inspect = createInspect();
 /**
  * Given a selectionSet, adds all of the fields in that selection to
  * the passed in map of fields, and returns it at the end.
@@ -247,7 +257,7 @@ function memoize3(
 
 export interface Arguments {
   values: { [argument: string]: any };
-  missing: { [argument: string]: any };
+  missing: MissingVariablePath[];
 }
 
 /**
@@ -263,18 +273,28 @@ export function getArgumentDefs(
   node: FieldNode | DirectiveNode
 ): Arguments {
   const values: { [key: string]: any } = {};
-  const missing: { [key: string]: string } = {};
+  const missing: MissingVariablePath[] = [];
   const argDefs = def.args;
   const argNodes = node.arguments || [];
   const argNodeMap = keyMap(argNodes, arg => arg.name.value);
   for (const argDef of argDefs) {
     const name = argDef.name;
+    if (argDef.defaultValue !== undefined) {
+      // Set the coerced value to the default
+      values[name] = argDef.defaultValue;
+    }
     const argType = argDef.type;
     const argumentNode = argNodeMap[name];
+    let hasVariables = false;
     if (argumentNode && argumentNode.value.kind === Kind.VARIABLE) {
-      missing[name] = argumentNode.value.name.value;
+      hasVariables = true;
+      missing.push({
+        valueNode: argumentNode.value,
+        path: addPath(undefined, name, "literal"),
+        argument: { definition: argDef, node: argumentNode }
+      });
     } else if (argumentNode) {
-      const coercedValue = valueFromAST(argumentNode.value, argType, {});
+      const coercedValue = valueFromAST(argumentNode.value, argType);
       if (coercedValue === undefined) {
         // Note: ValuesOfCorrectType validation should catch this before
         // execution. This is a runtime check to ensure execution does not
@@ -283,21 +303,21 @@ export function getArgumentDefs(
           `Argument "${name}" of type \"${argType}\" has invalid value ${print(
             argumentNode.value
           )}.`,
-          [argumentNode.value]
+          argumentNode.value
         );
       }
-      values[name] = coercedValue;
+
+      if (isASTValueWithVariables(coercedValue)) {
+        missing.push(
+          ...coercedValue.variables.map(({ valueNode, path }) => ({
+            valueNode,
+            path: addPath(path, name, "literal")
+          }))
+        );
+      }
+      values[name] = coercedValue.value;
     }
-    if (argDef.defaultValue !== undefined && values[name] === undefined) {
-      // If no argument was provided where the definition has a default value,
-      // use the default value.
-      values[name] = argDef.defaultValue;
-    }
-    if (
-      isNonNullType(argType) &&
-      values[name] === undefined &&
-      missing[name] === undefined
-    ) {
+    if (isNonNullType(argType) && values[name] === undefined && !hasVariables) {
       // If no value or a nullish value was provided to a variable with a
       // non-null type (required), produce an error.
       throw new GraphQLError(
@@ -306,11 +326,172 @@ export function getArgumentDefs(
             `"${argType}" must not be null.`
           : `Argument "${name}" of required type ` +
             `"${argType}" was not provided.`,
-        [node]
+        node
       );
     }
   }
   return { values, missing };
+}
+
+interface MissingVariablePath {
+  valueNode: VariableNode;
+  path: ObjectPath;
+  argument?: { definition: GraphQLArgument; node: ArgumentNode };
+}
+
+interface ASTValueWithVariables {
+  value: object | string | boolean | symbol | number | null | any[];
+  variables: MissingVariablePath[];
+}
+
+function isASTValueWithVariables(x: any): x is ASTValueWithVariables {
+  return !!x.variables;
+}
+
+interface ASTValue {
+  value: object | string | boolean | symbol | number | null | any[];
+}
+
+export function valueFromAST(
+  valueNode: ValueNode,
+  type: GraphQLInputType
+): undefined | ASTValue | ASTValueWithVariables {
+  if (isNonNullType(type)) {
+    if (valueNode.kind === Kind.NULL) {
+      return; // Invalid: intentionally return no value.
+    }
+    return valueFromAST(valueNode, type.ofType);
+  }
+
+  if (valueNode.kind === Kind.NULL) {
+    // This is explicitly returning the value null.
+    return {
+      value: null
+    };
+  }
+
+  if (valueNode.kind === Kind.VARIABLE) {
+    return { value: null, variables: [{ valueNode, path: undefined }] };
+  }
+
+  if (isListType(type)) {
+    const itemType = type.ofType;
+    if (valueNode.kind === Kind.LIST) {
+      const coercedValues = [];
+      const variables: MissingVariablePath[] = [];
+      const itemNodes = valueNode.values;
+      for (let i = 0; i < itemNodes.length; i++) {
+        const itemNode = itemNodes[i];
+        if (itemNode.kind === Kind.VARIABLE) {
+          coercedValues.push(null);
+          variables.push({
+            valueNode: itemNode,
+            path: addPath(undefined, i.toString(), "literal")
+          });
+        } else {
+          const itemValue = valueFromAST(itemNode, itemType);
+          if (!itemValue) {
+            return; // Invalid: intentionally return no value.
+          }
+          coercedValues.push(itemValue.value);
+          if (isASTValueWithVariables(itemValue)) {
+            variables.push(
+              ...itemValue.variables.map(({ valueNode, path }) => ({
+                valueNode,
+                path: addPath(path, i.toString(), "literal")
+              }))
+            );
+          }
+        }
+      }
+      return { value: coercedValues, variables };
+    }
+    // Single item which will be coerced to a list
+    const coercedValue = valueFromAST(valueNode, itemType);
+    if (coercedValue === undefined) {
+      return; // Invalid: intentionally return no value.
+    }
+    if (isASTValueWithVariables(coercedValue)) {
+      return {
+        value: [coercedValue.value],
+        variables: coercedValue.variables.map(({ valueNode, path }) => ({
+          valueNode,
+          path: addPath(path, "0", "literal")
+        }))
+      };
+    }
+    return { value: [coercedValue.value] };
+  }
+
+  if (isInputObjectType(type)) {
+    if (valueNode.kind !== Kind.OBJECT) {
+      return; // Invalid: intentionally return no value.
+    }
+    const coercedObj = Object.create(null);
+    const variables: MissingVariablePath[] = [];
+    const fieldNodes = keyMap(valueNode.fields, field => field.name.value);
+    const fields = Object.values(type.getFields());
+    for (const field of fields) {
+      if (field.defaultValue !== undefined) {
+        coercedObj[field.name] = field.defaultValue;
+      }
+      const fieldNode = fieldNodes[field.name];
+      if (!fieldNode) {
+        continue;
+      }
+      const fieldValue = valueFromAST(fieldNode.value, field.type);
+      if (!fieldValue) {
+        return; // Invalid: intentionally return no value.
+      }
+      if (isASTValueWithVariables(fieldValue)) {
+        variables.push(
+          ...fieldValue.variables.map(({ valueNode, path }) => ({
+            valueNode,
+            path: addPath(path, field.name, "literal")
+          }))
+        );
+      }
+      coercedObj[field.name] = fieldValue.value;
+    }
+    return { value: coercedObj, variables };
+  }
+
+  if (isEnumType(type)) {
+    if (valueNode.kind !== Kind.ENUM) {
+      return; // Invalid: intentionally return no value.
+    }
+    const enumValue = type.getValue(valueNode.value);
+    if (!enumValue) {
+      return; // Invalid: intentionally return no value.
+    }
+    return { value: enumValue.value };
+  }
+
+  if (isScalarType(type)) {
+    // Scalars fulfill parsing a literal value via parseLiteral().
+    // Invalid values represent a failure to parse correctly, in which case
+    // no value is returned.
+    let result;
+    try {
+      if (type.parseLiteral.length > 1) {
+        // tslint:disable-next-line
+        console.error(
+          "Scalar with variable inputs detected for parsing AST literals. This is not supported."
+        );
+      }
+      result = type.parseLiteral(valueNode, {});
+    } catch (error) {
+      return; // Invalid: intentionally return no value.
+    }
+    if (isInvalid(result)) {
+      return; // Invalid: intentionally return no value.
+    }
+    return { value: result };
+  }
+
+  // Not reachable. All possible input types have been considered.
+  /* istanbul ignore next */
+  throw new Error(`Unexpected input type: "${inspect(type)}".`);
 }
 
 /**
@@ -376,4 +557,20 @@ export function addPath(
   type: ResponsePathType = "literal"
 ): ObjectPath {
   return { prev: responsePath, key, type };
+}
+
+export function flattenPath(
+  path: ObjectPath
+): Array<{ key: string; type: ResponsePathType }> {
+  const flattened = [];
+  let curr: ObjectPath | undefined = path;
+  while (curr) {
+    flattened.push({ key: curr.key, type: curr.type });
+    curr = curr.prev;
+  }
+  return flattened;
+}
+
+function isInvalid(value: any): boolean {
+  return value === undefined || value !== value;
 }

@@ -20,7 +20,9 @@ import {
 import { CoercedVariableValues } from "graphql/execution/values";
 import { addPath, computeLocations, ObjectPath } from "./ast";
 import { GraphQLError } from "./error";
-import inspect from "./inspect";
+import createInspect from "./inspect";
+
+const inspect = createInspect();
 
 interface CompilationContext {
   inputPath: ObjectPath;

@@ -1,5 +1,6 @@
 import fastJson from "fast-json-stringify";
 import {
+  ASTNode,
   DocumentNode,
   ExecutionResult,
   FragmentDefinitionNode,
@@ -35,11 +36,13 @@ import {
   Arguments,
   collectSubfields,
   computeLocations,
+  flattenPath,
   getArgumentDefs,
   ObjectPath,
   resolveFieldDef
 } from "./ast";
 import { GraphQLError as GraphqlJitError } from "./error";
+import createInspect from "./inspect";
 import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
 import {
@@ -47,6 +50,8 @@ import {
   ResolveInfoEnricherInput
 } from "./resolve-info";
 import { compileVariableParsing } from "./variables";
+
+const inspect = createInspect();
 
 export interface CompilerOptions {
   customJSONSerializer: boolean;
@@ -381,29 +386,39 @@ function compileDeferredFields(context: CompilationContext): string {
         [`parent.${name}`],
         responsePath
       );
+      const resolverName = getResolverName(parentType.name, fieldName);
+      const topLevelArgs = getArgumentsVarName(resolverName);
+      const validArgs = getValidArgumentsVarName(resolverName);
       body += `
   if (${SAFETY_CHECK_PREFIX}${index}) {
-  ${GLOBAL_EXECUTOR_NAME}(() => ${getResolverName(
-        parentType.name,
-        fieldName
-      )}(${originPaths.join(".")},
-   ${getArguments(args)},
-   ${GLOBAL_CONTEXT_NAME},
-   ${getExecutionInfo(
+   ${getArguments(
      subContext,
-     parentType,
+     args,
+     topLevelArgs,
+     validArgs,
      fieldType,
-     fieldName,
-     fieldNodes,
      responsePath
-   )}),
-   (parent, ${fieldName}, err) => {
-    if (err != null) {
-        ${
-          isNonNullType(fieldType)
-            ? GLOBAL_NULL_ERRORS_NAME
-            : GLOBAL_ERRORS_NAME
-        }.push(${
+   )}
+   if (${validArgs} === true) {
+     ${GLOBAL_EXECUTOR_NAME}(() => ${resolverName}(
+     ${originPaths.join(".")},
+     ${topLevelArgs},
+     ${GLOBAL_CONTEXT_NAME},
+     ${getExecutionInfo(
+       subContext,
+       parentType,
+       fieldType,
+       fieldName,
+       fieldNodes,
+       responsePath
+     )}),
+     (parent, ${fieldName}, err) => {
+      if (err != null) {
+          ${
+            isNonNullType(fieldType)
+              ? GLOBAL_NULL_ERRORS_NAME
+              : GLOBAL_ERRORS_NAME
+          }.push(${
         createErrorObject(
           context,
           fieldNodes,
@@ -412,13 +427,14 @@ function compileDeferredFields(context: CompilationContext): string {
           "err"
         ) /* TODO: test why no return here*/
       });
+      }
+      ${generateUniqueDeclarations(subContext)}
+      parent.${name} = ${nodeBody};\n
+      ${compileDeferredFields(subContext)}
+    },${destinationPaths.join(
+      "."
+    )}, ${GLOBAL_DATA_NAME}, ${GLOBAL_ERRORS_NAME}, ${GLOBAL_NULL_ERRORS_NAME})
     }
-    ${generateUniqueDeclarations(subContext)}
-    parent.${name} = ${nodeBody};\n
-    ${compileDeferredFields(subContext)}
-  },${destinationPaths.join(
-    "."
-  )}, ${GLOBAL_DATA_NAME}, ${GLOBAL_ERRORS_NAME}, ${GLOBAL_NULL_ERRORS_NAME})
   }`;
     }
   );
@@ -518,6 +534,7 @@ function compileType(
       errorDestination
     );
   } else {
+    /* istanbul ignore next */
     throw new Error(`unsupported type: ${type.toString()}`);
   }
   body += ")";
@@ -979,28 +996,102 @@ function getExecutionInfo(
   )})`;
 }
 
+function getArgumentsVarName(prefixName: string) {
+  return `${prefixName}Args`;
+}
+function getValidArgumentsVarName(prefixName: string) {
+  return `${prefixName}ValidArgs`;
+}
+
+function objectPath(topLevel: string, path: ObjectPath) {
+  let objectPath = topLevel;
+  const flattened = flattenPath(path);
+  for (const section of flattened) {
+    if (section.type === "literal") {
+      objectPath += `["${section.key}"]`;
+    } else {
+      throw new Error("should only have received literal paths");
+    }
+  }
+  return objectPath;
+}
+
 /**
  * Returns a static object with the all the arguments needed for the resolver
+ * @param context
  * @param {Arguments} args
+ * @param topLevelArg name of the toplevel
+ * @param validArgs
+ * @param returnType
+ * @param path
  * @returns {string}
  */
-function getArguments(args: Arguments): string {
-  const staticValues = objectStringify(args.values);
-  if (Object.keys(args.missing).length === 0) {
-    return staticValues;
+function getArguments(
+  context: CompilationContext,
+  args: Arguments,
+  topLevelArg: string,
+  validArgs: string,
+  returnType: GraphQLOutputType,
+  path: ObjectPath
+): string {
+  // default to assuming arguments are valid
+  let body = `
+  let ${validArgs} = true;
+  const ${topLevelArg} = ${objectStringify(args.values)};
+  `;
+  const errorDestination = isNonNullType(returnType)
+    ? GLOBAL_NULL_ERRORS_NAME
+    : GLOBAL_ERRORS_NAME;
+  for (const variable of args.missing) {
+    const varName = variable.valueNode.name.value;
+    body += `if (Object.prototype.hasOwnProperty.call(${GLOBAL_VARIABLES_NAME}, "${varName}")) {`;
+    if (variable.argument && isNonNullType(variable.argument.definition.type)) {
+      const message = `'Argument "${
+        variable.argument.definition.name
+      }" of non-null type "${inspect(
+        variable.argument.definition.type
+      )}" must not be null.'`;
+      body += `if (${GLOBAL_VARIABLES_NAME}['${
+        variable.valueNode.name.value
+      }'] == null) {
+      ${errorDestination}.push(${createErrorObject(
+        context,
+        [variable.argument.node.value],
+        path,
+        message
+      )});
+      ${validArgs} = false;
+      }`;
+    }
+    body += `
+    ${objectPath(topLevelArg, variable.path)} = ${GLOBAL_VARIABLES_NAME}['${
+      variable.valueNode.name.value
+    }'];
+    }`;
+    // If there is no default value and no variable input
+    // throw a field error
+    if (
+      variable.argument &&
+      isNonNullType(variable.argument.definition.type) &&
+      variable.argument.definition.defaultValue === undefined
+    ) {
+      const message = `'Argument "${
+        variable.argument.definition.name
+      }" of required type "${inspect(
+        variable.argument.definition.type
+      )}" was provided the variable "$${varName}" which was not provided a runtime value.'`;
+      body += ` else {
+      ${errorDestination}.push(${createErrorObject(
+        context,
+        [variable.argument.node.value],
+        path,
+        message
+      )});
+      ${validArgs} = false;
+        }`;
+    }
   }
-
-  let staticArgs = `Object.assign(${staticValues},`;
-  for (const argName of Object.keys(args.missing)) {
-    staticArgs += `Object.prototype.hasOwnProperty.call(${GLOBAL_VARIABLES_NAME}, "${
-      args.missing[argName]
-    }") ?
-    { '${argName}': ${GLOBAL_VARIABLES_NAME}['${
-      args.missing[argName]
-    }']} : {},`;
-  }
-  staticArgs += ")";
-  return staticArgs;
+  return body;
 }
 
 /**
@@ -1043,12 +1134,7 @@ export function isPromise(value: any): value is Promise<any> {
  * @returns {string} filtered serialization of the response path
  */
 function serializeResponsePathAsArray(path: ObjectPath) {
-  const flattened = [];
-  let curr: ObjectPath | undefined = path;
-  while (curr) {
-    flattened.push({ key: curr.key, type: curr.type });
-    curr = curr.prev;
-  }
+  const flattened = flattenPath(path);
   let src = "[";
   for (let i = flattened.length - 1; i >= 0; i--) {
     // meta is only used for the function name
@@ -1064,13 +1150,11 @@ function serializeResponsePathAsArray(path: ObjectPath) {
 }
 
 function createResolveInfoName(path: ObjectPath) {
-  const flattened = [];
-  let curr: ObjectPath | undefined = path;
-  while (curr) {
-    flattened.push(curr.key);
-    curr = curr.prev;
-  }
-  return flattened.join("_") + "Info";
+  return (
+    flattenPath(path)
+      .map(p => p.key)
+      .join("_") + "Info"
+  );
 }
 
 /**
@@ -1241,7 +1325,7 @@ function getFieldNodesName(nodes: FieldNode[]) {
 
 function createErrorObject(
   context: CompilationContext,
-  nodes: FieldNode[],
+  nodes: ASTNode[],
   path: ObjectPath,
   message: string,
   originalError?: string

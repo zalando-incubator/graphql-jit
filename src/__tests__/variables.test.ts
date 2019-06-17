@@ -20,7 +20,9 @@ import {
 } from "graphql";
 import { GraphQLArgumentConfig } from "graphql/type/definition";
 import { compileQuery } from "../index";
-import inspect from "../inspect";
+import createInspect from "../inspect";
+
+const inspect = createInspect(10, 4);
 
 const TestComplexScalar = new GraphQLScalarType({
   name: "ComplexScalar",
@@ -51,7 +53,8 @@ const TestInputObject = new GraphQLInputObjectType({
     a: { type: GraphQLString },
     b: { type: new GraphQLList(GraphQLString) },
     c: { type: new GraphQLNonNull(GraphQLString) },
-    d: { type: TestComplexScalar }
+    d: { type: TestComplexScalar },
+    e: { type: new GraphQLList(GraphQLString) }
   }
 });
 
@@ -59,7 +62,8 @@ const TestNestedInputObject = new GraphQLInputObjectType({
   name: "TestNestedInputObject",
   fields: {
     na: { type: new GraphQLNonNull(TestInputObject) },
-    nb: { type: new GraphQLNonNull(GraphQLString) }
+    nb: { type: new GraphQLNonNull(GraphQLString), defaultValue: "NB" },
+    nc: { type: new GraphQLList(new GraphQLNonNull(TestInputObject)) }
   }
 });
 
@@ -125,8 +129,7 @@ const TestType = new GraphQLObjectType({
       defaultValue: "Hello World"
     }),
     fieldWithNestedInputObject: fieldWithInputArg({
-      type: TestNestedInputObject,
-      defaultValue: "Hello World"
+      type: TestNestedInputObject
     }),
     list: fieldWithInputArg({ type: new GraphQLList(GraphQLString) }),
     superNestedList: fieldWithInputArg({
@@ -148,9 +151,9 @@ const TestType = new GraphQLObjectType({
 
 const schema = new GraphQLSchema({ query: TestType });
 
-function executeQuery(query: string, variableValues?: any) {
+function executeQuery(query: string, variableValues?: any, s = schema) {
   const document = parse(query);
-  const prepared: any = compileQuery(schema, document, "");
+  const prepared: any = compileQuery(s, document, "");
   if (prepared.errors) {
     return prepared;
   }
@@ -234,6 +237,39 @@ describe("Execute: Handles inputs", () => {
         });
       });
 
+      test("does not use incorrect nested value", async () => {
+        const result = await executeQuery(`
+          {
+            fieldWithObjectInput(input: {b: ["A",null,"C"], c: false})
+          }
+        `);
+
+        expect(result).toEqual({
+          errors: [
+            {
+              message:
+                'Argument "input" of type "TestInputObject" has invalid value {b: ["A", null, "C"], c: false}.',
+              locations: [{ line: 3, column: 41 }]
+            }
+          ]
+        });
+      });
+
+      test("properly parses nested objects", async () => {
+        const result = await executeQuery(`
+          {
+            fieldWithNestedInputObject(input: {na: {b: ["A",null,"C"], c: "C"}, nc: [{b: ["NC"]}]})
+          }
+        `);
+
+        expect(result).toEqual({
+          data: {
+            fieldWithNestedInputObject:
+              '{ na: { b: ["A", null, "C"], c: "C" }, nb: "NB", nc: [{ b: ["NC"] }] }'
+          }
+        });
+      });
+
       test("properly runs parseLiteral on complex scalar types", async () => {
         const result = await executeQuery(`
           {
@@ -308,14 +344,75 @@ describe("Execute: Handles inputs", () => {
           }
         `);
 
-        const noVal = Object.create(null);
-        noVal.a = "foo";
-        noVal.b = ["bar"];
-        noVal.c = "baz";
+        expect(result).toEqual({
+          data: {
+            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }'
+          }
+        });
+      });
+
+      test("executes with complex inlined variables", async () => {
+        const result = await executeQuery(
+          `
+          query q($a: String, $b: String, $c: String!) {
+            fieldWithObjectInput(input: {a: $a, b: [$b], c: $c})
+          }
+        `,
+          { a: "foo", b: "bar", c: "baz" }
+        );
 
         expect(result).toEqual({
           data: {
-            fieldWithObjectInput: inspect(noVal)
+            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }'
+          }
+        });
+      });
+
+      test("properly parses nested variables", async () => {
+        const result = await executeQuery(
+          `
+          query q($a: String, $b: String, $c: String!) {
+            fieldWithNestedInputObject(input: {
+            na: {b: ["A",null, $a], c: "C"},
+            nb: "NB",
+            nc: [{b: [], c: $c}, {b: ["NC", $b]}]})
+          }
+        `,
+          {
+            a: "A",
+            b: "B",
+            c: "C"
+          }
+        );
+
+        expect(result).toEqual({
+          data: {
+            fieldWithNestedInputObject:
+              '{ na: { b: ["A", null, "A"], c: "C" }, ' +
+              'nb: "NB", nc: [{ b: [], c: "C" }, { b: ["NC", "B"] }] }'
+          }
+        });
+      });
+      test("properly parses nested variables to list", async () => {
+        const result = await executeQuery(
+          `
+          query q($b: String) {
+            fieldWithNestedInputObject(input: {
+            na: {b: []},
+            nb: "NB",
+            nc: {b: ["NC", $b]}
+            })
+          }
+        `,
+          {
+            b: "B"
+          }
+        );
+
+        expect(result).toEqual({
+          data: {
+            fieldWithNestedInputObject:
+              '{ na: { b: [] }, nb: "NB", nc: [{ b: ["NC", "B"] }] }'
           }
         });
       });
@@ -449,7 +546,8 @@ describe("Execute: Handles inputs", () => {
           errors: [
             {
               message:
-                'Variable "$input" got invalid value { a: "foo", b: "bar", c: "baz", extra: "dog" }; Field "extra" is not defined by type TestInputObject.',
+                'Variable "$input" got invalid value { a: "foo", b: "bar", c: "baz", extra: "dog" }; ' +
+                'Field "extra" is not defined by type TestInputObject.',
               locations: [{ line: 2, column: 16 }]
             }
           ]
@@ -478,6 +576,52 @@ describe("Execute: Handles inputs", () => {
           customValue: '"custom value"',
           defaultValue: '"DEFAULT_VALUE"'
         }
+      });
+    });
+
+    test("field error when random enum value as enum input", async () => {
+      const result = executeQuery(`
+        {
+          fieldWithEnumInput(input: WRONG)
+        }
+      `);
+
+      expect(result).toEqual({
+        errors: [
+          {
+            locations: [
+              {
+                column: 37,
+                line: 3
+              }
+            ],
+            message:
+              'Argument "input" of type "TestEnum" has invalid value WRONG.'
+          }
+        ]
+      });
+    });
+
+    test("field error when random string as enum input", async () => {
+      const result = executeQuery(`
+        {
+          fieldWithEnumInput(input: "random")
+        }
+      `);
+
+      expect(result).toEqual({
+        errors: [
+          {
+            locations: [
+              {
+                column: 37,
+                line: 3
+              }
+            ],
+            message:
+              'Argument "input" of type "TestEnum" has invalid value "random".'
+          }
+        ]
       });
     });
 
@@ -791,7 +935,8 @@ describe("Execute: Handles inputs", () => {
               }
             ],
             message:
-              'Variable "$int" got invalid value 9007199254740992; Expected type Int; Int cannot represent non 32-bit signed integer value: 9007199254740992'
+              'Variable "$int" got invalid value 9007199254740992; Expected type Int; ' +
+              "Int cannot represent non 32-bit signed integer value: 9007199254740992"
           }
         ]
       });
@@ -816,7 +961,8 @@ describe("Execute: Handles inputs", () => {
               }
             ],
             message:
-              'Variable "$string" got invalid value ["a"]; Expected type String; String cannot represent a non string value: ["a"]'
+              'Variable "$string" got invalid value ["a"]; Expected type String; ' +
+              'String cannot represent a non string value: ["a"]'
           },
           {
             locations: [
@@ -826,7 +972,8 @@ describe("Execute: Handles inputs", () => {
               }
             ],
             message:
-              'Variable "$id" got invalid value ["id"]; Expected type ID; ID cannot represent value: ["id"]'
+              'Variable "$id" got invalid value ["id"]; Expected type ID; ' +
+              'ID cannot represent value: ["id"]'
           },
           {
             locations: [
@@ -836,7 +983,8 @@ describe("Execute: Handles inputs", () => {
               }
             ],
             message:
-              'Variable "$int" got invalid value 1.5; Expected type Int; Int cannot represent non-integer value: 1.5'
+              'Variable "$int" got invalid value 1.5; Expected type Int; ' +
+              "Int cannot represent non-integer value: 1.5"
           },
           {
             locations: [
@@ -846,7 +994,8 @@ describe("Execute: Handles inputs", () => {
               }
             ],
             message:
-              'Variable "$float" got invalid value NaN; Expected type Float; Float cannot represent non numeric value: NaN'
+              'Variable "$float" got invalid value NaN; Expected type Float; ' +
+              "Float cannot represent non numeric value: NaN"
           },
           {
             locations: [
@@ -856,7 +1005,8 @@ describe("Execute: Handles inputs", () => {
               }
             ],
             message:
-              'Variable "$boolean" got invalid value "hello"; Expected type Boolean; Boolean cannot represent a non boolean value: "hello"'
+              'Variable "$boolean" got invalid value "hello"; Expected type Boolean; ' +
+              'Boolean cannot represent a non boolean value: "hello"'
           }
         ]
       });
@@ -1078,12 +1228,13 @@ describe("Execute: Handles inputs", () => {
       });
     });
 
-    it.skip("reports error for non-provided variables for non-nullable inputs", async () => {
+    it("reports error for non-provided variables for non-nullable inputs", async () => {
       // Note: this test would typically fail validation before encountering
       // this execution error, however for queries which previously validated
       // and are being run against a new schema which have introduced a breaking
       // change to make a formerly non-required argument required, this asserts
       // failure before allowing the underlying code to receive a non-null value.
+
       const result = await executeQuery(`
         {
           fieldWithNonNullableStringInput(input: $foo)
@@ -1154,6 +1305,53 @@ describe("Execute: Handles inputs", () => {
       const result = await executeQuery(doc, { input: ["A", null, "B"] });
 
       expect(result).toEqual({ data: { list: '["A", null, "B"]' } });
+    });
+
+    test("does not allow lists to contain unrelated items", async () => {
+      const doc = `
+        {
+          list(input: [false])
+        }
+      `;
+      const result = await executeQuery(doc);
+
+      expect(result).toEqual({
+        errors: [
+          {
+            locations: [
+              {
+                column: 23,
+                line: 3
+              }
+            ],
+            message:
+              'Argument "input" of type "[String]" has invalid value [false].'
+          }
+        ]
+      });
+    });
+    test("does not allow lists to be converted from unrelated items", async () => {
+      const doc = `
+        {
+          list(input: false)
+        }
+      `;
+      const result = await executeQuery(doc);
+
+      expect(result).toEqual({
+        errors: [
+          {
+            locations: [
+              {
+                column: 23,
+                line: 3
+              }
+            ],
+            message:
+              'Argument "input" of type "[String]" has invalid value false.'
+          }
+        ]
+      });
     });
 
     test("does not allow non-null lists to be null", async () => {
@@ -1385,6 +1583,30 @@ describe("Execute: Handles inputs", () => {
           fieldWithNonNullableStringInputAndDefaultArgumentValue:
             '"Hello World"'
         }
+      });
+    });
+    test("when null is provided to a non-null argument with default argument", async () => {
+      const result = await executeQuery(
+        `
+        query optionalVariable($optional: String) {
+          fieldWithNonNullableStringInputAndDefaultArgumentValue(input: $optional)
+        }
+      `,
+        { optional: null }
+      );
+
+      expect(result).toEqual({
+        data: {
+          fieldWithNonNullableStringInputAndDefaultArgumentValue: null
+        },
+        errors: [
+          {
+            message:
+              'Argument "input" of non-null type "String!" must not be null.',
+            locations: [{ line: 3, column: 73 }],
+            path: ["fieldWithNonNullableStringInputAndDefaultArgumentValue"]
+          }
+        ]
       });
     });
   });
