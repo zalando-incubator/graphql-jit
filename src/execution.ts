@@ -230,6 +230,7 @@ export function createBoundQuery(
   const resolvers = getFunctionResolvers(compilationContext);
   const fnName = operationName ? operationName : "query";
 
+  /* tslint:disable */
   /**
    * In-order to assign a debuggable name to the bound query function,
    * we create an intermediate object with a method named as the
@@ -240,6 +241,7 @@ export function createBoundQuery(
    *
    * section: 14.3.9.3 - calls SetFunctionName
    */
+  /* tslint:enable */
   const ret = {
     [fnName](
       rootValue: any,
