@@ -1201,3 +1201,20 @@ describe("Checks if the output of the compilation was a compiled query", () => {
     ).toBeTruthy();
   });
 });
+
+describe("dx", () => {
+  test("function name of the bound query", async () => {
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Type",
+        fields: {
+          a: { type: GraphQLString }
+        }
+      })
+    });
+    const document = parse(`query mockOperationName { a }`);
+    const compiledQuery = compileQuery(schema, document) as CompiledQuery;
+    expect(isCompiledQuery(compiledQuery)).toBe(true);
+    expect(compiledQuery.query.name).toBe("mockOperationName");
+  });
+});
