@@ -19,6 +19,7 @@
     "lint-fix": "tslint --project . --fix",
     "build": "tsc",
     "test": "jest",
+    "stryker": "stryker run",
     "codecov": "codecov"
   },
   "files": [
@@ -48,6 +49,9 @@
     "graphql": ">=14"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^2.0.0",
+    "@stryker-mutator/jest-runner": "^2.0.0",
+    "@stryker-mutator/typescript": "^2.0.0",
     "@types/benchmark": "^1.0.31",
     "@types/graphql": "^14.2.0",
     "@types/jest": "^24.0.11",
