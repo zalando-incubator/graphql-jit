@@ -1106,7 +1106,7 @@ describe("Execute: Handles basic execution tasks", () => {
     });
   });
 
-  it.skip("fails when an isTypeOf check is not met", async () => {
+  it("fails when an isTypeOf check is not met", async () => {
     class Special {
       constructor(public value: any) {}
     }
@@ -1129,6 +1129,10 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Query",
         fields: {
+          special: {
+            type: SpecialType,
+            resolve: rootValue => rootValue.special
+          },
           specials: {
             type: new GraphQLList(SpecialType),
             resolve: rootValue => rootValue.specials
@@ -1137,21 +1141,29 @@ describe("Execute: Handles basic execution tasks", () => {
       })
     });
 
-    const query = parse("{ specials { value } }");
+    const query = parse("{ special {value} specials { value } }");
     const value = {
+      special: new NotSpecial("bar"),
       specials: [new Special("foo"), new NotSpecial("bar")]
     };
     const result = await executeQuery(schema, query, value);
 
     expect(result).toEqual({
       data: {
+        special: null,
         specials: [{ value: "foo" }, null]
       },
       errors: [
         {
           message:
-            'Expected value of type "SpecialType" but got: [object Object].',
+            'Expected value of type "SpecialType" but got: { value: "bar" }.',
           locations: [{ line: 1, column: 3 }],
+          path: ["special"]
+        },
+        {
+          message:
+            'Expected value of type "SpecialType" but got: { value: "bar" }.',
+          locations: [{ line: 1, column: 19 }],
           path: ["specials", 1]
         }
       ]

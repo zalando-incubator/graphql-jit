@@ -92,6 +92,7 @@ const GLOBAL_EXECUTOR_NAME = "__executor";
 const GLOBAL_ROOT_NAME = "__rootValue";
 const GLOBAL_VARIABLES_NAME = "__variables";
 const GLOBAL_CONTEXT_NAME = "__context";
+const GLOBAL_INSPECT_NAME = "__inspect";
 
 interface DeferredField {
   name: string;
@@ -306,6 +307,7 @@ export function createBoundQuery(
         executor,
         resolveIfDone,
         safeMap,
+        inspect,
         GraphqlJitError,
         ...resolvers
       ]);
@@ -366,9 +368,11 @@ function compileOperation(context: CompilationContext) {
   const topLevel = compileObjectType(
     context,
     type,
+    [],
     [GLOBAL_ROOT_NAME],
     [GLOBAL_DATA_NAME],
     undefined,
+    GLOBAL_ERRORS_NAME,
     fieldMap,
     true
   );
@@ -534,9 +538,11 @@ function compileType(
     body += compileObjectType(
       context,
       type,
+      fieldNodes,
       originPaths,
       destinationPaths,
       previousPath,
+      errorDestination,
       fieldMap,
       false
     );
@@ -604,23 +610,41 @@ function compileLeafType(
  * Compile a node of object type.
  * @param {CompilationContext} context
  * @param {GraphQLObjectType} type type of the node
+ * @param fieldNodes fieldNodes array with the nodes references
  * @param originPaths originPaths path in the parent object from where to fetch results
  * @param destinationPaths path in the where to write the result
  * @param responsePath response path until this node
- * @param fieldMap fieldNodes array with the nodes references
+ * @param errorDestination Path for error array
+ * @param fieldMap map of fields to fieldNodes array with the nodes references
  * @param alwaysDefer used to force the field to be resolved with a resolver ala graphql-js
  * @returns {string}
  */
 function compileObjectType(
   context: CompilationContext,
   type: GraphQLObjectType,
+  fieldNodes: FieldNode[],
   originPaths: string[],
   destinationPaths: string[],
   responsePath: ObjectPath | undefined,
+  errorDestination: string,
   fieldMap: { [key: string]: FieldNode[] },
   alwaysDefer: boolean
 ): string {
-  let body = `{`;
+  let body = "(";
+  if (typeof type.isTypeOf === "function" && !alwaysDefer) {
+    context.dependencies.set(type.name + "IsTypeOf", type.isTypeOf);
+    body += `!${type.name}IsTypeOf(${originPaths.join(
+      "."
+    )}) ? (${errorDestination}.push(${createErrorObject(
+      context,
+      fieldNodes,
+      responsePath as any,
+      `\`Expected value of type "${
+        type.name
+      }" but got: $\{${GLOBAL_INSPECT_NAME}(${originPaths.join(".")})}.\``
+    )}), null) :`;
+  }
+  body += "{";
   for (const name of Object.keys(fieldMap)) {
     const fieldNodes = fieldMap[name];
     const field = resolveFieldDef(context, type, fieldNodes);
@@ -668,7 +692,7 @@ function compileObjectType(
     }
     body += ",";
   }
-  body += "}";
+  body += "})";
   return body;
 }
 
@@ -1026,6 +1050,7 @@ function getExecutionInfo(
 function getArgumentsVarName(prefixName: string) {
   return `${prefixName}Args`;
 }
+
 function getValidArgumentsVarName(prefixName: string) {
   return `${prefixName}ValidArgs`;
 }
@@ -1384,7 +1409,7 @@ function getSerializerName(name: string) {
 function getFunctionSignature(context: CompilationContext) {
   return `return function query (
   ${GLOBAL_ROOT_NAME}, ${GLOBAL_CONTEXT_NAME}, ${GLOBAL_VARIABLES_NAME}, ${GLOBAL_EXECUTOR_NAME},
-   __resolveIfDone, __safeMap, GraphQLError,
+   __resolveIfDone, __safeMap, ${GLOBAL_INSPECT_NAME}, GraphQLError,
     ${getResolversVariablesName(context)})`;
 }
 
