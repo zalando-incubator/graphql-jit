@@ -90,38 +90,68 @@ function getSchema() {
   const BlogImage = new GraphQLObjectType({
     name: "Image",
     fields: {
-      url: { type: GraphQLString },
-      width: { type: GraphQLInt },
-      height: { type: GraphQLInt }
+      url: {
+        type: GraphQLString,
+        resolve: image => Promise.resolve(image.url)
+      },
+      width: {
+        type: GraphQLInt,
+        resolve: image => Promise.resolve(image.width)
+      },
+      height: {
+        type: GraphQLInt,
+        resolve: image => Promise.resolve(image.height)
+      }
     }
   });
 
   const BlogAuthor = new GraphQLObjectType({
     name: "Author",
     fields: () => ({
-      id: { type: GraphQLString },
-      name: { type: GraphQLString },
+      id: {
+        type: GraphQLString,
+        resolve: author => Promise.resolve(author.id)
+      },
+      name: {
+        type: GraphQLString,
+        resolve: author => Promise.resolve(author.name)
+      },
       pic: {
         args: { width: { type: GraphQLInt }, height: { type: GraphQLInt } },
         type: BlogImage,
         resolve: (obj, { width, height }) => obj.pic(width, height)
       },
-      recentArticle: { type: BlogArticle }
+      recentArticle: {
+        type: BlogArticle,
+        resolve: author => Promise.resolve(author.recentArticle)
+      }
     })
   });
 
   const BlogArticle: GraphQLObjectType = new GraphQLObjectType({
     name: "Article",
     fields: {
-      id: { type: new GraphQLNonNull(GraphQLID) },
-      isPublished: { type: GraphQLBoolean },
+      id: {
+        type: new GraphQLNonNull(GraphQLID),
+        resolve: article => Promise.resolve(article.id)
+      },
+      isPublished: {
+        type: GraphQLBoolean,
+        resolve: article => Promise.resolve(article.isPublished)
+      },
       author: { type: BlogAuthor },
       title: {
         type: GraphQLString,
         resolve: article => Promise.resolve(article && article.title)
       },
-      body: { type: GraphQLString },
-      keywords: { type: new GraphQLList(GraphQLString) }
+      body: {
+        type: GraphQLString,
+        resolve: article => Promise.resolve(article.body)
+      },
+      keywords: {
+        type: new GraphQLList(GraphQLString),
+        resolve: article => Promise.resolve(article.keywords)
+      }
     }
   });
 
@@ -171,6 +201,7 @@ function getSchema() {
       keywords: ["foo", "bar", 1, true, null]
     };
   }
+
   function getPic(uid: number, width: number, height: number) {
     return {
       url: `cdn://${uid}`,
