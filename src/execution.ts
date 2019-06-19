@@ -190,7 +190,15 @@ export function compileQuery(
   }`;
     const func = new Function(functionBody)();
     return {
-      query: createBoundQuery(context, document, func, getVariables),
+      query: createBoundQuery(
+        context,
+        document,
+        func,
+        getVariables,
+        context.operation.name != null
+          ? context.operation.name.value
+          : undefined
+      ),
       stringify
     };
   } catch (err) {
@@ -212,87 +220,106 @@ export function createBoundQuery(
   compilationContext: CompilationContext,
   document: DocumentNode,
   func: (...args: any[]) => any,
-  getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues
+  getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
+  operationName?: string
 ) {
   const {
     operation: { operation }
   } = compilationContext;
   const trimmer = createNullTrimmer(compilationContext);
   const resolvers = getFunctionResolvers(compilationContext);
-  return (
-    rootValue: any,
-    context: any,
-    variables: Maybe<{ [key: string]: any }>
-  ): Promise<ExecutionResult> | ExecutionResult => {
-    // this can be shared across in a batch request
-    const { errors, coerced } = getVariableValues(variables || {});
+  const fnName = operationName ? operationName : "query";
 
-    // Return early errors if variable coercing failed.
-    if (errors) {
-      return { errors };
-    }
+  /* tslint:disable */
+  /**
+   * In-order to assign a debuggable name to the bound query function,
+   * we create an intermediate object with a method named as the
+   * intended function name. This is because Function.prototype.name
+   * is not writeable.
+   *
+   * http://www.ecma-international.org/ecma-262/6.0/#sec-method-definitions-runtime-semantics-propertydefinitionevaluation
+   *
+   * section: 14.3.9.3 - calls SetFunctionName
+   */
+  /* tslint:enable */
+  const ret = {
+    [fnName](
+      rootValue: any,
+      context: any,
+      variables: Maybe<{ [key: string]: any }>
+    ): Promise<ExecutionResult> | ExecutionResult {
+      // this can be shared across in a batch request
+      const { errors, coerced } = getVariableValues(variables || {});
 
-    let result: ExecutionResult | null = null;
-    const maybePromise: {
-      resolve: (r: ExecutionResult) => void;
-      reject: (e: Error) => void;
-    } = {
-      resolve: (r: ExecutionResult) => {
-        result = r;
-      },
-      reject: (err: Error) => {
-        throw err;
+      // Return early errors if variable coercing failed.
+      if (errors) {
+        return { errors };
       }
-    };
-    const callback = (
-      data: any,
-      errors: GraphQLError[],
-      nullErrors: GraphQLError[]
-    ) => {
+
+      let result: ExecutionResult | null = null;
+      const maybePromise: {
+        resolve: (r: ExecutionResult) => void;
+        reject: (e: Error) => void;
+      } = {
+        resolve: (r: ExecutionResult) => {
+          result = r;
+        },
+        reject: (err: Error) => {
+          throw err;
+        }
+      };
+      const callback = (
+        data: any,
+        errors: GraphQLError[],
+        nullErrors: GraphQLError[]
+      ) => {
+        if (result) {
+          throw new Error("called the final cb more than once");
+        }
+        maybePromise.resolve(
+          postProcessResult(trimmer, data, errors, nullErrors)
+        );
+      };
+      const globalErrorHandler = (err: Error) => {
+        // Logging the culprit
+        // tslint:disable-next-line
+        console.error(`bad function: ${func.toString()}`);
+        // tslint:disable-next-line
+        console.error(`good query: ${print(document)}`);
+        maybePromise.reject(err);
+      };
+      let executor;
+      let resolveIfDone;
+      if (operation === "mutation") {
+        const serial = serialPromiseExecutor(callback, globalErrorHandler);
+        executor = serial.addToQueue;
+        resolveIfDone = serial.startExecution;
+      } else {
+        const loose = loosePromiseExecutor(callback, globalErrorHandler);
+        executor = loose.executor;
+        resolveIfDone = loose.resolveIfDone;
+      }
+      func.apply(null, [
+        rootValue,
+        context,
+        coerced,
+        executor,
+        resolveIfDone,
+        safeMap,
+        GraphqlJitError,
+        ...resolvers
+      ]);
       if (result) {
-        throw new Error("called the final cb more than once");
+        return result;
       }
-      maybePromise.resolve(
-        postProcessResult(trimmer, data, errors, nullErrors)
-      );
-    };
-    const globalErrorHandler = (err: Error) => {
-      // Logging the culprit
-      // tslint:disable-next-line
-      console.error(`bad function: ${func.toString()}`);
-      // tslint:disable-next-line
-      console.error(`good query: ${print(document)}`);
-      maybePromise.reject(err);
-    };
-    let executor;
-    let resolveIfDone;
-    if (operation === "mutation") {
-      const serial = serialPromiseExecutor(callback, globalErrorHandler);
-      executor = serial.addToQueue;
-      resolveIfDone = serial.startExecution;
-    } else {
-      const loose = loosePromiseExecutor(callback, globalErrorHandler);
-      executor = loose.executor;
-      resolveIfDone = loose.resolveIfDone;
+      return new Promise((resolve, reject) => {
+        maybePromise.resolve = resolve;
+        maybePromise.reject = reject;
+      });
     }
-    func.apply(null, [
-      rootValue,
-      context,
-      coerced,
-      executor,
-      resolveIfDone,
-      safeMap,
-      GraphqlJitError,
-      ...resolvers
-    ]);
-    if (result) {
-      return result;
-    }
-    return new Promise((resolve, reject) => {
-      maybePromise.resolve = resolve;
-      maybePromise.reject = reject;
-    });
   };
+
+  return ret[fnName];
 }
 
 function postProcessResult(
