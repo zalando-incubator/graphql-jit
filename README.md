@@ -8,6 +8,20 @@
 GraphQL-JS is a very well written runtime implementation of the latest GraphQL spec. However, by compiling to JS, V8 is able to create optimized
 code which yields much better performance.
 
+#### Benchmarks
+
+```bash
+$ ts-node -T ./src/__benchmarks__/schema.benchmark.ts 
+graphql-js x 3,873 ops/sec ±3.89% (74 runs sampled)
+graphql-jit x 128,301 ops/sec ±1.79% (75 runs sampled)
+Fastest is graphql-jit
+
+$ ts-node -T ./src/__benchmarks__/schema-many-resolvers.benchmark.ts 
+graphql-js x 5,458 ops/sec ±5.62% (70 runs sampled)
+graphql-jit x 52,345 ops/sec ±3.95% (74 runs sampled)
+Fastest is graphql-jit
+```
+
 ### Support
 
 The goal is to support the [June 2018 version of the GraphQL spec](https://facebook.github.io/graphql/June2018/). At this moment,
