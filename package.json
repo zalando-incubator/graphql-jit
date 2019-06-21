@@ -13,13 +13,13 @@
   "scripts": {
     "precommit": "lint-staged",
     "prepublishOnly": "yarn && yarn build",
-    "format": "prettier --no-config --write 'src/**/*.ts'",
-    "check-format": "prettier --no-config -l 'src/**/*.ts'",
+    "format": "prettier --no-config --write 'src/**/*.ts' '*.js'",
+    "check-format": "prettier --no-config -l 'src/**/*.ts' '*.js'",
     "lint": "tslint --project .",
     "lint-fix": "tslint --project . --fix",
     "build": "tsc",
     "test": "jest",
-    "stryker": "stryker run",
+    "mutation-test": "stryker run",
     "codecov": "codecov"
   },
   "files": [

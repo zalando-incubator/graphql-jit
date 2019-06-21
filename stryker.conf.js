@@ -7,8 +7,6 @@ module.exports = function(config) {
     transpilers: [],
     coverageAnalysis: "off",
     tsconfigFile: "tsconfig.json",
-    mutate: ["src/**/*.ts",
-      '!src/__benchmarks__/*.ts',
-      '!src/__tests__/*.ts']
+    mutate: ["src/**/*.ts", "!src/__benchmarks__/*.ts", "!src/__tests__/*.ts"]
   });
 };
