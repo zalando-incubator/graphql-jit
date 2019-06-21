@@ -13,12 +13,13 @@
   "scripts": {
     "precommit": "lint-staged",
     "prepublishOnly": "yarn && yarn build",
-    "format": "prettier --no-config --write 'src/**/*.ts'",
-    "check-format": "prettier --no-config -l 'src/**/*.ts'",
+    "format": "prettier --no-config --write 'src/**/*.ts' '*.js'",
+    "check-format": "prettier --no-config -l 'src/**/*.ts' '*.js'",
     "lint": "tslint --project .",
     "lint-fix": "tslint --project . --fix",
     "build": "tsc",
     "test": "jest",
+    "mutation-test": "stryker run",
     "codecov": "codecov"
   },
   "files": [
@@ -48,6 +49,9 @@
     "graphql": ">=14"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^2.0.0",
+    "@stryker-mutator/jest-runner": "^2.0.0",
+    "@stryker-mutator/typescript": "^2.0.0",
     "@types/benchmark": "^1.0.31",
     "@types/graphql": "^14.2.0",
     "@types/jest": "^24.0.11",
