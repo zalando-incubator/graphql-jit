@@ -1,6 +1,6 @@
 {
   "name": "graphql-jit",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "GraphQL JIT Compiler to JS",
   "main": "dist/index.js",
   "types": "./dist/index.d.ts",
