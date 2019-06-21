@@ -93,6 +93,7 @@ const GLOBAL_ROOT_NAME = "__rootValue";
 const GLOBAL_VARIABLES_NAME = "__variables";
 const GLOBAL_CONTEXT_NAME = "__context";
 const GLOBAL_INSPECT_NAME = "__inspect";
+const GLOBAL_PARENT_NAME = "__parent";
 
 interface DeferredField {
   name: string;
@@ -414,7 +415,7 @@ function compileDeferredFields(context: CompilationContext): string {
         fieldType,
         fieldNodes,
         [fieldName],
-        [`parent.${name}`],
+        [`${GLOBAL_PARENT_NAME}.${name}`],
         responsePath
       );
       const resolverName = getResolverName(parentType.name, fieldName);
@@ -443,7 +444,7 @@ function compileDeferredFields(context: CompilationContext): string {
        fieldNodes,
        responsePath
      )}),
-     (parent, ${fieldName}, err) => {
+     (${GLOBAL_PARENT_NAME}, ${fieldName}, err) => {
       if (err != null) {
           ${
             isNonNullType(fieldType)
@@ -460,7 +461,7 @@ function compileDeferredFields(context: CompilationContext): string {
       });
       }
       ${generateUniqueDeclarations(subContext)}
-      parent.${name} = ${nodeBody};\n
+      ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};\n
       ${compileDeferredFields(subContext)}
     },${destinationPaths.join(
       "."

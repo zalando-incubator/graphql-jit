@@ -1198,6 +1198,31 @@ describe("Execute: Handles basic execution tasks", () => {
       }
     });
   });
+
+  test("allow for 'parent' field name", async () => {
+    const query = parse(`{ parent }`);
+
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          parent: {
+            type: GraphQLString,
+            resolve() {
+              return "works";
+            }
+          }
+        }
+      })
+    });
+
+    const result = await executeQuery(schema, query, null);
+    expect(result).toEqual({
+      data: {
+        parent: "works"
+      }
+    });
+  });
 });
 
 describe("Checks if the output of the compilation was a compiled query", () => {
