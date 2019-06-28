@@ -12,13 +12,13 @@ code which yields much better performance.
 
 ```bash
 $ ts-node -T ./src/__benchmarks__/schema.benchmark.ts 
-graphql-js x 3,873 ops/sec ±3.89% (74 runs sampled)
-graphql-jit x 128,301 ops/sec ±1.79% (75 runs sampled)
+graphql-js x 12,315 ops/sec ±4.55% (75 runs sampled)
+graphql-jit x 123,367 ops/sec ±1.13% (81 runs sampled)
 Fastest is graphql-jit
 
 $ ts-node -T ./src/__benchmarks__/schema-many-resolvers.benchmark.ts 
-graphql-js x 5,458 ops/sec ±5.62% (70 runs sampled)
-graphql-jit x 52,345 ops/sec ±3.95% (74 runs sampled)
+graphql-js x 14,006 ops/sec ±2.05% (78 runs sampled)
+graphql-jit x 52,248 ops/sec ±1.36% (81 runs sampled)
 Fastest is graphql-jit
 ```
 
