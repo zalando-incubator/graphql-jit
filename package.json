@@ -76,6 +76,7 @@
   },
   "dependencies": {
     "fast-json-stringify": "^1.13.0",
+    "generate-function": "^2.3.1",
     "json-schema": "^0.2.3",
     "lodash.memoize": "^4.1.2",
     "lodash.merge": "^4.6.1",
