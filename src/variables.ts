@@ -1,3 +1,4 @@
+import genFn from "generate-function";
 import {
   GraphQLBoolean,
   GraphQLFloat,
@@ -18,7 +19,6 @@ import {
   VariableDefinitionNode
 } from "graphql";
 import { CoercedVariableValues } from "graphql/execution/values";
-import genFn from "generate-function";
 import { addPath, computeLocations, ObjectPath } from "./ast";
 import { GraphQLError } from "./error";
 import createInspect from "./inspect";
