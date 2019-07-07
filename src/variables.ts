@@ -1,3 +1,4 @@
+import genFn from "generate-function";
 import {
   GraphQLBoolean,
   GraphQLFloat,
@@ -89,20 +90,25 @@ export function compileVariableParsing(
   if (errors.length > 0) {
     throw errors;
   }
-  const body = `
-    return function getVariables (input) {
-    const errors = [];
-    const coerced = ${JSON.stringify(coercedValues)}
-    ${mainBody}
-    if (errors.length > 0) {return {errors, coerced: undefined};}
-    return {errors: undefined, coerced};
+
+  const gen = genFn();
+  gen(`
+    return function getVariables(input) {
+      const errors = [];
+      const coerced = ${JSON.stringify(coercedValues)}
+      ${mainBody}
+      if (errors.length > 0) {
+        return {errors, coerced: undefined};
+      }
+      return {errors: undefined, coerced};
     }
-    `;
+  `);
+
   return Function.apply(
     null,
     ["GraphQLError", "inspect"]
       .concat(Array.from(dependencies.keys()))
-      .concat(body)
+      .concat(gen.toString())
   ).apply(
     null,
     [GraphQLError, inspect].concat(Array.from(dependencies.values()))
@@ -127,7 +133,8 @@ function generateInput(
     computeLocations([context.varDefNode])
   );
 
-  let body = `if (${currentInput} == null) {\n`;
+  const gen = genFn();
+  gen(`if (${currentInput} == null) {`);
 
   if (isNonNullType(varType)) {
     let nonNullMessage;
@@ -145,136 +152,147 @@ function generateInput(
       omittedMessage = `'Variable "$${varName}" of required type "${varType}" was not provided.'`;
     }
     varType = varType.ofType;
-    body += `
-        if (${currentOutput} == null) {
-            errors.push(new GraphQLError(${hasValueName} ? ${nonNullMessage} : ${omittedMessage}, ${errorLocation}));
-        }
-        `;
+    gen(`
+      if (${currentOutput} == null) {
+        errors.push(new GraphQLError(${hasValueName} ? ${nonNullMessage} : ${omittedMessage}, ${errorLocation}));
+      }
+    `);
   } else {
-    body += `if (${hasValueName}) { ${currentOutput} = null; }\n`;
+    gen(`
+      if (${hasValueName}) { ${currentOutput} = null; }
+    `);
   }
-  body += "} else {";
+  gen(`} else {`);
   if (isScalarType(varType)) {
     switch (varType.name) {
       case GraphQLID.name:
-        body += `
-                    if (typeof ${currentInput} === "string") {
-                        ${currentOutput} = ${currentInput};
-                    } else if (Number.isInteger(${currentInput})) {
-                        ${currentOutput} = ${currentInput}.toString();
-                    } else {
-                        errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
-                        + inspect(${currentInput}) + "; " +
-                        'Expected type ${varType.name}; ${
-          varType.name
-        } cannot represent value: ' + inspect(${currentInput}), ${errorLocation}));
-                    }
-                    `;
+        gen(`
+          if (typeof ${currentInput} === "string") {
+            ${currentOutput} = ${currentInput};
+          } else if (Number.isInteger(${currentInput})) {
+            ${currentOutput} = ${currentInput}.toString();
+          } else {
+            errors.push(new GraphQLError('Variable "$${varName}" got invalid value ' +
+              inspect(${currentInput}) + "; " +
+              'Expected type ${varType.name}; ' +
+              '${varType.name} cannot represent value: ' +
+              inspect(${currentInput}), ${errorLocation})
+            );
+          }
+        `);
         break;
       case GraphQLString.name:
-        body += `
-                    if (typeof ${currentInput} === "string") {
-                        ${currentOutput} = ${currentInput};
-                    } else {
-                        errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
-                        + inspect(${currentInput}) + "; " +
-                        'Expected type ${varType.name}; ${
-          varType.name
-        } cannot represent a non string value: ' + inspect(${currentInput}), ${errorLocation}));
-                    }
-                    `;
+        gen(`
+          if (typeof ${currentInput} === "string") {
+              ${currentOutput} = ${currentInput};
+          } else {
+            errors.push(new GraphQLError('Variable "$${varName}" got invalid value ' +
+              inspect(${currentInput}) + "; " +
+              'Expected type ${varType.name}; ' +
+              '${varType.name} cannot represent a non string value: ' +
+              inspect(${currentInput}), ${errorLocation})
+            );
+          }
+        `);
         break;
       case GraphQLBoolean.name:
-        body += `
-                    if (typeof ${currentInput} === "boolean") {
-                        ${currentOutput} = ${currentInput};
-                    } else {
-                        errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
-                        + inspect(${currentInput}) + "; " +
-                        'Expected type ${varType.name}; ${
-          varType.name
-        } cannot represent a non boolean value: ' + inspect(${currentInput}), ${errorLocation}));
-                    }
-                    `;
+        gen(`
+        if (typeof ${currentInput} === "boolean") {
+            ${currentOutput} = ${currentInput};
+        } else {
+          errors.push(new GraphQLError('Variable "$${varName}" got invalid value ' +
+          inspect(${currentInput}) + "; " +
+          'Expected type ${varType.name}; ' +
+          '${varType.name} cannot represent a non boolean value: ' +
+          inspect(${currentInput}), ${errorLocation}));
+        }
+        `);
         break;
       case GraphQLInt.name:
-        body += `
-                    if (Number.isInteger(${currentInput})) {
-                      if (${currentInput} > ${MAX_32BIT_INT} || ${currentInput} < ${MIN_32BIT_INT}) {
-                        errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
-                        + inspect(${currentInput}) + "; " +
-                        'Expected type ${varType.name}; ${
-          varType.name
-        } cannot represent non 32-bit signed integer value: ' + inspect(${currentInput}), ${errorLocation}));
-                      } else {
-                        ${currentOutput} = ${currentInput};
-                      }
-                    } else {
-                        errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
-                        + inspect(${currentInput}) + "; " +
-                        'Expected type ${varType.name}; ${
-          varType.name
-        } cannot represent non-integer value: ' + inspect(${currentInput}), ${errorLocation}));
-                    }
-                    `;
+        gen(`
+        if (Number.isInteger(${currentInput})) {
+          if (${currentInput} > ${MAX_32BIT_INT} || ${currentInput} < ${MIN_32BIT_INT}) {
+            errors.push(new GraphQLError('Variable "$${varName}" got invalid value ' +
+            inspect(${currentInput}) + "; " +
+            'Expected type ${varType.name}; ' +
+            '${
+              varType.name
+            } cannot represent non 32-bit signed integer value: ' +
+            inspect(${currentInput}), ${errorLocation}));
+          } else {
+            ${currentOutput} = ${currentInput};
+          }
+        } else {
+          errors.push(new GraphQLError('Variable "$${varName}" got invalid value ' +
+            inspect(${currentInput}) + "; " +
+            'Expected type ${varType.name}; ' +
+            '${varType.name} cannot represent non-integer value: ' +
+            inspect(${currentInput}), ${errorLocation})
+          );
+        }
+        `);
         break;
       case GraphQLFloat.name:
-        body += `
-                    if (Number.isFinite(${currentInput})) {
-                        ${currentOutput} = ${currentInput};
-                    } else {
-                        errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
-                        + inspect(${currentInput}) + "; " +
-                        'Expected type ${varType.name}; ${
-          varType.name
-        } cannot represent non numeric value: ' + inspect(${currentInput}), ${errorLocation}));
-                    }
-                    `;
+        gen(`
+        if (Number.isFinite(${currentInput})) {
+            ${currentOutput} = ${currentInput};
+        } else {
+          errors.push(new GraphQLError('Variable "$${varName}" got invalid value ' +
+            inspect(${currentInput}) + "; " +
+            'Expected type ${varType.name}; ' +
+            '${varType.name} cannot represent non numeric value: ' +
+            inspect(${currentInput}), ${errorLocation})
+          );
+        }
+        `);
         break;
       default:
         context.dependencies.set(
           `${varType.name}parseValue`,
           varType.parseValue.bind(varType)
         );
-        body += `
-                    try {
-                      const parseResult = ${
-                        varType.name
-                      }parseValue(${currentInput});
-                      if (parseResult === undefined || parseResult !== parseResult) {
-                        errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
-                        + inspect(${currentInput}) + "; " +
-                        'Expected type ${varType.name}.', ${errorLocation}));
-                      }
-                      ${currentOutput} = parseResult;
-                    } catch (error) {
-                      errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
-                        + inspect(${currentInput}) + "; " +
-                        'Expected type ${varType.name}.', ${errorLocation}));
-                    }
-                    `;
+        gen(`
+          try {
+            const parseResult = ${varType.name}parseValue(${currentInput});
+            if (parseResult === undefined || parseResult !== parseResult) {
+              errors.push(new GraphQLError('Variable "$${varName}" got invalid value ' +
+              inspect(${currentInput}) + "; " +
+              'Expected type ${varType.name}.', ${errorLocation}));
+            }
+            ${currentOutput} = parseResult;
+          } catch (error) {
+            errors.push(new GraphQLError('Variable "$${varName}" got invalid value ' +
+              inspect(${currentInput}) + "; " +
+              'Expected type ${varType.name}.', ${errorLocation})
+            );
+          }
+        `);
     }
   } else if (isEnumType(varType)) {
     context.dependencies.set(
       `${varType.name}getValue`,
       varType.getValue.bind(varType)
     );
-    body += `
-            if (typeof ${currentInput} === "string") {
-              const enumValue = ${varType.name}getValue(${currentInput});
-              if (enumValue) {
-                ${currentOutput} = enumValue.value;
-              } else {
-                errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
-                        + inspect(${currentInput}) + "; " +
-                        'Expected type ${varType.name}.', ${errorLocation}));
-              }
-            } else {
-                errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
-                        + inspect(${currentInput}) + "; " +
-                        'Expected type ${varType.name}.', ${errorLocation}));
-            }
-            `;
+    gen(`
+      if (typeof ${currentInput} === "string") {
+        const enumValue = ${varType.name}getValue(${currentInput});
+        if (enumValue) {
+          ${currentOutput} = enumValue.value;
+        } else {
+          errors.push(
+            new GraphQLError('Variable "$${varName}" got invalid value ' +
+            inspect(${currentInput}) + "; " +
+            'Expected type ${varType.name}.', ${errorLocation})
+          );
+        }
+      } else {
+        errors.push(
+          new GraphQLError('Variable "$${varName}" got invalid value ' +
+          inspect(${currentInput}) + "; " +
+          'Expected type ${varType.name}.', ${errorLocation})
+        );
+      }
+      `);
   } else if (isListType(varType)) {
     context.errorMessage = `'Variable "$${varName}" got invalid value ' + inspect(${currentInput}) + '; '`;
     const hasValueName = hasValue(context.inputPath);
@@ -288,84 +306,80 @@ function generateInput(
     );
     subContext.inputPath = addPath(subContext.inputPath, index, "variable");
     subContext.depth++;
-    body += `
-            if (Array.isArray(${currentInput})) {
-                ${currentOutput} = [];
-                for (let ${index} = 0; ${index} < ${currentInput}.length; ++${index}) {
-                    const ${hasValueName} = ${getObjectPath(
-      subContext.inputPath
-    )} !== undefined;
-                    ${generateInput(
-                      subContext,
-                      varType.ofType,
-                      varName,
-                      hasValueName,
-                      false
-                    )}
-                }
-            } else {
-                ${generateInput(
-                  context,
-                  varType.ofType,
-                  varName,
-                  hasValueName,
-                  true
-                )}
-            }
-`;
+    gen(`
+      if (Array.isArray(${currentInput})) {
+        ${currentOutput} = [];
+        for (let ${index} = 0; ${index} < ${currentInput}.length; ++${index}) {
+          const ${hasValueName} =
+          ${getObjectPath(subContext.inputPath)} !== undefined;
+          ${generateInput(
+            subContext,
+            varType.ofType,
+            varName,
+            hasValueName,
+            false
+          )}
+        }
+      } else {
+        ${generateInput(context, varType.ofType, varName, hasValueName, true)}
+      }
+    `);
   } else if (isInputType(varType)) {
-    body += `
-            if (typeof ${currentInput} !== 'object') {
-                errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
-                 + inspect(${currentInput}) + "; " +
-                 'Expected type ${
-                   varType.name
-                 } to be an object.', ${errorLocation}));
-            } else {
-                ${currentOutput} = {};\n`;
+    gen(`
+      if (typeof ${currentInput} !== 'object') {
+        errors.push(new GraphQLError('Variable "$${varName}" got invalid value ' +
+        inspect(${currentInput}) + "; " +
+        'Expected type ${varType.name} to be an object.', ${errorLocation}));
+      } else {
+        ${currentOutput} = {};
+    `);
     const fields = varType.getFields();
     const allowedFields = [];
     for (const field of Object.values(fields)) {
       const subContext = createSubCompilationContext(context);
       allowedFields.push(field.name);
       const hasValueName = hasValue(addPath(subContext.inputPath, field.name));
-      body += `const ${hasValueName} = Object.prototype.hasOwnProperty.call(${getObjectPath(
-        subContext.inputPath
-      )}, "${field.name}");\n`;
+      gen(`
+        const ${hasValueName} = Object.prototype.hasOwnProperty.call(
+          ${getObjectPath(subContext.inputPath)}, "${field.name}"
+        );
+      `);
       subContext.inputPath = addPath(subContext.inputPath, field.name);
       subContext.responsePath = addPath(subContext.responsePath, field.name);
       subContext.errorMessage = `'Variable "$${varName}" got invalid value ' + inspect(${currentInput}) + '; '`;
-      body += generateInput(
-        subContext,
-        field.type,
-        field.name,
-        hasValueName,
-        false
-      );
+      gen(`
+        ${generateInput(
+          subContext,
+          field.type,
+          field.name,
+          hasValueName,
+          false
+        )}
+      `);
     }
 
-    body += `
-            const allowedFields = ${JSON.stringify(allowedFields)};
-            for ( const fieldName of Object.keys(${currentInput})) {
-                if (!allowedFields.includes(fieldName)) {
-                    errors.push(new GraphQLError('Variable "$${varName}" got invalid value '
-                     + inspect(${currentInput}) + "; " +
-                     'Field "' + fieldName + '" is not defined by type ${
-                       varType.name
-                     }.', ${errorLocation}));
-                    break;
-                }
-            }
-        }\n`;
+    gen(`
+      const allowedFields = ${JSON.stringify(allowedFields)};
+      for (const fieldName of Object.keys(${currentInput})) {
+        if (!allowedFields.includes(fieldName)) {
+          errors.push(new GraphQLError('Variable "$${varName}" got invalid value ' +
+            inspect(${currentInput}) + "; " +
+            'Field "' + fieldName + '" is not defined by type ${
+              varType.name
+            }.', ${errorLocation}));
+          break;
+        }
+      }
+    }`);
   } else {
     /* istanbul ignore next line */
     throw new Error(`unknown type: ${varType}`);
   }
   if (wrapInList) {
-    body += `${currentOutput} = [${currentOutput}];\n`;
+    gen(`${currentOutput} = [${currentOutput}];`);
   }
-  body += "}\n";
-  return body;
+  gen(`}`);
+  return gen.toString();
 }
 
 function hasValue(path: ObjectPath) {
