@@ -79,8 +79,8 @@
     "generate-function": "^2.3.1",
     "json-schema": "^0.2.3",
     "lodash.memoize": "^4.1.2",
-    "lodash.merge": "^4.6.1",
-    "lodash.mergewith": "^4.6.1"
+    "lodash.merge": "4.6.2",
+    "lodash.mergewith": "4.6.2"
   },
   "lint-staged": {
     "linters": {
