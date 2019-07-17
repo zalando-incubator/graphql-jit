@@ -1,13 +1,12 @@
-import { GraphQLSchema, DocumentNode, parse, validate } from "graphql";
-import { compileQuery, isCompiledQuery } from "../execution";
+import { DocumentNode, GraphQLSchema, parse, validate } from "graphql";
 import { makeExecutableSchema } from "graphql-tools";
+import { compileQuery, isCompiledQuery } from "../execution";
 import { fieldExpansionEnricher } from "../resolve-info";
 
-describe("GraphQLJitResolveInfo", () => {
-  describe("simple types", () => {
-    let inf: any;
-    const schema = makeExecutableSchema({
-      typeDefs: `
+describe("resolver info", () => {
+  let inf: any;
+  const schema = makeExecutableSchema({
+    typeDefs: `
         type Query {
           foo: Foo
         }
@@ -22,48 +21,169 @@ describe("GraphQLJitResolveInfo", () => {
           f: Boolean!
         }
       `,
-      resolvers: {
-        Query: {
-          foo(_: any, _1: any, _2: any, info: any) {
-            inf = info;
-          }
+    resolvers: {
+      Query: {
+        foo(_: any, _1: any, _2: any, info: any) {
+          inf = info;
         }
       }
+    }
+  });
+
+  afterEach(() => {
+    inf = undefined;
+  });
+
+  describe("Field info enricher", () => {
+    const normalResolveInfoFields = [
+      "fieldName",
+      "fieldNodes",
+      "returnType",
+      "parentType",
+      "schema",
+      "fragments",
+      "operation",
+      "rootValue",
+      "variableValues",
+      "path"
+    ].sort();
+
+    test("no enricher provided", () => {
+      const prepared = compileQuery(schema, parse(`query { foo { a } }`), "");
+      if (!isCompiledQuery(prepared)) {
+        throw prepared;
+      }
+      prepared.query(undefined, undefined, {});
+      expect(Object.keys(inf).sort()).toEqual(normalResolveInfoFields);
+    });
+    test("null enricher provided", () => {
+      const prepared = compileQuery(schema, parse(`query { foo { a } }`), "", {
+        resolverInfoEnricher: null as any
+      });
+      if (!isCompiledQuery(prepared)) {
+        throw prepared;
+      }
+      prepared.query(undefined, undefined, {});
+      expect(Object.keys(inf).sort()).toEqual(normalResolveInfoFields);
+    });
+    test("enricher with wrong type provided", () => {
+      expect(() =>
+        compileQuery(schema, parse(`query { foo { a } }`), "", {
+          resolverInfoEnricher: {} as any
+        })
+      ).toThrow();
     });
 
-    afterEach(() => {
-      inf = undefined;
-    });
-
-    test("all selection fields of the current resolver", async () => {
-      const result = await executeQuery(
-        schema,
-        parse(`query { foo { a d { e } } }`)
-      );
-      expect(result.errors).not.toBeDefined();
-      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Foo": Object {
-            "a": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "d": Object {
-              "Bar": Object {
-                "e": Object {
-                  Symbol(LeafFieldSymbol): true,
-                },
-              },
-            },
-          },
+    // The type system covers for a lot of these cases but
+    // not everyone is using Typescript.
+    describe("enricher return types", () => {
+      function testReturn(
+        value: any,
+        fields: string[] = normalResolveInfoFields
+      ) {
+        const prepared = compileQuery(
+          schema,
+          parse(`query { foo { a } }`),
+          "",
+          { resolverInfoEnricher: () => value }
+        );
+        if (!isCompiledQuery(prepared)) {
+          throw prepared;
         }
-      `);
-    });
+        prepared.query(undefined, undefined, {});
+        expect(Object.keys(inf).sort()).toEqual(fields.sort());
+      }
 
-    test("with fragments", async () => {
-      await executeQuery(
+      test("enricher that returns object", () => {
+        testReturn({ test: "" }, normalResolveInfoFields.concat("test"));
+        testReturn(
+          { test: "", test1: null },
+          normalResolveInfoFields.concat("test", "test1")
+        );
+        testReturn(
+          { test: {}, test1: null },
+          normalResolveInfoFields.concat("test", "test1")
+        );
+      });
+      test("enricher that returns falsy value", () => {
+        testReturn(null);
+        testReturn(undefined);
+        testReturn(false);
+        testReturn(0);
+      });
+      test("enricher that returns a string", () => {
+        testReturn("");
+        testReturn("string");
+      });
+      test("enricher that returns arrays", () => {
+        testReturn([]);
+        testReturn(["string"]);
+        testReturn([null]);
+        testReturn([1]);
+        testReturn([{ test: "" }]);
+      });
+      test("enricher that returns a number", () => {
+        testReturn(1.2);
+        testReturn(1);
+      });
+      test("enricher that returns a number", () => {
+        testReturn(1.2);
+        testReturn(1);
+      });
+    });
+  });
+
+  describe("Field Expansion", () => {
+    function executeQuery(
+      schema: GraphQLSchema,
+      document: DocumentNode,
+      rootValue?: any,
+      contextValue?: any,
+      variableValues?: any,
+      operationName?: string
+    ) {
+      const prepared: any = compileQuery(
         schema,
-        parse(
-          `
+        document as any,
+        operationName || "",
+        { resolverInfoEnricher: fieldExpansionEnricher }
+      );
+      if (!isCompiledQuery(prepared)) {
+        return prepared;
+      }
+      return prepared.query(rootValue, contextValue, variableValues || {});
+    }
+
+    describe("simple types", () => {
+      test("all selection fields of the current resolver", async () => {
+        const result = await executeQuery(
+          schema,
+          parse(`query { foo { a d { e } } }`)
+        );
+        expect(result.errors).not.toBeDefined();
+        expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Foo": Object {
+                      "a": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "d": Object {
+                        "Bar": Object {
+                          "e": Object {
+                            Symbol(LeafFieldSymbol): true,
+                          },
+                        },
+                      },
+                    },
+                  }
+              `);
+      });
+
+      test("with fragments", async () => {
+        await executeQuery(
+          schema,
+          parse(
+            `
           query {
             foo {
               ...fooFragment1
@@ -80,31 +200,31 @@ describe("GraphQLJitResolveInfo", () => {
             b
           }
           `
-        )
-      );
+          )
+        );
 
-      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Foo": Object {
-            "a": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "b": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "c": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-        }
-      `);
-    });
+        expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Foo": Object {
+                      "a": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "b": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "c": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                  }
+              `);
+      });
 
-    test("inline fragments", async () => {
-      await executeQuery(
-        schema,
-        parse(
-          `
+      test("inline fragments", async () => {
+        await executeQuery(
+          schema,
+          parse(
+            `
           query {
             foo {
               ... {
@@ -119,29 +239,29 @@ describe("GraphQLJitResolveInfo", () => {
             }
           }
           `
-        )
-      );
+          )
+        );
 
-      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Foo": Object {
-            "d": Object {
-              "Bar": Object {
-                "e": Object {
-                  Symbol(LeafFieldSymbol): true,
-                },
-              },
-            },
-          },
-        }
-      `);
-    });
+        expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Foo": Object {
+                      "d": Object {
+                        "Bar": Object {
+                          "e": Object {
+                            Symbol(LeafFieldSymbol): true,
+                          },
+                        },
+                      },
+                    },
+                  }
+              `);
+      });
 
-    test("aggregate multiple selections of the same field", async () => {
-      await executeQuery(
-        schema,
-        parse(
-          `
+      test("aggregate multiple selections of the same field", async () => {
+        await executeQuery(
+          schema,
+          parse(
+            `
           query {
             foo {
               a
@@ -154,31 +274,31 @@ describe("GraphQLJitResolveInfo", () => {
             }
           }
           `
-        )
-      );
+          )
+        );
 
-      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Foo": Object {
-            "a": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "b": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "c": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-        }
-      `);
+        expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Foo": Object {
+                      "a": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "b": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "c": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                  }
+              `);
+      });
     });
-  });
 
-  describe("interfaces", () => {
-    let inf: any;
-    const schema = makeExecutableSchema({
-      typeDefs: `
+    describe("interfaces", () => {
+      let inf: any;
+      const schema = makeExecutableSchema({
+        typeDefs: `
         type Query {
           iBar: IBar
         }
@@ -197,29 +317,29 @@ describe("GraphQLJitResolveInfo", () => {
           b2: Boolean!
         }
       `,
-      resolvers: {
-        Query: {
-          iBar(_: any, _1: any, _2: any, info: any) {
-            inf = info;
-          }
-        },
-        IBar: {
-          __resolveType() {
-            return "Bar1";
+        resolvers: {
+          Query: {
+            iBar(_: any, _1: any, _2: any, info: any) {
+              inf = info;
+            }
+          },
+          IBar: {
+            __resolveType() {
+              return "Bar1";
+            }
           }
         }
-      }
-    });
+      });
 
-    afterEach(() => {
-      inf = undefined;
-    });
+      afterEach(() => {
+        inf = undefined;
+      });
 
-    test("compute interface field nodes", async () => {
-      const result = await executeQuery(
-        schema,
-        parse(
-          `
+      test("compute interface field nodes", async () => {
+        const result = await executeQuery(
+          schema,
+          parse(
+            `
             query {
               iBar {
                 id
@@ -227,46 +347,46 @@ describe("GraphQLJitResolveInfo", () => {
               }
             }
           `
-        )
-      );
+          )
+        );
 
-      expect(result.errors).not.toBeDefined();
+        expect(result.errors).not.toBeDefined();
 
-      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Bar1": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "title": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Bar2": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "title": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "IBar": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "title": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-        }
-      `);
-    });
+        expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Bar1": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "title": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Bar2": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "title": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "IBar": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "title": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                  }
+              `);
+      });
 
-    test("fields per type", async () => {
-      const result = await executeQuery(
-        schema,
-        parse(
-          `
+      test("fields per type", async () => {
+        const result = await executeQuery(
+          schema,
+          parse(
+            `
             query {
               iBar {
                 id
@@ -280,50 +400,50 @@ describe("GraphQLJitResolveInfo", () => {
               }
             }
           `
-        )
-      );
-      expect(result.errors).not.toBeDefined();
-      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Bar1": Object {
-            "b1": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "title": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Bar2": Object {
-            "b2": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "title": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "IBar": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "title": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-        }
-      `);
-    });
+          )
+        );
+        expect(result.errors).not.toBeDefined();
+        expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Bar1": Object {
+                      "b1": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "title": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Bar2": Object {
+                      "b2": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "title": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "IBar": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "title": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                  }
+              `);
+      });
 
-    test("fields per type - with fragments", async () => {
-      const result = await executeQuery(
-        schema,
-        parse(
-          `
+      test("fields per type - with fragments", async () => {
+        const result = await executeQuery(
+          schema,
+          parse(
+            `
             query {
               iBar {
                 id
@@ -347,51 +467,51 @@ describe("GraphQLJitResolveInfo", () => {
               b2
             }
           `
-        )
-      );
+          )
+        );
 
-      expect(result.errors).not.toBeDefined();
-      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Bar1": Object {
-            "b1": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "title": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Bar2": Object {
-            "b2": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "title": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "IBar": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "title": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-        }
-      `);
-    });
+        expect(result.errors).not.toBeDefined();
+        expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Bar1": Object {
+                      "b1": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "title": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Bar2": Object {
+                      "b2": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "title": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "IBar": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "title": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                  }
+              `);
+      });
 
-    test("aggregate multiple selections of the same field", async () => {
-      const result = await executeQuery(
-        schema,
-        parse(
-          `
+      test("aggregate multiple selections of the same field", async () => {
+        const result = await executeQuery(
+          schema,
+          parse(
+            `
             query {
               iBar {
                 id
@@ -411,52 +531,52 @@ describe("GraphQLJitResolveInfo", () => {
               }
             }
           `
-        )
-      );
+          )
+        );
 
-      expect(result.errors).not.toBeDefined();
+        expect(result.errors).not.toBeDefined();
 
-      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Bar1": Object {
-            "b1": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "title": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Bar2": Object {
-            "b2": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "title": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "IBar": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "title": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-        }
-      `);
+        expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Bar1": Object {
+                      "b1": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "title": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Bar2": Object {
+                      "b2": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "title": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "IBar": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "title": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                  }
+              `);
+      });
     });
-  });
 
-  describe("unions", () => {
-    let inf: any;
-    const schema = makeExecutableSchema({
-      typeDefs: `
+    describe("unions", () => {
+      let inf: any;
+      const schema = makeExecutableSchema({
+        typeDefs: `
         type Query {
           uBaz: Baz
         }
@@ -468,29 +588,29 @@ describe("GraphQLJitResolveInfo", () => {
           bar: Int
         }
       `,
-      resolvers: {
-        Query: {
-          uBaz(_: any, _1: any, _2: any, info: any) {
-            inf = info;
-          }
-        },
-        Baz: {
-          __resolveType() {
-            return "Foo";
+        resolvers: {
+          Query: {
+            uBaz(_: any, _1: any, _2: any, info: any) {
+              inf = info;
+            }
+          },
+          Baz: {
+            __resolveType() {
+              return "Foo";
+            }
           }
         }
-      }
-    });
+      });
 
-    afterEach(() => {
-      inf = undefined;
-    });
+      afterEach(() => {
+        inf = undefined;
+      });
 
-    test("union field nodes", async () => {
-      const result = await executeQuery(
-        schema,
-        parse(
-          `
+      test("union field nodes", async () => {
+        const result = await executeQuery(
+          schema,
+          parse(
+            `
             query {
               uBaz {
                 ... on Foo {
@@ -502,30 +622,30 @@ describe("GraphQLJitResolveInfo", () => {
               }
             }
           `
-        )
-      );
+          )
+        );
 
-      expect(result.errors).not.toBeDefined();
-      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Bar": Object {
-            "bar": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Foo": Object {
-            "foo": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-        }
-      `);
-    });
+        expect(result.errors).not.toBeDefined();
+        expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Bar": Object {
+                      "bar": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Foo": Object {
+                      "foo": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                  }
+              `);
+      });
 
-    test("__typename", async () => {
-      const result = await executeQuery(
-        schema,
-        parse(`
+      test("__typename", async () => {
+        const result = await executeQuery(
+          schema,
+          parse(`
           query {
             uBaz {
               __typename
@@ -533,21 +653,21 @@ describe("GraphQLJitResolveInfo", () => {
             }
           }
         `)
-      );
-      expect(result.errors).not.toBeDefined();
-      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Bar": Object {},
-          "Foo": Object {},
-        }
-      `);
-    });
+        );
+        expect(result.errors).not.toBeDefined();
+        expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Bar": Object {},
+                    "Foo": Object {},
+                  }
+              `);
+      });
 
-    test("unions with fragments", async () => {
-      const result = await executeQuery(
-        schema,
-        parse(
-          `
+      test("unions with fragments", async () => {
+        const result = await executeQuery(
+          schema,
+          parse(
+            `
             query {
               uBaz {
                 ...foo
@@ -561,31 +681,31 @@ describe("GraphQLJitResolveInfo", () => {
               bar
             }
           `
-        )
-      );
+          )
+        );
 
-      expect(result.errors).not.toBeDefined();
-      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Bar": Object {
-            "bar": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Foo": Object {
-            "foo": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-        }
-      `);
-    });
+        expect(result.errors).not.toBeDefined();
+        expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Bar": Object {
+                      "bar": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Foo": Object {
+                      "foo": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                  }
+              `);
+      });
 
-    test("aggregate multiple selections of the same field", async () => {
-      const result = await executeQuery(
-        schema,
-        parse(
-          `
+      test("aggregate multiple selections of the same field", async () => {
+        const result = await executeQuery(
+          schema,
+          parse(
+            `
             query {
               uBaz {
                 ...bar
@@ -603,33 +723,33 @@ describe("GraphQLJitResolveInfo", () => {
               bar
             }
           `
-        )
-      );
+          )
+        );
 
-      expect(result.errors).not.toBeDefined();
-      expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Bar": Object {
-            "bar": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Foo": Object {
-            "foo": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-        }
-      `);
+        expect(result.errors).not.toBeDefined();
+        expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Bar": Object {
+                      "bar": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Foo": Object {
+                      "foo": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                  }
+              `);
+      });
     });
-  });
 
-  describe("lists, inputs, unions and interfaces 2", () => {
-    let infNode: any;
-    let infElements: any;
-    let infMedia: any;
-    const schema = makeExecutableSchema({
-      typeDefs: `
+    describe("lists, inputs, unions and interfaces 2", () => {
+      let infNode: any;
+      let infElements: any;
+      let infMedia: any;
+      const schema = makeExecutableSchema({
+        typeDefs: `
         type Query {
           node(id: ID!): Node!
           elements(like: String!): [DocumentElement!]!
@@ -667,52 +787,52 @@ describe("GraphQLJitResolveInfo", () => {
           VIMEO
         }
       `,
-      resolvers: {
-        Query: {
-          node(_: any, { id }: any, _2: any, info: any) {
-            infNode = info;
-            return {
-              id,
-              url: "https://example.com",
-              children: [],
-              width: 50
-            };
+        resolvers: {
+          Query: {
+            node(_: any, { id }: any, _2: any, info: any) {
+              infNode = info;
+              return {
+                id,
+                url: "https://example.com",
+                children: [],
+                width: 50
+              };
+            },
+            elements(_: any, _1: any, _2: any, info: any) {
+              infElements = info;
+              return [];
+            },
+            media(_: any, _1: any, _2: any, info: any) {
+              infMedia = info;
+              return [];
+            }
           },
-          elements(_: any, _1: any, _2: any, info: any) {
-            infElements = info;
-            return [];
+          Node: {
+            __resolveType() {
+              return "Image";
+            }
           },
-          media(_: any, _1: any, _2: any, info: any) {
-            infMedia = info;
-            return [];
-          }
-        },
-        Node: {
-          __resolveType() {
-            return "Image";
-          }
-        },
-        Media: {
-          __resolveType() {
-            return "Video";
-          }
-        },
-        DocumentElement: {
-          __resolveType() {
-            return "Div";
+          Media: {
+            __resolveType() {
+              return "Video";
+            }
+          },
+          DocumentElement: {
+            __resolveType() {
+              return "Div";
+            }
           }
         }
-      }
-    });
+      });
 
-    afterEach(() => {
-      infNode = undefined;
-      infElements = undefined;
-      infMedia = undefined;
-    });
+      afterEach(() => {
+        infNode = undefined;
+        infElements = undefined;
+        infMedia = undefined;
+      });
 
-    test("node", async () => {
-      const doc = parse(`
+      test("node", async () => {
+        const doc = parse(`
         query {
           node(id: "root") {
             id
@@ -736,85 +856,85 @@ describe("GraphQLJitResolveInfo", () => {
           }
         }
       `);
-      const result = await executeQuery(schema, doc);
-      const validationErrors = validate(schema, doc);
-      if (validationErrors.length > 0) {
-        console.error(validationErrors);
-      }
-      expect(validationErrors.length).toBe(0);
-      expect(result.errors).not.toBeDefined();
-      expect(infNode.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Image": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "tags": Object {
-              "Tag": Object {
-                "id": Object {
-                  Symbol(LeafFieldSymbol): true,
-                },
-                "name": Object {
-                  Symbol(LeafFieldSymbol): true,
-                },
-              },
-            },
-            "url": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "width": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Media": Object {
-            "tags": Object {
-              "Tag": Object {
-                "id": Object {
-                  Symbol(LeafFieldSymbol): true,
-                },
-                "name": Object {
-                  Symbol(LeafFieldSymbol): true,
-                },
-              },
-            },
-            "url": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Node": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Tag": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Video": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "tags": Object {
-              "Tag": Object {
-                "id": Object {
-                  Symbol(LeafFieldSymbol): true,
-                },
-                "name": Object {
-                  Symbol(LeafFieldSymbol): true,
-                },
-              },
-            },
-            "url": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
+        const result = await executeQuery(schema, doc);
+        const validationErrors = validate(schema, doc);
+        if (validationErrors.length > 0) {
+          console.error(validationErrors);
         }
-      `);
-    });
+        expect(validationErrors.length).toBe(0);
+        expect(result.errors).not.toBeDefined();
+        expect(infNode.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Image": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "tags": Object {
+                        "Tag": Object {
+                          "id": Object {
+                            Symbol(LeafFieldSymbol): true,
+                          },
+                          "name": Object {
+                            Symbol(LeafFieldSymbol): true,
+                          },
+                        },
+                      },
+                      "url": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "width": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Media": Object {
+                      "tags": Object {
+                        "Tag": Object {
+                          "id": Object {
+                            Symbol(LeafFieldSymbol): true,
+                          },
+                          "name": Object {
+                            Symbol(LeafFieldSymbol): true,
+                          },
+                        },
+                      },
+                      "url": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Node": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Tag": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Video": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "tags": Object {
+                        "Tag": Object {
+                          "id": Object {
+                            Symbol(LeafFieldSymbol): true,
+                          },
+                          "name": Object {
+                            Symbol(LeafFieldSymbol): true,
+                          },
+                        },
+                      },
+                      "url": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                  }
+              `);
+      });
 
-    test("elements", async () => {
-      const doc = parse(`
+      test("elements", async () => {
+        const doc = parse(`
         query {
           elements(like: "div") {
             __typename
@@ -842,89 +962,89 @@ describe("GraphQLJitResolveInfo", () => {
           }
         }
       `);
-      const result = await executeQuery(schema, doc);
-      const validationErrors = validate(schema, doc);
-      if (validationErrors.length > 0) {
-        console.error(validationErrors);
-      }
-      expect(validationErrors.length).toBe(0);
-
-      expect(result.errors).not.toBeDefined();
-      expect(infElements.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Div": Object {
-            "children": Object {
-              "Div": Object {
-                "children": Object {
-                  "Div": Object {},
-                  "Image": Object {
-                    "url": Object {
-                      Symbol(LeafFieldSymbol): true,
-                    },
-                  },
-                  "Media": Object {
-                    "url": Object {
-                      Symbol(LeafFieldSymbol): true,
-                    },
-                  },
-                  "Node": Object {},
-                  "Video": Object {
-                    "url": Object {
-                      Symbol(LeafFieldSymbol): true,
-                    },
-                  },
-                },
-              },
-              "Image": Object {
-                "id": Object {
-                  Symbol(LeafFieldSymbol): true,
-                },
-              },
-              "Media": Object {},
-              "Node": Object {
-                "id": Object {
-                  Symbol(LeafFieldSymbol): true,
-                },
-              },
-              "Video": Object {
-                "id": Object {
-                  Symbol(LeafFieldSymbol): true,
-                },
-              },
-            },
-          },
-          "Image": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "url": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Media": Object {
-            "url": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Node": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Video": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "url": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
+        const result = await executeQuery(schema, doc);
+        const validationErrors = validate(schema, doc);
+        if (validationErrors.length > 0) {
+          console.error(validationErrors);
         }
-      `);
-    });
+        expect(validationErrors.length).toBe(0);
 
-    test("alias 1", async () => {
-      const doc = parse(`
+        expect(result.errors).not.toBeDefined();
+        expect(infElements.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Div": Object {
+                      "children": Object {
+                        "Div": Object {
+                          "children": Object {
+                            "Div": Object {},
+                            "Image": Object {
+                              "url": Object {
+                                Symbol(LeafFieldSymbol): true,
+                              },
+                            },
+                            "Media": Object {
+                              "url": Object {
+                                Symbol(LeafFieldSymbol): true,
+                              },
+                            },
+                            "Node": Object {},
+                            "Video": Object {
+                              "url": Object {
+                                Symbol(LeafFieldSymbol): true,
+                              },
+                            },
+                          },
+                        },
+                        "Image": Object {
+                          "id": Object {
+                            Symbol(LeafFieldSymbol): true,
+                          },
+                        },
+                        "Media": Object {},
+                        "Node": Object {
+                          "id": Object {
+                            Symbol(LeafFieldSymbol): true,
+                          },
+                        },
+                        "Video": Object {
+                          "id": Object {
+                            Symbol(LeafFieldSymbol): true,
+                          },
+                        },
+                      },
+                    },
+                    "Image": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "url": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Media": Object {
+                      "url": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Node": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Video": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "url": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                  }
+              `);
+      });
+
+      test("alias 1", async () => {
+        const doc = parse(`
         query {
           node(id: "tag:1") {
             ... {
@@ -937,45 +1057,45 @@ describe("GraphQLJitResolveInfo", () => {
           }
         }
       `);
-      const result = await executeQuery(schema, doc);
-      const validationErrors = validate(schema, doc);
-      if (validationErrors.length > 0) {
-        console.error(validationErrors);
-      }
-      expect(validationErrors.length).toBe(0);
-      expect(result.errors).not.toBeDefined();
-      expect(infNode.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Image": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Media": Object {},
-          "Node": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Tag": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "name": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Video": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
+        const result = await executeQuery(schema, doc);
+        const validationErrors = validate(schema, doc);
+        if (validationErrors.length > 0) {
+          console.error(validationErrors);
         }
-      `);
-    });
+        expect(validationErrors.length).toBe(0);
+        expect(result.errors).not.toBeDefined();
+        expect(infNode.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Image": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Media": Object {},
+                    "Node": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Tag": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "name": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Video": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                  }
+              `);
+      });
 
-    test("aliases and __typename should not be included in resolveInfo", async () => {
-      const doc = parse(`
+      test("aliases and __typename should not be included in resolveInfo", async () => {
+        const doc = parse(`
         query {
           node(id: "tag:1") {
             __typename
@@ -1000,83 +1120,64 @@ describe("GraphQLJitResolveInfo", () => {
           }
         }
       `);
-      const result = await executeQuery(schema, doc);
-      const validationErrors = validate(schema, doc);
-      if (validationErrors.length > 0) {
-        console.error(validationErrors);
-      }
-      expect(validationErrors.length).toBe(0);
-      expect(result.errors).not.toBeDefined();
-      expect(infNode.fieldExpansion).toMatchInlineSnapshot(`
-        Object {
-          "Image": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "tags": Object {
-              "Tag": Object {
-                "name": Object {
-                  Symbol(LeafFieldSymbol): true,
-                },
-              },
-            },
-          },
-          "Media": Object {
-            "tags": Object {
-              "Tag": Object {
-                "name": Object {
-                  Symbol(LeafFieldSymbol): true,
-                },
-              },
-            },
-          },
-          "Node": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Tag": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "name": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-          },
-          "Video": Object {
-            "id": Object {
-              Symbol(LeafFieldSymbol): true,
-            },
-            "tags": Object {
-              "Tag": Object {
-                "name": Object {
-                  Symbol(LeafFieldSymbol): true,
-                },
-              },
-            },
-          },
+        const result = await executeQuery(schema, doc);
+        const validationErrors = validate(schema, doc);
+        if (validationErrors.length > 0) {
+          console.error(validationErrors);
         }
-      `);
+        expect(validationErrors.length).toBe(0);
+        expect(result.errors).not.toBeDefined();
+        expect(infNode.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Image": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "tags": Object {
+                        "Tag": Object {
+                          "name": Object {
+                            Symbol(LeafFieldSymbol): true,
+                          },
+                        },
+                      },
+                    },
+                    "Media": Object {
+                      "tags": Object {
+                        "Tag": Object {
+                          "name": Object {
+                            Symbol(LeafFieldSymbol): true,
+                          },
+                        },
+                      },
+                    },
+                    "Node": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Tag": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "name": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Video": Object {
+                      "id": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                      "tags": Object {
+                        "Tag": Object {
+                          "name": Object {
+                            Symbol(LeafFieldSymbol): true,
+                          },
+                        },
+                      },
+                    },
+                  }
+              `);
+      });
     });
   });
 });
-
-function executeQuery(
-  schema?: GraphQLSchema,
-  document?: DocumentNode,
-  rootValue?: any,
-  contextValue?: any,
-  variableValues?: any,
-  operationName?: string
-) {
-  const prepared: any = compileQuery(
-    schema as any,
-    document as any,
-    operationName || "",
-    { resolverInfoEnricher: fieldExpansionEnricher }
-  );
-  if (!isCompiledQuery(prepared)) {
-    return prepared;
-  }
-  return prepared.query(rootValue, contextValue, variableValues || {});
-}
