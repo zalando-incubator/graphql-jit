@@ -24,7 +24,8 @@ import {
   isObjectType,
   isSpecifiedScalarType,
   Kind,
-  print
+  print,
+  TypeNameMetaFieldDef
 } from "graphql";
 import { collectFields, ExecutionContext } from "graphql/execution/execute";
 import { CoercedVariableValues } from "graphql/execution/values";
@@ -656,6 +657,13 @@ function compileObjectType(
     }
     // Name is the field name or an alias supplied by the user
     body += `${name}: `;
+
+    // Inline __typename
+    // No need to call a resolver for typename
+    if (field === TypeNameMetaFieldDef) {
+      body += `"${type.name}",`;
+      continue;
+    }
 
     let resolver = field.resolve;
     if (!resolver && alwaysDefer) {
