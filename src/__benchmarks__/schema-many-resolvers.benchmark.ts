@@ -18,15 +18,18 @@ const schema = getSchema();
 const document = parse(`
 {
   feed {
+    __typename
     id,
     title
   },
   article(id: "1") {
     ...articleFields,
     author {
+      __typename
       id,
       name,
       pic(width: 640, height: 480) {
+      __typename
         url,
         width,
         height
@@ -40,6 +43,7 @@ const document = parse(`
 }
 
 fragment articleFields on Article {
+  __typename
   id,
   isPublished,
   title,
@@ -49,15 +53,7 @@ fragment articleFields on Article {
 }
 `);
 
-const { query }: any = compileQuery(schema, document, "", {
-  customSerializers: {
-    String,
-    ID: String,
-    Boolean,
-    Int: Number,
-    Float: Number
-  }
-});
+const { query }: any = compileQuery(schema, document, "");
 
 const suite = new Benchmark.Suite();
 

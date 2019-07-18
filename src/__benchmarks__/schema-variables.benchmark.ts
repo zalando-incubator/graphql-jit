@@ -18,15 +18,18 @@ const schema = getSchema();
 const document = parse(`
 query ($id: ID! = "1", $width: Int = 640, $height: Int = 480){
   feed {
+    __typename
     id,
     title
   },
   article(id: $id) {
     ...articleFields,
     author {
+      __typename
       id,
       name,
       pic(width: $width, height: $height) {
+      __typename
         url,
         width,
         height
@@ -40,6 +43,7 @@ query ($id: ID! = "1", $width: Int = 640, $height: Int = 480){
 }
 
 fragment articleFields on Article {
+  __typename
   id,
   isPublished,
   title,
@@ -57,15 +61,7 @@ const { query: compilerParserNoLeaf }: any = compileQuery(
     disableLeafSerialization: true
   }
 );
-const compilerParser: any = compileQuery(schema, document, "", {
-  customSerializers: {
-    String: String,
-    ID: String,
-    Boolean: Boolean,
-    Int: Number,
-    Float: Number
-  }
-});
+const compilerParser: any = compileQuery(schema, document, "");
 const vars = { id: "1" };
 
 const suite = new Benchmark.Suite();

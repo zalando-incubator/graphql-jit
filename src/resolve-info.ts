@@ -1,3 +1,4 @@
+import genFn from "generate-function";
 import {
   doTypesOverlap,
   FieldNode,
@@ -18,7 +19,6 @@ import {
 } from "graphql";
 import memoize from "lodash.memoize";
 import mergeWith from "lodash.mergewith";
-import { ObjectPath } from "./ast";
 import { memoize2, memoize4 } from "./memoize";
 
 // TODO(boopathi): Use negated types to express
@@ -92,33 +92,62 @@ export function createResolveInfoThunk<T>(
     fieldName: string;
     fieldNodes: FieldNode[];
   },
-  enricher: (inp: ResolveInfoEnricherInput) => T = () => ({} as T)
+  enricher?: (inp: ResolveInfoEnricherInput) => T
 ) {
-  const enricherInput = {
+  let enrichedInfo = {};
+  if (typeof enricher === "function") {
+    enrichedInfo =
+      enricher({
+        fieldName,
+        fieldNodes,
+        returnType: fieldType,
+        parentType,
+        schema,
+        fragments,
+        operation
+      }) || {};
+    if (typeof enrichedInfo !== "object" || Array.isArray(enrichedInfo)) {
+      enrichedInfo = {};
+    }
+  }
+  const gen = genFn();
+  gen(`return function getGraphQLResolveInfo(rootValue, variableValues, path) {
+      return {
+          fieldName,
+          fieldNodes,
+          returnType: fieldType,
+          parentType,
+          path,
+          schema,
+          fragments,
+          rootValue,
+          operation,
+          variableValues,`);
+  Object.keys(enrichedInfo).forEach(key => {
+    gen(`${key}: enrichedInfo["${key}"],\n`);
+  });
+  gen(`};};`);
+  return new Function(
+    "fieldName",
+    "fieldNodes",
+    "fieldType",
+    "parentType",
+    "schema",
+    "fragments",
+    "operation",
+    "enrichedInfo",
+    gen.toString()
+  ).call(
+    null,
     fieldName,
     fieldNodes,
-    returnType: fieldType,
+    fieldType,
     parentType,
     schema,
     fragments,
-    operation
-  };
-
-  const enrichedInfo = {
-    ...enricherInput,
-    ...enricher(enricherInput)
-  };
-
-  return (
-    rootValue: any,
-    variableValues: any,
-    path: ObjectPath
-  ): GraphQLJitResolveInfo<T> => ({
-    rootValue,
-    variableValues,
-    path,
-    ...enrichedInfo
-  });
+    operation,
+    enrichedInfo
+  );
 }
 
 export function fieldExpansionEnricher(input: ResolveInfoEnricherInput) {
