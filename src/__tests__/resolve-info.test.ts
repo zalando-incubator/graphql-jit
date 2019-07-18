@@ -74,6 +74,32 @@ describe("resolver info", () => {
       ).toThrow();
     });
 
+    test("enricher can overrule resolve info properties", () => {
+      const prepared = compileQuery(schema, parse(`query { foo { a } }`), "", {
+        resolverInfoEnricher: () => ({ schema: "hello" })
+      });
+      if (!isCompiledQuery(prepared)) {
+        throw prepared;
+      }
+      prepared.query(undefined, undefined, {});
+      expect(Object.keys(inf).sort()).toEqual(normalResolveInfoFields);
+      expect(inf.schema).toBe("hello");
+    });
+
+    test("enricher can add properties", () => {
+      const prepared = compileQuery(schema, parse(`query { foo { a } }`), "", {
+        resolverInfoEnricher: () => ({ fancyNewField: "hello" })
+      });
+      if (!isCompiledQuery(prepared)) {
+        throw prepared;
+      }
+      prepared.query(undefined, undefined, {});
+      expect(Object.keys(inf).sort()).toEqual(
+        normalResolveInfoFields.concat("fancyNewField").sort()
+      );
+      expect(inf.fancyNewField).toBe("hello");
+    });
+
     // The type system covers for a lot of these cases but
     // not everyone is using Typescript.
     describe("enricher return types", () => {

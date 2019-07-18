@@ -1,3 +1,4 @@
+import genFn from "generate-function";
 import {
   doTypesOverlap,
   FieldNode,
@@ -18,7 +19,6 @@ import {
 } from "graphql";
 import memoize from "lodash.memoize";
 import mergeWith from "lodash.mergewith";
-import { ObjectPath } from "./ast";
 import { memoize2, memoize4 } from "./memoize";
 
 // TODO(boopathi): Use negated types to express
@@ -110,7 +110,8 @@ export function createResolveInfoThunk<T>(
       enrichedInfo = {};
     }
   }
-  let enrichedProperties = `return function getGraphQLResolveInfo(rootValue, variableValues, path) {
+  const gen = genFn();
+  gen(`return function getGraphQLResolveInfo(rootValue, variableValues, path) {
       return {
           fieldName,
           fieldNodes,
@@ -121,11 +122,11 @@ export function createResolveInfoThunk<T>(
           fragments,
           rootValue,
           operation,
-          variableValues,`;
+          variableValues,`);
   Object.keys(enrichedInfo).forEach(key => {
-    enrichedProperties += `${key}: enrichedInfo["${key}"],\n`;
+    gen(`${key}: enrichedInfo["${key}"],\n`);
   });
-  enrichedProperties += `};};`;
+  gen(`};};`);
   return new Function(
     "fieldName",
     "fieldNodes",
@@ -135,7 +136,7 @@ export function createResolveInfoThunk<T>(
     "fragments",
     "operation",
     "enrichedInfo",
-    enrichedProperties
+    gen.toString()
   ).call(
     null,
     fieldName,
