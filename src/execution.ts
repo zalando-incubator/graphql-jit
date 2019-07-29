@@ -65,6 +65,10 @@ export interface CompilerOptions {
   // Disable capturing the stack trace of errors.
   disablingCapturingStackErrors: boolean;
 
+  // If set it reuses the memory of the arrays being transformed
+  // saving the allocation costs of an intermediate array.
+  reuseArrays: boolean;
+
   // Map of serializers to override
   // the key should be the name passed to the Scalar or Enum type
   customSerializers: { [key: string]: (v: any) => any };
@@ -159,6 +163,7 @@ export function compileQuery(
       disablingCapturingStackErrors: false,
       customJSONSerializer: false,
       disableLeafSerialization: false,
+      reuseArrays: false,
       customSerializers: {},
       ...partialOptions
     };
@@ -851,7 +856,9 @@ function compileListType(
     errorMessage
   )}), null)`;
   return `(typeof ${name} === "string" || typeof ${name}[Symbol.iterator] !== "function") ?  ${errorCase} :
-  __safeMap(${name}, (__safeMapNode, idx${newDepth}) => {
+  __safeMap(${
+    context.options.reuseArrays
+  }, ${name}, (__safeMapNode, idx${newDepth}) => {
      ${generateUniqueDeclarations(listContext)}
      const __child = ${dataBody};
      ${compileDeferredFields(listContext)}
@@ -940,14 +947,22 @@ function handleArrayValue(
  * Implements a generic map operation for any iterable.
  *
  * If the iterable is not valid, null is returned.
+ * @param reuseArray true when the input array should be reused
  * @param {Iterable<any> | string} iterable possible iterable
  * @param {(a: any) => any} cb callback that receives the item being iterated
  * @returns {any[]} a new array with the result of the callback
  */
 function safeMap(
+  reuseArray: boolean,
   iterable: Iterable<any> | string,
   cb: (a: any, idx: number) => any
 ): any[] {
+  if (reuseArray && Array.isArray(iterable)) {
+    for (let i = 0; i < iterable.length; i++) {
+      iterable[i] = cb(iterable[i], i);
+    }
+    return iterable;
+  }
   let index = 0;
   const result = [];
   for (const a of iterable) {

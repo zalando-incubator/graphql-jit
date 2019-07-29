@@ -67,7 +67,12 @@ fragment articleFields on Article {
 }
 `);
 
-const { query }: any = compileQuery(schema, document, "");
+const { query: memory }: any = compileQuery(schema, document, "", {
+  reuseArrays: true
+});
+const { query }: any = compileQuery(schema, document, "", {
+  reuseArrays: false
+});
 
 const suite = new Benchmark.Suite();
 
@@ -83,6 +88,12 @@ suite
     defer: true,
     fn(deferred: any) {
       query(undefined, undefined, {}).then(() => deferred.resolve());
+    }
+  })
+  .add("graphql-jit - reuse arrays", {
+    defer: true,
+    fn(deferred: any) {
+      memory(undefined, undefined, {}).then(() => deferred.resolve());
     }
   })
   // add listeners
