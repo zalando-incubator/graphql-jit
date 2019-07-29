@@ -115,9 +115,9 @@ function getSchema() {
     }
   });
 
-  const articles = [];
-  const badges = [];
-  const adverts = [];
+  const articles: any[] = [];
+  const badges: any[] = [];
+  const adverts: any[] = [];
 
   const BlogAuthor = new GraphQLObjectType({
     name: "Author",
