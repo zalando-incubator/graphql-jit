@@ -27,7 +27,12 @@ const rejected = Promise.reject.bind(Promise);
  * contains a rejection, testData should be a function that returns that
  * rejection so as not to trigger the "unhandled rejection" error watcher.
  */
-function check(testType: any, testData: any, expected: any) {
+function check(
+  testType: any,
+  testData: any,
+  expected: any,
+  secondRunTest?: any
+) {
   return async () => {
     const data = { test: testData };
 
@@ -41,8 +46,14 @@ function check(testType: any, testData: any, expected: any) {
     const schema = new GraphQLSchema({ query: dataType });
 
     const ast = parse("{ nest { test } }");
-    const prepared: any = compileQuery(schema, ast, "");
-    const response = await prepared.query(data, undefined, {});
+    let prepared: any = compileQuery(schema, ast, "");
+    let response = await prepared.query(data, undefined, {});
+    expect(response).toEqual(expected);
+    prepared = compileQuery(schema, ast, "", { reuseArrayMemory: true });
+    if (secondRunTest) {
+      data.test = secondRunTest;
+    }
+    response = await prepared.query(data, undefined, {});
     expect(response).toEqual(expected);
   };
 }
@@ -65,9 +76,14 @@ describe("Execute: Accepts any iterable as list value", () => {
 
   test(
     "Accepts an Generator function as a List value",
-    check(new GraphQLList(GraphQLString), yieldItems(), {
-      data: { nest: { test: ["one", "2", "true"] } }
-    })
+    check(
+      new GraphQLList(GraphQLString),
+      yieldItems(),
+      {
+        data: { nest: { test: ["one", "2", "true"] } }
+      },
+      yieldItems()
+    )
   );
 
   function getArgs(...args: any[]) {

@@ -103,8 +103,10 @@ Compiles the `document` AST, using an optional operationName and compiler option
 
   - `disableLeafSerialization` {boolean, default: false} - disables leaf node serializers. The serializers validate the content of the field
     so this option should only be set to true if there are strong assurances that the values are valid.
+  - `reuseArrayMemory` {boolean, default: false} - reuses the array that are returned from the resolver instead of allocating new ones.
+  This should only be enabled if the original array will no longer be required.
   - `customSerializers` {Object as Map, default: {}} - Replace serializer functions for specific types. Can be used as a safer alternative
-    for overly expensive
+    for overly expensive serializer functions.
   - `customJSONSerializer` {boolean, default: false} - Whether to produce also a JSON serializer function using `fast-json-stringify`,
     otherwise the stringify function is just `JSON.stringify`
 

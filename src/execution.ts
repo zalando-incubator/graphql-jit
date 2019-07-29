@@ -67,7 +67,7 @@ export interface CompilerOptions {
 
   // If set it reuses the memory of the arrays being transformed
   // saving the allocation costs of an intermediate array.
-  reuseArrays: boolean;
+  reuseArrayMemory: boolean;
 
   // Map of serializers to override
   // the key should be the name passed to the Scalar or Enum type
@@ -163,7 +163,7 @@ export function compileQuery(
       disablingCapturingStackErrors: false,
       customJSONSerializer: false,
       disableLeafSerialization: false,
-      reuseArrays: false,
+      reuseArrayMemory: false,
       customSerializers: {},
       ...partialOptions
     };
@@ -857,7 +857,7 @@ function compileListType(
   )}), null)`;
   return `(typeof ${name} === "string" || typeof ${name}[Symbol.iterator] !== "function") ?  ${errorCase} :
   __safeMap(${
-    context.options.reuseArrays
+    context.options.reuseArrayMemory
   }, ${name}, (__safeMapNode, idx${newDepth}) => {
      ${generateUniqueDeclarations(listContext)}
      const __child = ${dataBody};

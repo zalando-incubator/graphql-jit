@@ -68,10 +68,10 @@ fragment articleFields on Article {
 `);
 
 const { query: memory }: any = compileQuery(schema, document, "", {
-  reuseArrays: true
+  reuseArrayMemory: true
 });
 const { query }: any = compileQuery(schema, document, "", {
-  reuseArrays: false
+  reuseArrayMemory: false
 });
 
 const suite = new Benchmark.Suite();
@@ -126,9 +126,9 @@ function getSchema() {
     }
   });
 
-  const articles = [];
-  const badges = [];
-  const adverts = [];
+  const articles: any[] = [];
+  const badges: any[] = [];
+  const adverts: any[] = [];
 
   const BlogAuthor = new GraphQLObjectType({
     name: "Author",
