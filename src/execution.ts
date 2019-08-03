@@ -108,14 +108,8 @@ interface DeferredField {
   args: Arguments;
 }
 
-export type SuccessCallback = (d: object | null) => void;
-export type ErrorCallback = (e: Error | null) => void;
-
-export type JITCallback = (
-  p: object,
-  d: object | null,
-  e: Error | null
-) => void;
+export type SuccessCallback = (parent: any, d: object) => void;
+export type ErrorCallback = (e: Error) => void;
 
 export interface CompiledQuery {
   operationName?: string;
@@ -297,7 +291,7 @@ export function createBoundQuery(
       if (operation === "mutation") {
         const serial = serialPromiseExecutor(callback, globalErrorHandler);
         executor = serial.addToQueue;
-        resolveIfDone = serial.startExecution;
+        resolveIfDone = serial.startOrContinueExecution;
       } else {
         const loose = loosePromiseExecutor(callback, globalErrorHandler);
         executor = loose.executor;
@@ -381,7 +375,10 @@ function compileOperation(context: CompilationContext) {
   );
   let body = generateUniqueDeclarations(context, true);
   body += `const ${GLOBAL_DATA_NAME} = ${topLevel}\n`;
-  body += compileDeferredFields(context);
+  body += compileDeferredFields(
+    context,
+    context.operation.operation === "mutation"
+  );
   return body;
 }
 
@@ -391,9 +388,13 @@ function compileOperation(context: CompilationContext) {
  * Each deferred node get a copy of the compilation context with
  * a new empty list for deferred nodes to properly scope the nodes.
  * @param {CompilationContext} context compilation context
+ * @param isMutation {boolean} set on the top level if the operation is a mutation
  * @returns {string} compiled transformations all of deferred nodes
  */
-function compileDeferredFields(context: CompilationContext): string {
+function compileDeferredFields(
+  context: CompilationContext,
+  isMutation: boolean = false
+): string {
   let body = "";
   context.deferred.forEach(
     (
@@ -421,55 +422,77 @@ function compileDeferredFields(context: CompilationContext): string {
         responsePath
       );
       const resolverName = getResolverName(parentType.name, fieldName);
+      const resolverHandler = `${resolverName}Handler`;
       const topLevelArgs = getArgumentsVarName(resolverName);
       const validArgs = getValidArgumentsVarName(resolverName);
-      body += `
-  if (${SAFETY_CHECK_PREFIX}${index}) {
-   ${getArguments(
-     subContext,
-     args,
-     topLevelArgs,
-     validArgs,
-     fieldType,
-     responsePath
-   )}
-   if (${validArgs} === true) {
-     ${GLOBAL_EXECUTOR_NAME}(() => ${resolverName}(
-     ${originPaths.join(".")},
-     ${topLevelArgs},
-     ${GLOBAL_CONTEXT_NAME},
-     ${getExecutionInfo(
-       subContext,
-       parentType,
-       fieldType,
-       fieldName,
-       fieldNodes,
-       responsePath
-     )}),
-     (${GLOBAL_PARENT_NAME}, ${fieldName}, err) => {
-      if (err != null) {
-          ${
-            isNonNullType(fieldType)
-              ? GLOBAL_NULL_ERRORS_NAME
-              : GLOBAL_ERRORS_NAME
-          }.push(${
-        createErrorObject(
-          context,
-          fieldNodes,
-          responsePath,
-          "err.message != null ? err.message : err",
-          "err"
-        ) /* TODO: test why no return here*/
-      });
+      const executionError = createErrorObject(
+        context,
+        fieldNodes,
+        responsePath,
+        "err.message != null ? err.message : err",
+        "err"
+      );
+      const resolverCall = `${resolverName}(${originPaths.join(
+        "."
+      )},${topLevelArgs},${GLOBAL_CONTEXT_NAME},
+            ${getExecutionInfo(
+              subContext,
+              parentType,
+              fieldType,
+              fieldName,
+              fieldNodes,
+              responsePath
+            )})`;
+      let mainBody;
+      if (isMutation) {
+        mainBody = `
+           ${GLOBAL_EXECUTOR_NAME}(() => ${resolverCall}, ${resolverHandler},
+            function ${resolverName}ErrorHandler(err) {${getErrorDestination(
+          fieldType
+        )}.push(${executionError});},
+            ${destinationPaths.join(
+              "."
+            )}, ${GLOBAL_DATA_NAME}, ${GLOBAL_ERRORS_NAME}, ${GLOBAL_NULL_ERRORS_NAME});
+        `;
+      } else {
+        mainBody = `
+          let __value = null;
+          try {
+            __value = ${resolverCall};
+          } catch (err) {
+          ${getErrorDestination(fieldType)}.push(${executionError});
+          }
+          if (${isPromiseInliner("__value")}) {
+           ${GLOBAL_EXECUTOR_NAME}(__value, ${resolverHandler},
+            function ${resolverName}ErrorHandler(err) {${getErrorDestination(
+          fieldType
+        )}.push(${executionError});},
+            ${destinationPaths.join(
+              "."
+            )}, ${GLOBAL_DATA_NAME}, ${GLOBAL_ERRORS_NAME}, ${GLOBAL_NULL_ERRORS_NAME});
+          } else {
+            ${resolverHandler}(${destinationPaths.join(".")}, __value);
+          }`;
       }
-      ${generateUniqueDeclarations(subContext)}
-      ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};\n
-      ${compileDeferredFields(subContext)}
-    },${destinationPaths.join(
-      "."
-    )}, ${GLOBAL_DATA_NAME}, ${GLOBAL_ERRORS_NAME}, ${GLOBAL_NULL_ERRORS_NAME})
-    }
-  }`;
+      body += `
+      if (${SAFETY_CHECK_PREFIX}${index}) {
+       function ${resolverHandler}(${GLOBAL_PARENT_NAME}, ${fieldName}) {
+          ${generateUniqueDeclarations(subContext)}
+          ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};\n
+          ${compileDeferredFields(subContext)}
+        }
+       ${getArguments(
+         subContext,
+         args,
+         topLevelArgs,
+         validArgs,
+         fieldType,
+         responsePath
+       )}
+        if (${validArgs} === true) {
+          ${mainBody}
+        }
+      }`;
     }
   );
   return body;
@@ -852,29 +875,26 @@ function compileListType(
     responsePath,
     errorMessage
   )}), null)`;
-  return `(typeof ${name} === "string" || typeof ${name}[Symbol.iterator] !== "function") ?  ${errorCase} :
-  __safeMap(${name}, (__safeMapNode, idx${newDepth}, newArray) => {
-    if (${isPromiseInliner("__safeMapNode")}) {
-      ${GLOBAL_EXECUTOR_NAME}(() => __safeMapNode,
-        (${GLOBAL_PARENT_NAME}, __safeMapNode, err) => {
-          if (err != null) {
-            ${
-              isNonNullType(fieldType)
-                ? GLOBAL_NULL_ERRORS_NAME
-                : GLOBAL_ERRORS_NAME
-            }.push(${createErrorObject(
+  const executionError = createErrorObject(
     context,
     fieldNodes,
     addPath(responsePath, "idx" + newDepth, "variable"),
     "err.message != null ? err.message : err",
     "err"
-  )});
-            return;
-          }
+  );
+  return `(typeof ${name} === "string" || typeof ${name}[Symbol.iterator] !== "function") ?  ${errorCase} :
+  __safeMap(${name}, (__safeMapNode, idx${newDepth}, newArray) => {
+    if (${isPromiseInliner("__safeMapNode")}) {
+      ${GLOBAL_EXECUTOR_NAME}(__safeMapNode,
+        function safeMapPromiseHandler(${GLOBAL_PARENT_NAME}, __safeMapNode) {
           ${generateUniqueDeclarations(listContext)}
-          ${GLOBAL_PARENT_NAME}[idx${newDepth}] = ${dataBody};\n
+          ${GLOBAL_PARENT_NAME}[idx${newDepth}] = ${dataBody};
           ${compileDeferredFields(listContext)}
-        }, newArray, ${GLOBAL_DATA_NAME}, ${GLOBAL_ERRORS_NAME}, ${GLOBAL_NULL_ERRORS_NAME});
+        },
+        function (err) {${getErrorDestination(
+          fieldType
+        )}.push(${executionError});},
+        newArray, ${GLOBAL_DATA_NAME}, ${GLOBAL_ERRORS_NAME}, ${GLOBAL_NULL_ERRORS_NAME});
       return null;
     }
     ${generateUniqueDeclarations(listContext)}
@@ -882,34 +902,6 @@ function compileListType(
     ${compileDeferredFields(listContext)}
     return __child;
   })`;
-}
-
-/**
- * Converts a promise to a callbackable interface
- * @param valueGen a function that can return a promise or an value
- * @param {SuccessCallback} success callback to be called with the result, the cb should only called once
- * @param {ErrorCallback} error callback to be called in case of errors, the cb should only called once
- * @param errorHandler handler for unexpected errors caused by bugs
- */
-function unpromisify(
-  valueGen: () => Promise<any> | any,
-  success: SuccessCallback,
-  error: ErrorCallback,
-  errorHandler: (err: Error) => void
-): void {
-  let value: any;
-  try {
-    value = valueGen();
-  } catch (e) {
-    error(e);
-    return;
-  }
-
-  if (isPromise(value)) {
-    value.then(success, error).catch(errorHandler);
-    return;
-  }
-  success(value);
 }
 
 /**
@@ -1076,9 +1068,7 @@ function getArguments(
   let ${validArgs} = true;
   const ${topLevelArg} = ${objectStringify(args.values)};
   `;
-  const errorDestination = isNonNullType(returnType)
-    ? GLOBAL_NULL_ERRORS_NAME
-    : GLOBAL_ERRORS_NAME;
+  const errorDestination = getErrorDestination(returnType);
   for (const variable of args.missing) {
     const varName = variable.valueNode.name.value;
     body += `if (Object.prototype.hasOwnProperty.call(${GLOBAL_VARIABLES_NAME}, "${varName}")) {`;
@@ -1188,6 +1178,10 @@ function serializeResponsePathAsArray(path: ObjectPath) {
         : `${flattened[i].key},`;
   }
   return src + "]";
+}
+
+function getErrorDestination(type: GraphQLType): string {
+  return isNonNullType(type) ? GLOBAL_NULL_ERRORS_NAME : GLOBAL_ERRORS_NAME;
 }
 
 function createResolveInfoName(path: ObjectPath) {
@@ -1449,29 +1443,68 @@ export function loosePromiseExecutor(
   }
 
   function executor(
-    resolver: () => Promise<any>,
-    cb: JITCallback,
+    value: Promise<any>,
+    success: SuccessCallback,
+    error: ErrorCallback,
     parent: object,
     data: object,
     errors: GraphQLError[],
     nullErrors: GraphQLError[]
   ) {
     counter++;
-    unpromisify(
-      resolver,
-      res => {
-        cb(parent, res, null);
-        resolveIfDone(data, errors, nullErrors);
-      },
-      err => {
-        cb(parent, null, err || new (GraphqlJitError as any)(""));
-        resolveIfDone(data, errors, nullErrors);
-      },
-      errorHandler
-    );
+    value
+      .then(
+        res => {
+          success(parent, res);
+          resolveIfDone(data, errors, nullErrors);
+        },
+        err => {
+          error(err || new (GraphqlJitError as any)(""));
+          resolveIfDone(data, errors, nullErrors);
+        }
+      )
+      .catch(errorHandler);
+  }
+
+  function delayedExecutor(
+    valueGen: () => Promise<any> | any,
+    success: SuccessCallback,
+    error: ErrorCallback,
+    parent: object,
+    data: object,
+    errors: GraphQLError[],
+    nullErrors: GraphQLError[]
+  ) {
+    counter++;
+    let value;
+    try {
+      value = valueGen();
+    } catch (e) {
+      error(e);
+      resolveIfDone(data, errors, nullErrors);
+      return;
+    }
+    if (isPromise(value)) {
+      value
+        .then(
+          res => {
+            success(parent, res);
+            resolveIfDone(data, errors, nullErrors);
+          },
+          err => {
+            error(err || new (GraphqlJitError as any)(""));
+            resolveIfDone(data, errors, nullErrors);
+          }
+        )
+        .catch(errorHandler);
+      return;
+    }
+    success(parent, value);
+    resolveIfDone(data, errors, nullErrors);
   }
 
   return {
+    delayedExecutor,
     executor,
     resolveIfDone
   };
@@ -1480,7 +1513,7 @@ export function loosePromiseExecutor(
 /**
  * Handles the book keeping of running the top level promises serially.
  * The serial phase places all units of work in a queue which
- * is only started once startExecution is triggered.
+ * is only started once startOrContinueExecution is triggered.
  *
  * From then on, any new work is executed with the parallel executor.
  * New work is executed within the lifespan of the top level promise.
@@ -1505,75 +1538,116 @@ export function serialPromiseExecutor(
   errorHandler: (err: Error) => void
 ) {
   const queue: Array<{
-    executor: (
-      resolver: () => Promise<any>,
-      cb: JITCallback,
-      parent: object,
-      data: object,
-      errors: GraphQLError[],
-      nullErrors: GraphQLError[]
-    ) => void;
-    resolveIfDone: (
-      data: object,
-      errors: GraphQLError[],
-      nullErrors: GraphQLError[]
-    ) => void;
-    resolver: () => Promise<any>;
-    cb: JITCallback;
+    looseExecutor: {
+      executor: (
+        resolver: Promise<any>,
+        success: SuccessCallback,
+        error: ErrorCallback,
+        parent: object,
+        data: object,
+        errors: GraphQLError[],
+        nullErrors: GraphQLError[]
+      ) => void;
+      delayedExecutor: (
+        resolver: () => Promise<any>,
+        success: SuccessCallback,
+        error: ErrorCallback,
+        parent: object,
+        data: object,
+        errors: GraphQLError[],
+        nullErrors: GraphQLError[]
+      ) => void;
+      resolveIfDone: (
+        data: object,
+        errors: GraphQLError[],
+        nullErrors: GraphQLError[]
+      ) => void;
+    };
+    value: () => Promise<any>;
+    success: SuccessCallback;
+    error: ErrorCallback;
     parent: object;
   }> = [];
   // Serial phase is running until execution starts
   let serialPhase = true;
-  let currentExecutor: any;
+  let currentPostponedJob = 0;
+  let currentParallelExecutor: (
+    resolver: Promise<any>,
+    success: SuccessCallback,
+    error: ErrorCallback,
+    parent: object,
+    data: object,
+    errors: GraphQLError[],
+    nullErrors: GraphQLError[]
+  ) => void;
 
   // this will be called in the function footer for starting the execution
-  function continueExecution(
+  function startOrContinueExecution(
     data: object,
     errors: GraphQLError[],
     nullErrors: GraphQLError[]
   ) {
     serialPhase = false;
-    const postponedWork = queue.shift();
-    if (postponedWork) {
-      const { resolver, cb, parent, executor, resolveIfDone } = postponedWork;
-      currentExecutor = executor;
-      currentExecutor(resolver, cb, parent, data, errors, nullErrors);
-      resolveIfDone(data, errors, nullErrors);
+    if (currentPostponedJob < queue.length) {
+      const { value, success, error, parent, looseExecutor } = queue[
+        currentPostponedJob
+      ];
+      queue[currentPostponedJob] = null as any; // allow GC to clean up sooner
+      currentPostponedJob++;
+      currentParallelExecutor = looseExecutor.executor;
+      looseExecutor.delayedExecutor(
+        value,
+        success,
+        error,
+        parent,
+        data,
+        errors,
+        nullErrors
+      );
+      looseExecutor.resolveIfDone(data, errors, nullErrors);
       return;
     }
     finalCb(data, errors, nullErrors);
   }
 
   function addToQueue(
-    resolver: () => Promise<any>,
-    cb: JITCallback,
+    value: any,
+    success: SuccessCallback,
+    error: ErrorCallback,
     parent: object,
     data: object,
     errors: GraphQLError[],
     nullErrors: GraphQLError[]
   ) {
     if (serialPhase) {
-      const { executor, resolveIfDone } = loosePromiseExecutor(
-        (data: object, errors: GraphQLError[], nullErrors: GraphQLError[]) =>
-          continueExecution(data, errors, nullErrors),
+      const looseExecutor = loosePromiseExecutor(
+        startOrContinueExecution,
         errorHandler
       );
       queue.push({
-        executor,
-        resolveIfDone,
-        resolver,
-        cb,
+        looseExecutor,
+        value,
+        success,
+        error,
         parent
       });
     } else {
       // We are using the parallel executor once the serial phase is over
-      currentExecutor(resolver, cb, parent, data, errors, nullErrors);
+      currentParallelExecutor(
+        value,
+        success,
+        error,
+        parent,
+        data,
+        errors,
+        nullErrors
+      );
     }
   }
 
   return {
     addToQueue,
-    startExecution: continueExecution
+    startOrContinueExecution
   };
 }
 

@@ -67,10 +67,11 @@ describe("Execute: Handles basic execution tasks", () => {
     const { executor } = loosePromiseExecutor(undefined as any, spy as any);
 
     executor(
-      () => Promise.resolve(),
+      Promise.resolve(),
       () => {
         throw new Error("bug");
       },
+      jest.fn(),
       {},
       {},
       [],
@@ -87,33 +88,33 @@ describe("Execute: Handles basic execution tasks", () => {
         undefined as any
       );
 
-      addToQueue(spy, jest.fn(), {}, {}, [], []);
+      addToQueue(spy, jest.fn(), jest.fn(), {}, {}, [], []);
       expect(spy).not.toHaveBeenCalledWith();
     });
     test("start executing", async () => {
       const spy = jest.fn();
-      const { addToQueue, startExecution } = serialPromiseExecutor(
+      const { addToQueue, startOrContinueExecution } = serialPromiseExecutor(
         jest.fn(),
         undefined as any
       );
 
-      addToQueue(spy, jest.fn(), {}, {}, [], []);
-      startExecution({}, [], []);
+      addToQueue(spy, jest.fn(), jest.fn(), {}, {}, [], []);
+      startOrContinueExecution({}, [], []);
       expect(spy).toHaveBeenCalled();
     });
     test("executes in a serial way", async () => {
       const spy = jest.fn(() => Promise.resolve());
       const spy2 = jest.fn(() => Promise.resolve());
-      const { addToQueue, startExecution } = serialPromiseExecutor(
+      const { addToQueue, startOrContinueExecution } = serialPromiseExecutor(
         jest.fn(),
         undefined as any
       );
 
-      addToQueue(spy, jest.fn(), {}, {}, [], []);
-      addToQueue(spy2, jest.fn(), {}, {}, [], []);
+      addToQueue(spy, jest.fn(), jest.fn(), {}, {}, [], []);
+      addToQueue(spy2, jest.fn(), jest.fn(), {}, {}, [], []);
       expect(spy).not.toHaveBeenCalled();
       expect(spy2).not.toHaveBeenCalled();
-      startExecution({}, [], []);
+      startOrContinueExecution({}, [], []);
       expect(spy).toHaveBeenCalled();
       expect(spy2).not.toHaveBeenCalled();
       await Promise.resolve(); // For the promise to resolve
@@ -121,19 +122,20 @@ describe("Execute: Handles basic execution tasks", () => {
     });
     test("executes in a parallel way after the serial phase", async () => {
       const spy = jest.fn(() => Promise.resolve());
-      const spy2 = jest.fn(() => Promise.resolve());
+      const secondResolver = Promise.resolve();
+      const spy2 = jest.spyOn(secondResolver, "then");
       const finalCb = jest.fn();
-      const { addToQueue, startExecution } = serialPromiseExecutor(
+      const { addToQueue, startOrContinueExecution } = serialPromiseExecutor(
         finalCb,
         undefined as any
       );
 
-      addToQueue(spy, jest.fn(), {}, {}, [], []);
+      addToQueue(spy, jest.fn(), jest.fn(), {}, {}, [], []);
       expect(spy).not.toHaveBeenCalled();
       expect(spy2).not.toHaveBeenCalled();
-      startExecution({}, [], []);
+      startOrContinueExecution({}, [], []);
       expect(spy).toHaveBeenCalled();
-      addToQueue(spy2, jest.fn(), {}, {}, [], []);
+      addToQueue(secondResolver, jest.fn(), jest.fn(), {}, {}, [], []);
       expect(spy2).toHaveBeenCalled();
       await Promise.resolve(); // For the promises to resolve
       expect(finalCb).toHaveBeenCalled();
@@ -1232,7 +1234,7 @@ describe("Checks if the output of the compilation was a compiled query", () => {
   test("returns true for a compiled query object", () => {
     expect(
       isCompiledQuery({
-        query: ((() => {}) as unknown) as CompiledQuery["query"],
+        query: (jest.fn() as unknown) as CompiledQuery["query"],
         stringify: JSON.stringify
       })
     ).toBeTruthy();
