@@ -108,7 +108,8 @@ interface DeferredField {
   args: Arguments;
 }
 
-export type Callback = (d: object | null, e: Error | null) => void;
+export type SuccessCallback = (d: object | null) => void;
+export type ErrorCallback = (e: Error | null) => void;
 
 export type JITCallback = (
   p: object,
@@ -862,49 +863,45 @@ function compileListType(
 /**
  * Converts a promise to a callbackable interface
  * @param valueGen a function that can return a promise or an value
- * @param {Callback} cb callback to be called with the result, the cb should only called once
+ * @param {SuccessCallback} success callback to be called with the result, the cb should only called once
+ * @param {ErrorCallback} error callback to be called in case of errors, the cb should only called once
  * @param errorHandler handler for unexpected errors caused by bugs
  */
 function unpromisify(
   valueGen: () => Promise<any> | any,
-  cb: Callback,
+  success: SuccessCallback,
+  error: ErrorCallback,
   errorHandler: (err: Error) => void
 ): void {
   let value: any;
   try {
     value = valueGen();
   } catch (e) {
-    cb(null, e);
+    error(e);
     return;
   }
 
   if (isPromise(value)) {
-    value
-      .then(
-        (res: any) => cb(res, null),
-        (err: Error) =>
-          err != null
-            ? cb(null, err)
-            : cb(null, new (GraphqlJitError as any)(""))
-      )
-      .catch(errorHandler);
+    value.then(success, error).catch(errorHandler);
     return;
   } else if (Array.isArray(value)) {
-    return handleArrayValue(value, cb, errorHandler);
+    return handleArrayValue(value, success, error, errorHandler);
   }
-  cb(value, null);
+  success(value);
 }
 
 /**
  * Ensure that an array with possible local errors are handled cleanly.
  *
  * @param {any[]} value Array<Promise<any> | any> array of value
- * @param {Callback} cb
+ * @param {SuccessCallback} success callback to be called with the result, the cb should only called once
+ * @param {ErrorCallback} error callback to be called in case of errors, the cb should only called once
  * @param errorHandler handler for unexpected errors caused by bugs
  */
 function handleArrayValue(
   value: any[],
-  cb: Callback,
+  success: SuccessCallback,
+  error: ErrorCallback,
   errorHandler: (err: Error) => void
 ): void {
   // The array might have local errors which need to be handled locally in order for proper error messages
@@ -924,16 +921,12 @@ function handleArrayValue(
     return unpromisify(
       // This promise should not reject but it is handled anyway
       () => Promise.all(values),
-      (v: any, err: Error | null) => {
-        if (err != null) {
-          return cb(v, err);
-        }
-        return cb(v, null);
-      },
+      success,
+      error,
       errorHandler
     );
   }
-  cb(values, null);
+  success(values);
 }
 
 /**
@@ -1479,8 +1472,12 @@ export function loosePromiseExecutor(
     counter++;
     unpromisify(
       resolver,
-      (res, err) => {
-        cb(parent, res, err);
+      res => {
+        cb(parent, res, null);
+        resolveIfDone(data, errors, nullErrors);
+      },
+      err => {
+        cb(parent, null, err || new (GraphqlJitError as any)(""));
         resolveIfDone(data, errors, nullErrors);
       },
       errorHandler
