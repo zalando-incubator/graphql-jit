@@ -62,20 +62,23 @@ function executeQuery(
 }
 
 describe("Execute: Handles basic execution tasks", () => {
+  const mockExecutionContext = {
+    data: {},
+    errors: [],
+    nullErrors: []
+  } as any;
   test("handles global errors", async () => {
     const spy = jest.fn();
     const { executor } = loosePromiseExecutor(undefined as any, spy as any);
 
     executor(
+      mockExecutionContext,
       Promise.resolve(),
       () => {
         throw new Error("bug");
       },
       jest.fn(),
-      {},
-      {},
-      [],
-      []
+      {}
     );
     await new Promise(r => setImmediate(r)); // For the promise to resolve
     expect(spy).toHaveBeenCalledWith(new Error("bug"));
@@ -88,7 +91,7 @@ describe("Execute: Handles basic execution tasks", () => {
         undefined as any
       );
 
-      addToQueue(spy, jest.fn(), jest.fn(), {}, {}, [], []);
+      addToQueue({} as any, spy, jest.fn(), jest.fn(), {});
       expect(spy).not.toHaveBeenCalledWith();
     });
     test("start executing", async () => {
@@ -98,8 +101,8 @@ describe("Execute: Handles basic execution tasks", () => {
         undefined as any
       );
 
-      addToQueue(spy, jest.fn(), jest.fn(), {}, {}, [], []);
-      startOrContinueExecution({}, [], []);
+      addToQueue(mockExecutionContext, spy, jest.fn(), jest.fn(), {});
+      startOrContinueExecution(mockExecutionContext);
       expect(spy).toHaveBeenCalled();
     });
     test("executes in a serial way", async () => {
@@ -110,11 +113,11 @@ describe("Execute: Handles basic execution tasks", () => {
         undefined as any
       );
 
-      addToQueue(spy, jest.fn(), jest.fn(), {}, {}, [], []);
-      addToQueue(spy2, jest.fn(), jest.fn(), {}, {}, [], []);
+      addToQueue(mockExecutionContext, spy, jest.fn(), jest.fn(), {});
+      addToQueue(mockExecutionContext, spy2, jest.fn(), jest.fn(), {});
       expect(spy).not.toHaveBeenCalled();
       expect(spy2).not.toHaveBeenCalled();
-      startOrContinueExecution({}, [], []);
+      startOrContinueExecution(mockExecutionContext);
       expect(spy).toHaveBeenCalled();
       expect(spy2).not.toHaveBeenCalled();
       await Promise.resolve(); // For the promise to resolve
@@ -130,12 +133,18 @@ describe("Execute: Handles basic execution tasks", () => {
         undefined as any
       );
 
-      addToQueue(spy, jest.fn(), jest.fn(), {}, {}, [], []);
+      addToQueue(mockExecutionContext, spy, jest.fn(), jest.fn(), {});
       expect(spy).not.toHaveBeenCalled();
       expect(spy2).not.toHaveBeenCalled();
-      startOrContinueExecution({}, [], []);
+      startOrContinueExecution(mockExecutionContext);
       expect(spy).toHaveBeenCalled();
-      addToQueue(secondResolver, jest.fn(), jest.fn(), {}, {}, [], []);
+      addToQueue(
+        mockExecutionContext,
+        secondResolver,
+        jest.fn(),
+        jest.fn(),
+        {}
+      );
       expect(spy2).toHaveBeenCalled();
       await Promise.resolve(); // For the promises to resolve
       expect(finalCb).toHaveBeenCalled();
