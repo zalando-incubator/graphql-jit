@@ -1,5 +1,4 @@
 import fastJson from "fast-json-stringify";
-import { rename } from "fs";
 import {
   ASTNode,
   DocumentNode,
@@ -95,6 +94,8 @@ interface CompilationContext extends GraphQLContext {
       onError: (c: ExecutionContext, msg: string) => void
     ) => any;
   };
+  hoistedFunctions: string[];
+  hoistedFunctionNames: Map<string, number>;
   typeResolvers: { [key: string]: GraphQLTypeResolver<any, any> };
   isTypeOfs: { [key: string]: GraphQLIsTypeOfFn<any, any> };
   resolveInfos: { [key: string]: any };
@@ -158,9 +159,14 @@ interface DeferredField {
 export type SuccessCallback = (
   c: ExecutionContext,
   parent: any,
-  d: object
+  d: object,
+  ...idx: number[]
 ) => void;
-export type ErrorCallback = (c: ExecutionContext, e: Error) => void;
+export type ErrorCallback = (
+  c: ExecutionContext,
+  e: Error,
+  ...idx: number[]
+) => void;
 
 export interface CompiledQuery {
   operationName?: string;
@@ -231,12 +237,11 @@ export function compileQuery(
     );
 
     const functionBody = compileOperation(context);
-    const func = new Function("return " + functionBody)();
     return {
       query: createBoundQuery(
         context,
         document,
-        func,
+        new Function("return " + functionBody)(),
         getVariables,
         context.operation.name != null
           ? context.operation.name.value
@@ -434,6 +439,7 @@ function compileOperation(context: CompilationContext) {
   body += `
   ${GLOBAL_EXECUTION_CONTEXT}.resolveIfDone(${GLOBAL_EXECUTION_CONTEXT});
   }`;
+  body += context.hoistedFunctions.join("\n");
   return body;
 }
 
@@ -476,9 +482,16 @@ function compileDeferredFields(
         [`${GLOBAL_PARENT_NAME}.${name}`],
         responsePath
       );
+      const parentIndexes = getParentIndexes(context);
       const resolverName = getResolverName(parentType.name, fieldName);
-      const resolverHandler = `${resolverName}Handler`;
-      const resolverErrorHandler = `${resolverName}ErrorHandler`;
+      const resolverHandler = getHoistedFunctionName(
+        context,
+        `${name}${resolverName}Handler`
+      );
+      const resolverErrorHandler = getHoistedFunctionName(
+        context,
+        `${name}${resolverName}ErrorHandler`
+      );
       const topLevelArgs = getArgumentsVarName(resolverName);
       const validArgs = getValidArgumentsVarName(resolverName);
       const executionError = createErrorObject(
@@ -503,7 +516,9 @@ function compileDeferredFields(
       if (isMutation) {
         mainBody = `
            ${GLOBAL_EXECUTOR_NAME}(${GLOBAL_EXECUTION_CONTEXT}, () => ${resolverCall}, ${resolverHandler},
-           ${resolverErrorHandler}, ${destinationPaths.join(".")});
+           ${resolverErrorHandler}, ${destinationPaths.join(
+          "."
+        )}, ${parentIndexes});
         `;
       } else {
         mainBody = `
@@ -515,23 +530,15 @@ function compileDeferredFields(
           }
           if (${isPromiseInliner("__value")}) {
            ${GLOBAL_EXECUTOR_NAME}(${GLOBAL_EXECUTION_CONTEXT}, __value, ${resolverHandler}, ${resolverErrorHandler},
-            ${destinationPaths.join(".")});
+            ${destinationPaths.join(".")}, ${parentIndexes});
           } else {
             ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${destinationPaths.join(
           "."
-        )}, __value);
+        )}, __value, ${parentIndexes});
           }`;
       }
       body += `
       if (${SAFETY_CHECK_PREFIX}${index}) {
-      function ${resolverErrorHandler}(${GLOBAL_EXECUTION_CONTEXT}, err) {${getErrorDestination(
-        fieldType
-      )}.push(${executionError});}
-       function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${fieldName}) {
-          ${generateUniqueDeclarations(subContext)}
-          ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};\n
-          ${compileDeferredFields(subContext)}
-        }
        ${getArguments(
          subContext,
          args,
@@ -544,6 +551,17 @@ function compileDeferredFields(
           ${mainBody}
         }
       }`;
+      context.hoistedFunctions.push(`
+      function ${resolverErrorHandler}(${GLOBAL_EXECUTION_CONTEXT}, err, ${parentIndexes}) {
+      ${getErrorDestination(fieldType)}.push(${executionError});}
+      `);
+      context.hoistedFunctions.push(`
+       function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${fieldName}, ${parentIndexes}) {
+          ${generateUniqueDeclarations(subContext)}
+          ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};\n
+          ${compileDeferredFields(subContext)}
+        }
+      `);
     }
   );
   return body;
@@ -671,14 +689,23 @@ function compileLeafType(
       type,
       context.options.customSerializers[type.name]
     );
-    body += `${GLOBAL_EXECUTION_CONTEXT}.serializers.${serializerName}(${GLOBAL_EXECUTION_CONTEXT}, ${originPaths.join(
-      "."
-    )}, (${GLOBAL_EXECUTION_CONTEXT}, message) => {${errorDestination}.push(${createErrorObject(
+    const parentIndexes = getParentIndexes(context);
+    const serializerErrorHandler = getHoistedFunctionName(
+      context,
+      `${type.name}${originPaths.join("")}SerializerErrorHandler`
+    );
+    context.hoistedFunctions.push(`
+    function ${serializerErrorHandler}(${GLOBAL_EXECUTION_CONTEXT}, message, ${parentIndexes}) {
+    ${errorDestination}.push(${createErrorObject(
       context,
       fieldNodes,
       previousPath,
       "message"
-    )});})`;
+    )});}
+    `);
+    body += `${GLOBAL_EXECUTION_CONTEXT}.serializers.${serializerName}(${GLOBAL_EXECUTION_CONTEXT}, ${originPaths.join(
+      "."
+    )}, ${serializerErrorHandler}, ${parentIndexes})`;
   }
   return body;
 }
@@ -935,25 +962,57 @@ function compileListType(
     "err.message != null ? err.message : err",
     "err"
   );
-  return `(typeof ${name} === "string" || typeof ${name}[Symbol.iterator] !== "function") ?  ${errorCase} :
-  ${GLOBAL_SAFE_MAP_NAME}(${GLOBAL_EXECUTION_CONTEXT}, ${name}, (${GLOBAL_EXECUTION_CONTEXT}, __safeMapNode, idx${newDepth}, newArray) => {
+  const uniqueDeclarations = generateUniqueDeclarations(listContext);
+  const deferredFields = compileDeferredFields(listContext);
+  const safeMapPromiseHandler = getHoistedFunctionName(
+    context,
+    `${parentType.name}${originalObjectPaths.join("")}MapPromiseHandler`
+  );
+  listContext.hoistedFunctions.push(`
+  function ${safeMapPromiseHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, __safeMapNode, ${getParentIndexes(
+    listContext
+  )}) {
+    ${uniqueDeclarations}
+    ${GLOBAL_PARENT_NAME}[idx${newDepth}] = ${dataBody};
+    ${deferredFields}
+  }
+  `);
+  const safeMapPromiseErrorHandler = getHoistedFunctionName(
+    context,
+    `${parentType.name}${originalObjectPaths.join("")}MapPromiseErrorHandler`
+  );
+  listContext.hoistedFunctions.push(`
+  function ${safeMapPromiseErrorHandler}(${GLOBAL_EXECUTION_CONTEXT}, err, ${getParentIndexes(
+    listContext
+  )}) {
+    ${getErrorDestination(fieldType)}.push(${executionError});
+  }
+  `);
+  const safeMapHandler = getHoistedFunctionName(
+    context,
+    `${parentType.name}${originalObjectPaths.join("")}MapHandler`
+  );
+  listContext.hoistedFunctions.push(`
+  function ${safeMapHandler}(${GLOBAL_EXECUTION_CONTEXT}, __safeMapNode, idx${newDepth}, newArray, ${getParentIndexes(
+    context
+  )}) {
     if (${isPromiseInliner("__safeMapNode")}) {
-      ${GLOBAL_EXECUTOR_NAME}(${GLOBAL_EXECUTION_CONTEXT}, __safeMapNode,
-        function safeMapPromiseHandler(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, __safeMapNode) {
-          ${generateUniqueDeclarations(listContext)}
-          ${GLOBAL_PARENT_NAME}[idx${newDepth}] = ${dataBody};
-          ${compileDeferredFields(listContext)}
-        },
-        function (${GLOBAL_EXECUTION_CONTEXT}, err) {${getErrorDestination(
-    fieldType
-  )}.push(${executionError});}, newArray);
+      ${GLOBAL_EXECUTOR_NAME}(${GLOBAL_EXECUTION_CONTEXT}, __safeMapNode, ${safeMapPromiseHandler},
+      ${safeMapPromiseErrorHandler}, newArray, ${getParentIndexes(
+    listContext
+  )});
       return null;
     }
-    ${generateUniqueDeclarations(listContext)}
+    ${uniqueDeclarations}
     const __child = ${dataBody};
-    ${compileDeferredFields(listContext)}
+    ${deferredFields}
     return __child;
-  })`;
+  }
+  `);
+  return `(typeof ${name} === "string" || typeof ${name}[Symbol.iterator] !== "function") ?  ${errorCase} :
+  ${GLOBAL_SAFE_MAP_NAME}(${GLOBAL_EXECUTION_CONTEXT}, ${name}, ${safeMapHandler}, ${getParentIndexes(
+    context
+  )})`;
 }
 
 /**
@@ -963,17 +1022,25 @@ function compileListType(
  * @param context
  * @param {Iterable<any> | string} iterable possible iterable
  * @param {(a: any) => any} cb callback that receives the item being iterated
+ * @param idx
  * @returns {any[]} a new array with the result of the callback
  */
 function safeMap(
   context: ExecutionContext,
   iterable: Iterable<any> | string,
-  cb: (context: ExecutionContext, a: any, idx: number, newArray: any[]) => any
+  cb: (
+    context: ExecutionContext,
+    a: any,
+    index: number,
+    newArray: any[],
+    ...idx: number[]
+  ) => any,
+  ...idx: number[]
 ): any[] {
   let index = 0;
   const result = [];
   for (const a of iterable) {
-    const item = cb(context, a, index, result);
+    const item = cb(context, a, index, result, ...idx);
     result.push(item);
     ++index;
   }
@@ -1246,26 +1313,24 @@ function serializeResponsePath(path: ObjectPath | undefined): string {
 function getSerializer(
   scalar: GraphQLScalarType | GraphQLEnumType,
   customSerializer?: GraphQLScalarSerializer<any>
-): (
-  c: ExecutionContext,
-  v: any,
-  onError: (c: ExecutionContext, msg: string) => void
-) => any {
+) {
   const { name } = scalar;
   const serialize = customSerializer
     ? customSerializer
     : (val: any) => scalar.serialize(val);
-  return (
+  return function leafSerializer(
     context: ExecutionContext,
     v: any,
-    onError: (c: ExecutionContext, msg: string) => void
-  ) => {
+    onError: (c: ExecutionContext, msg: string, ...idx: number[]) => void,
+    ...idx: number[]
+  ) {
     try {
       const value = serialize(v);
       if (isInvalid(value)) {
         onError(
           context,
-          `Expected a value of type "${name}" but received: ${v}`
+          `Expected a value of type "${name}" but received: ${v}`,
+          ...idx
         );
         return null;
       }
@@ -1274,7 +1339,8 @@ function getSerializer(
       onError(
         context,
         (e && e.message) ||
-          `Expected a value of type "${name}" but received an Error`
+          `Expected a value of type "${name}" but received an Error`,
+        ...idx
       );
       return null;
     }
@@ -1385,6 +1451,8 @@ function buildCompilationContext(
     typeResolvers: {},
     isTypeOfs: {},
     resolveInfos: {},
+    hoistedFunctions: [],
+    hoistedFunctionNames: new Map(),
     deferred: [],
     depth: 0,
     variableValues: {},
@@ -1397,6 +1465,16 @@ function getFieldNodesName(nodes: FieldNode[]) {
   return nodes.length > 1
     ? "(" + nodes.map(({ name }) => name.value).join(",") + ")"
     : nodes[0].name.value;
+}
+
+function getHoistedFunctionName(context: CompilationContext, name: string) {
+  const count = context.hoistedFunctionNames.get(name);
+  if (count === undefined) {
+    context.hoistedFunctionNames.set(name, 0);
+    return name;
+  }
+  context.hoistedFunctionNames.set(name, count + 1);
+  return `${name}${count + 1}`;
 }
 
 function createErrorObject(
@@ -1425,21 +1503,13 @@ function getSerializerName(name: string) {
   return name + "Serializer";
 }
 
-/**
- * Create the function signature
- * @param {CompilationContext} context compilation context
- * @returns {string} compiled function signature
- */
-function getFunctionSignature(context: CompilationContext) {
-  return `return function query (${GLOBAL_EXECUTION_CONTEXT})`;
-}
-
 type PromiseExecutor = (
   context: ExecutionContext,
   resolver: Promise<any>,
   success: SuccessCallback,
   error: ErrorCallback,
-  parent: object
+  parent: object,
+  ...idxs: number[]
 ) => void;
 
 /**
@@ -1473,17 +1543,18 @@ export function loosePromiseExecutor(
     value: Promise<any>,
     success: SuccessCallback,
     error: ErrorCallback,
-    parent: object
+    parent: object,
+    ...idx: number[]
   ) {
     counter++;
     value
       .then(
         res => {
-          success(context, parent, res);
+          success(context, parent, res, ...idx);
           resolveIfDone(context);
         },
         err => {
-          error(context, err || new (GraphqlJitError as any)(""));
+          error(context, err || new (GraphqlJitError as any)(""), ...idx);
           resolveIfDone(context);
         }
       )
@@ -1599,7 +1670,8 @@ export function serialPromiseExecutor(
     value: any,
     success: SuccessCallback,
     error: ErrorCallback,
-    parent: object
+    parent: object,
+    ...idx: number[]
   ) {
     if (serialPhase) {
       const looseExecutor = loosePromiseExecutor(
@@ -1615,7 +1687,7 @@ export function serialPromiseExecutor(
       });
     } else {
       // We are using the parallel executor once the serial phase is over
-      currentParallelExecutor(context, value, success, error, parent);
+      currentParallelExecutor(context, value, success, error, parent, ...idx);
     }
   }
 
@@ -1648,4 +1720,15 @@ function normalizeError(err: Error): GraphQLError {
  */
 function isInvalid(value: any): boolean {
   return value === undefined || value !== value;
+}
+
+function getParentIndexes(context: CompilationContext) {
+  let args = "";
+  for (let i = 1; i <= context.depth; ++i) {
+    if (i > 1) {
+      args += ", ";
+    }
+    args += `idx${i}`;
+  }
+  return args;
 }

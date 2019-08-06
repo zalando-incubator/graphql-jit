@@ -16,10 +16,13 @@ import {
   GraphQLString,
   parse
 } from "graphql";
-import { compileQuery } from "../index";
+import { compileQuery, isCompiledQuery } from "../index";
 
 function executeQuery(schema: GraphQLSchema, document: DocumentNode) {
-  const prepared: any = compileQuery(schema, document, "");
+  const prepared = compileQuery(schema, document, "");
+  if (!isCompiledQuery(prepared)) {
+    return prepared;
+  }
   return prepared.query(undefined, undefined, undefined);
 }
 
