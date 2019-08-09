@@ -1165,7 +1165,7 @@ export function isPromise(value: any): value is Promise<any> {
 }
 
 export function isPromiseInliner(value: string): string {
-  return `${value} !== null && ${value} !== undefined && typeof ${value} === "object" && typeof ${value}.then === "function"`;
+  return `${value} != null && typeof ${value} === "object" && typeof ${value}.then === "function"`;
 }
 
 /**
