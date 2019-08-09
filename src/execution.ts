@@ -832,10 +832,11 @@ function compileListType(
   const listContext = createSubCompilationContext(context);
   // context depth will be mutated, so we cache the current value.
   const newDepth = ++listContext.depth;
+  const fieldType = type.ofType;
   const dataBody = compileType(
     listContext,
     parentType,
-    type.ofType,
+    fieldType,
     fieldNodes,
     ["__safeMapNode"],
     ["__child"],
@@ -852,12 +853,35 @@ function compileListType(
     errorMessage
   )}), null)`;
   return `(typeof ${name} === "string" || typeof ${name}[Symbol.iterator] !== "function") ?  ${errorCase} :
-  __safeMap(${name}, (__safeMapNode, idx${newDepth}) => {
-     ${generateUniqueDeclarations(listContext)}
-     const __child = ${dataBody};
-     ${compileDeferredFields(listContext)}
-     return __child;
-    })`;
+  __safeMap(${name}, (__safeMapNode, idx${newDepth}, newArray) => {
+    if (${isPromiseInliner("__safeMapNode")}) {
+      ${GLOBAL_EXECUTOR_NAME}(() => __safeMapNode,
+        (${GLOBAL_PARENT_NAME}, __safeMapNode, err) => {
+          if (err != null) {
+            ${
+              isNonNullType(fieldType)
+                ? GLOBAL_NULL_ERRORS_NAME
+                : GLOBAL_ERRORS_NAME
+            }.push(${createErrorObject(
+    context,
+    fieldNodes,
+    addPath(responsePath, "idx" + newDepth, "variable"),
+    "err.message != null ? err.message : err",
+    "err"
+  )});
+            return;
+          }
+          ${generateUniqueDeclarations(listContext)}
+          ${GLOBAL_PARENT_NAME}[idx${newDepth}] = ${dataBody};\n
+          ${compileDeferredFields(listContext)}
+        }, newArray, ${GLOBAL_DATA_NAME}, ${GLOBAL_ERRORS_NAME}, ${GLOBAL_NULL_ERRORS_NAME});
+      return null;
+    }
+    ${generateUniqueDeclarations(listContext)}
+    const __child = ${dataBody};
+    ${compileDeferredFields(listContext)}
+    return __child;
+  })`;
 }
 
 /**
@@ -884,49 +908,8 @@ function unpromisify(
   if (isPromise(value)) {
     value.then(success, error).catch(errorHandler);
     return;
-  } else if (Array.isArray(value)) {
-    return handleArrayValue(value, success, error, errorHandler);
   }
   success(value);
-}
-
-/**
- * Ensure that an array with possible local errors are handled cleanly.
- *
- * @param {any[]} value Array<Promise<any> | any> array of value
- * @param {SuccessCallback} success callback to be called with the result, the cb should only called once
- * @param {ErrorCallback} error callback to be called in case of errors, the cb should only called once
- * @param errorHandler handler for unexpected errors caused by bugs
- */
-function handleArrayValue(
-  value: any[],
-  success: SuccessCallback,
-  error: ErrorCallback,
-  errorHandler: (err: Error) => void
-): void {
-  // The array might have local errors which need to be handled locally in order for proper error messages
-  let hasPromises = false;
-  const values = value.map(item => {
-    if (isPromise(item)) {
-      // return the error
-      // the following transformations will take care of the error
-      hasPromises = true;
-      return item.catch((err: Error) => {
-        return err;
-      });
-    }
-    return item;
-  });
-  if (hasPromises) {
-    return unpromisify(
-      // This promise should not reject but it is handled anyway
-      () => Promise.all(values),
-      success,
-      error,
-      errorHandler
-    );
-  }
-  success(values);
 }
 
 /**
@@ -939,12 +922,12 @@ function handleArrayValue(
  */
 function safeMap(
   iterable: Iterable<any> | string,
-  cb: (a: any, idx: number) => any
+  cb: (a: any, idx: number, newArray: any[]) => any
 ): any[] {
   let index = 0;
   const result = [];
   for (const a of iterable) {
-    const item = cb(a, index);
+    const item = cb(a, index, result);
     result.push(item);
     ++index;
   }
@@ -1179,6 +1162,10 @@ export function isPromise(value: any): value is Promise<any> {
     typeof value === "object" &&
     typeof value.then === "function"
   );
+}
+
+export function isPromiseInliner(value: string): string {
+  return `${value} != null && typeof ${value} === "object" && typeof ${value}.then === "function"`;
 }
 
 /**

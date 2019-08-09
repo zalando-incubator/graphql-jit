@@ -13,7 +13,7 @@ import {
   GraphQLType,
   parse
 } from "graphql";
-import { compileQuery } from "../index";
+import { compileQuery, isCompiledQuery } from "../index";
 
 // resolved() is shorthand for Promise.resolve()
 const resolved = Promise.resolve.bind(Promise);
@@ -41,7 +41,10 @@ function check(testType: any, testData: any, expected: any) {
     const schema = new GraphQLSchema({ query: dataType });
 
     const ast = parse("{ nest { test } }");
-    const prepared: any = compileQuery(schema, ast, "");
+    const prepared = compileQuery(schema, ast, "");
+    if (!isCompiledQuery(prepared)) {
+      throw prepared;
+    }
     const response = await prepared.query(data, undefined, {});
     expect(response).toEqual(expected);
   };
@@ -559,7 +562,10 @@ describe("Execute: Handles nested lists", () => {
       });
       const schema = new GraphQLSchema({ query: dataType });
       const ast = parse(query || "{ test }");
-      const prepared: any = compileQuery(schema, ast, "");
+      const prepared = compileQuery(schema, ast, "");
+      if (!isCompiledQuery(prepared)) {
+        throw prepared;
+      }
       const response = await prepared.query(testData, undefined, {});
       expect(response).toEqual(expected);
     };
@@ -568,6 +574,25 @@ describe("Execute: Handles nested lists", () => {
   test(
     "[[Scalar]]",
     check(GraphQLString, undefined, [["test"]], { data: { test: [["test"]] } })
+  );
+  test(
+    "[[Promise<Scalar>]]",
+    check(GraphQLString, undefined, [[Promise.resolve("test")]], {
+      data: { test: [["test"]] }
+    })
+  );
+  test(
+    "[[PromiseRejected<Scalar>]]",
+    check(GraphQLString, undefined, [[Promise.reject("test")]], {
+      data: { test: [[null]] },
+      errors: [
+        {
+          locations: [{ column: 3, line: 1 }],
+          message: "test",
+          path: ["test", 0, 0]
+        }
+      ]
+    })
   );
   test(
     "[[Object]]",
@@ -583,6 +608,74 @@ describe("Execute: Handles nested lists", () => {
       "{test {obj}}",
       [[{ obj: "test" }]],
       { data: { test: [[{ obj: "test" }]] } }
+    )
+  );
+  test(
+    "[[Promise<Object>]]",
+    check(
+      new GraphQLObjectType({
+        name: "Object",
+        fields: () => ({
+          obj: {
+            type: GraphQLString
+          }
+        })
+      }),
+      "{test {obj}}",
+      [[Promise.resolve({ obj: "test" })]],
+      { data: { test: [[{ obj: "test" }]] } }
+    )
+  );
+  test(
+    "[[PromiseRejected<Object>]]",
+    check(
+      new GraphQLObjectType({
+        name: "Object",
+        fields: () => ({
+          obj: {
+            type: GraphQLString
+          }
+        })
+      }),
+      "{test {obj}}",
+      [[{ obj: "test" }, Promise.reject("bad")]],
+      {
+        data: { test: [[{ obj: "test" }, null]] },
+        errors: [
+          {
+            locations: [{ column: 2, line: 1 }],
+            message: "bad",
+            path: ["test", 0, 1]
+          }
+        ]
+      }
+    )
+  );
+  test(
+    "[[PromiseRejected<Object>!]]",
+    check(
+      new GraphQLNonNull(
+        new GraphQLObjectType({
+          name: "Object",
+          fields: () => ({
+            obj: {
+              type: GraphQLString
+            }
+          })
+        })
+      ),
+      "{test {obj}}",
+      [[{ obj: "test" }, Promise.reject("bad")]],
+      {
+        data: { test: [null] },
+        errors: [
+          {
+            locations: [{ column: 2, line: 1 }],
+            message: "bad",
+            path: ["test", 0, 1]
+          }
+        ]
+      }
     )
   );
 });
