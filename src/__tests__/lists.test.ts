@@ -576,10 +576,15 @@ describe("Execute: Handles nested lists", () => {
     check(GraphQLString, undefined, [["test"]], { data: { test: [["test"]] } })
   );
   test(
-    "[[Promise<Scalar>]]",
-    check(GraphQLString, undefined, [[Promise.resolve("test")]], {
-      data: { test: [["test"]] }
-    })
+    "[Promise<[Promise<Scalar>]>]",
+    check(
+      GraphQLString,
+      undefined,
+      [Promise.resolve([Promise.resolve("test")])],
+      {
+        data: { test: [["test"]] }
+      }
+    )
   );
   test(
     "[[PromiseRejected<Scalar>]]",

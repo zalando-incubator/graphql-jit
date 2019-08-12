@@ -15,13 +15,7 @@ import {
   GraphQLString,
   parse
 } from "graphql";
-import {
-  CompiledQuery,
-  compileQuery,
-  isCompiledQuery,
-  loosePromiseExecutor,
-  serialPromiseExecutor
-} from "../execution";
+import { CompiledQuery, compileQuery, isCompiledQuery } from "../execution";
 
 function executeArgs(args: any) {
   const {
@@ -62,95 +56,6 @@ function executeQuery(
 }
 
 describe("Execute: Handles basic execution tasks", () => {
-  const mockExecutionContext = {
-    data: {},
-    errors: [],
-    nullErrors: []
-  } as any;
-  test("handles global errors", async () => {
-    const spy = jest.fn();
-    const { executor } = loosePromiseExecutor(undefined as any, spy as any);
-
-    executor(
-      mockExecutionContext,
-      Promise.resolve(),
-      () => {
-        throw new Error("bug");
-      },
-      jest.fn(),
-      {}
-    );
-    await new Promise(r => setImmediate(r)); // For the promise to resolve
-    expect(spy).toHaveBeenCalledWith(new Error("bug"));
-  });
-  describe("serial executor", () => {
-    test("submits unit of work", async () => {
-      const spy = jest.fn();
-      const { addToQueue } = serialPromiseExecutor(
-        undefined as any,
-        undefined as any
-      );
-
-      addToQueue({} as any, spy, jest.fn(), jest.fn(), {});
-      expect(spy).not.toHaveBeenCalledWith();
-    });
-    test("start executing", async () => {
-      const spy = jest.fn();
-      const { addToQueue, startOrContinueExecution } = serialPromiseExecutor(
-        jest.fn(),
-        undefined as any
-      );
-
-      addToQueue(mockExecutionContext, spy, jest.fn(), jest.fn(), {});
-      startOrContinueExecution(mockExecutionContext);
-      expect(spy).toHaveBeenCalled();
-    });
-    test("executes in a serial way", async () => {
-      const spy = jest.fn(() => Promise.resolve());
-      const spy2 = jest.fn(() => Promise.resolve());
-      const { addToQueue, startOrContinueExecution } = serialPromiseExecutor(
-        jest.fn(),
-        undefined as any
-      );
-
-      addToQueue(mockExecutionContext, spy, jest.fn(), jest.fn(), {});
-      addToQueue(mockExecutionContext, spy2, jest.fn(), jest.fn(), {});
-      expect(spy).not.toHaveBeenCalled();
-      expect(spy2).not.toHaveBeenCalled();
-      startOrContinueExecution(mockExecutionContext);
-      expect(spy).toHaveBeenCalled();
-      expect(spy2).not.toHaveBeenCalled();
-      await Promise.resolve(); // For the promise to resolve
-      expect(spy2).toHaveBeenCalled();
-    });
-    test("executes in a parallel way after the serial phase", async () => {
-      const spy = jest.fn(() => Promise.resolve());
-      const secondResolver = Promise.resolve();
-      const spy2 = jest.spyOn(secondResolver, "then");
-      const finalCb = jest.fn();
-      const { addToQueue, startOrContinueExecution } = serialPromiseExecutor(
-        finalCb,
-        undefined as any
-      );
-
-      addToQueue(mockExecutionContext, spy, jest.fn(), jest.fn(), {});
-      expect(spy).not.toHaveBeenCalled();
-      expect(spy2).not.toHaveBeenCalled();
-      startOrContinueExecution(mockExecutionContext);
-      expect(spy).toHaveBeenCalled();
-      addToQueue(
-        mockExecutionContext,
-        secondResolver,
-        jest.fn(),
-        jest.fn(),
-        {}
-      );
-      expect(spy2).toHaveBeenCalled();
-      await Promise.resolve(); // For the promises to resolve
-      expect(finalCb).toHaveBeenCalled();
-    });
-  });
-
   test("throws if no document is provided", async () => {
     const schema = new GraphQLSchema({
       query: new GraphQLObjectType({

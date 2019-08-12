@@ -109,22 +109,23 @@ const SAFETY_CHECK_PREFIX = "__validNode";
 const GLOBAL_DATA_NAME = "__context.data";
 const GLOBAL_ERRORS_NAME = "__context.errors";
 const GLOBAL_NULL_ERRORS_NAME = "__context.nullErrors";
-const GLOBAL_EXECUTOR_NAME = "__context.executor";
 const GLOBAL_ROOT_NAME = "__context.rootValue";
 const GLOBAL_VARIABLES_NAME = "__context.variables";
 const GLOBAL_CONTEXT_NAME = "__context.context";
 const GLOBAL_EXECUTION_CONTEXT = "__context";
+const GLOBAL_PROMISE_COUNTER = "__context.promiseCounter";
 const GLOBAL_INSPECT_NAME = "__context.inspect";
 const GLOBAL_SAFE_MAP_NAME = "__context.safeMap";
 const GRAPHQL_ERROR = "__context.GraphQLError";
+const GLOBAL_RESOLVE = "__context.resolve";
 const GLOBAL_PARENT_NAME = "__parent";
 
 interface ExecutionContext {
+  promiseCounter: number;
   data: any;
   errors: GraphQLError[];
   nullErrors: GraphQLError[];
-  executor: PromiseExecutor;
-  resolveIfDone: any;
+  resolve?: () => void;
   inspect: typeof inspect;
   variables: { [key: string]: any };
   context: any;
@@ -132,6 +133,7 @@ interface ExecutionContext {
   safeMap: typeof safeMap;
   GraphQLError: typeof GraphqlJitError;
   resolvers: { [key: string]: GraphQLFieldResolver<any, any, any> };
+  trimmer: NullTrimmer;
   serializers: {
     [key: string]: (
       c: ExecutionContext,
@@ -155,18 +157,6 @@ interface DeferredField {
   fieldNodes: FieldNode[];
   args: Arguments;
 }
-
-export type SuccessCallback = (
-  c: ExecutionContext,
-  parent: any,
-  d: object,
-  ...idx: number[]
-) => void;
-export type ErrorCallback = (
-  c: ExecutionContext,
-  e: Error,
-  ...idx: number[]
-) => void;
 
 export interface CompiledQuery {
   operationName?: string;
@@ -275,12 +265,11 @@ export function isCompiledQuery<
 export function createBoundQuery(
   compilationContext: CompilationContext,
   document: DocumentNode,
-  func: (context: ExecutionContext) => void,
+  func: (context: ExecutionContext) => Promise<any> | undefined,
   getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
   operationName?: string
 ) {
   const {
-    operation: { operation },
     resolvers,
     typeResolvers,
     isTypeOfs,
@@ -315,50 +304,10 @@ export function createBoundQuery(
       if (failToParseVariables(parsedVariables)) {
         return { errors: parsedVariables.errors };
       }
-
-      let result: ExecutionResult | null = null;
-      const maybePromise: {
-        resolve: (r: ExecutionResult) => void;
-        reject: (e: Error) => void;
-      } = {
-        resolve: (r: ExecutionResult) => {
-          result = r;
-        },
-        reject: (err: Error) => {
-          throw err;
-        }
-      };
-      const callback = (context: ExecutionContext) => {
-        if (result) {
-          throw new Error("called the final cb more than once");
-        }
-        maybePromise.resolve(postProcessResult(trimmer, context));
-      };
-      const globalErrorHandler = (err: Error) => {
-        // Logging the culprit
-        // tslint:disable-next-line
-        console.error(`bad function: ${func.toString()}`);
-        // tslint:disable-next-line
-        console.error(`good query: ${print(document)}`);
-        maybePromise.reject(err);
-      };
-      let executor;
-      let resolveIfDone;
-      if (operation === "mutation") {
-        const serial = serialPromiseExecutor(callback, globalErrorHandler);
-        executor = serial.addToQueue;
-        resolveIfDone = serial.startOrContinueExecution;
-      } else {
-        const loose = loosePromiseExecutor(callback, globalErrorHandler);
-        executor = loose.executor;
-        resolveIfDone = loose.resolveIfDone;
-      }
       const executionContext: ExecutionContext = {
         rootValue,
         context,
         variables: parsedVariables.coerced,
-        executor,
-        resolveIfDone,
         safeMap,
         inspect,
         GraphQLError: GraphqlJitError,
@@ -367,28 +316,29 @@ export function createBoundQuery(
         isTypeOfs,
         serializers,
         resolveInfos,
+        trimmer,
+        promiseCounter: 0,
         data: {},
         nullErrors: [],
         errors: []
       };
-      func.call(null, executionContext);
-      if (result) {
-        return result;
+      const result = func.call(null, executionContext);
+      if (isPromise(result)) {
+        return result.then(postProcessResult);
       }
-      return new Promise((resolve, reject) => {
-        maybePromise.resolve = resolve;
-        maybePromise.reject = reject;
-      });
+      return postProcessResult(executionContext);
     }
   };
 
   return ret[fnName];
 }
 
-function postProcessResult(
-  trimmer: NullTrimmer,
-  { data, nullErrors, errors }: ExecutionContext
-) {
+function postProcessResult({
+  data,
+  nullErrors,
+  errors,
+  trimmer
+}: ExecutionContext) {
   if (nullErrors.length > 0) {
     const trimmed = trimmer(data, nullErrors);
     return {
@@ -417,6 +367,7 @@ function postProcessResult(
  */
 function compileOperation(context: CompilationContext) {
   const type = getOperationRootType(context.schema, context.operation);
+  const serialExecution = context.operation.operation === "mutation";
   const fieldMap = collectFields(
     context,
     type,
@@ -438,14 +389,46 @@ function compileOperation(context: CompilationContext) {
   let body = `function query (${GLOBAL_EXECUTION_CONTEXT}) {
   "use strict";
 `;
+  if (serialExecution) {
+    body += `${GLOBAL_EXECUTION_CONTEXT}.queue = [];`;
+  }
   body += generateUniqueDeclarations(context, true);
   body += `${GLOBAL_DATA_NAME} = ${topLevel}\n`;
-  body += compileDeferredFields(
-    context,
-    context.operation.operation === "mutation"
-  );
+  if (serialExecution) {
+    body += compileDeferredFieldsSerially(context);
+    body += `
+    ${GLOBAL_EXECUTION_CONTEXT}.finalResolve = () => {};
+    ${GLOBAL_RESOLVE} = (context) => {
+      if (context.jobCounter >= context.queue.length) {
+        // All mutations have finished
+        context.finalResolve(context);
+        return;
+      }
+      context.queue[context.jobCounter++](context);
+    };
+    // There might not no job to run due to invalid queries
+    if (${GLOBAL_EXECUTION_CONTEXT}.queue.length > 0) {
+      ${GLOBAL_EXECUTION_CONTEXT}.jobCounter = 1; // since the first one will be run manually
+      ${GLOBAL_EXECUTION_CONTEXT}.queue[0](${GLOBAL_EXECUTION_CONTEXT});
+    }
+    // Promises have been scheduled so a new promise is returned
+    // that will be resolved once every promise is done
+    if (${GLOBAL_PROMISE_COUNTER} > 0) {
+      return new Promise(resolve => ${GLOBAL_EXECUTION_CONTEXT}.finalResolve = resolve);
+    }
+  `;
+  } else {
+    body += compileDeferredFields(context);
+    body += `
+    // Promises have been scheduled so a new promise is returned
+    // that will be resolved once every promise is done
+    if (${GLOBAL_PROMISE_COUNTER} > 0) {
+      return new Promise(resolve => ${GLOBAL_RESOLVE} = resolve);
+    }`;
+  }
   body += `
-  ${GLOBAL_EXECUTION_CONTEXT}.resolveIfDone(${GLOBAL_EXECUTION_CONTEXT});
+  // sync execution, the results are ready
+  return undefined;
   }`;
   body += context.hoistedFunctions.join("\n");
   return body;
@@ -457,121 +440,139 @@ function compileOperation(context: CompilationContext) {
  * Each deferred node get a copy of the compilation context with
  * a new empty list for deferred nodes to properly scope the nodes.
  * @param {CompilationContext} context compilation context
- * @param isMutation {boolean} set on the top level if the operation is a mutation
  * @returns {string} compiled transformations all of deferred nodes
  */
-function compileDeferredFields(
-  context: CompilationContext,
-  isMutation: boolean = false
-): string {
+function compileDeferredFields(context: CompilationContext): string {
   let body = "";
-  context.deferred.forEach(
-    (
-      {
-        name,
-        originPaths,
-        destinationPaths,
-        fieldNodes,
-        fieldType,
-        fieldName,
-        responsePath,
-        parentType,
-        args
-      },
-      index
-    ) => {
-      const subContext = createSubCompilationContext(context);
-      const nodeBody = compileType(
-        subContext,
-        parentType,
-        fieldType,
-        fieldNodes,
-        [fieldName],
-        [`${GLOBAL_PARENT_NAME}.${name}`],
-        responsePath
-      );
-      const parentIndexes = getParentIndexes(context);
-      const resolverName = getResolverName(parentType.name, fieldName);
-      const resolverHandler = getHoistedFunctionName(
-        context,
-        `${name}${resolverName}Handler`
-      );
-      const resolverErrorHandler = getHoistedFunctionName(
-        context,
-        `${name}${resolverName}ErrorHandler`
-      );
-      const topLevelArgs = getArgumentsVarName(resolverName);
-      const validArgs = getValidArgumentsVarName(resolverName);
-      const executionError = createErrorObject(
-        context,
-        fieldNodes,
-        responsePath,
-        "err.message != null ? err.message : err",
-        "err"
-      );
-      const resolverCall = `${GLOBAL_EXECUTION_CONTEXT}.resolvers.${resolverName}(${originPaths.join(
-        "."
-      )},${topLevelArgs},${GLOBAL_CONTEXT_NAME},
-            ${getExecutionInfo(
-              subContext,
-              parentType,
-              fieldType,
-              fieldName,
-              fieldNodes,
-              responsePath
-            )})`;
-      let mainBody;
-      if (isMutation) {
-        mainBody = `
-           ${GLOBAL_EXECUTOR_NAME}(${GLOBAL_EXECUTION_CONTEXT}, () => ${resolverCall}, ${resolverHandler},
-           ${resolverErrorHandler}, ${destinationPaths.join(
-          "."
-        )}, ${parentIndexes});
-        `;
-      } else {
-        mainBody = `
-          let __value = null;
-          try {
-            __value = ${resolverCall};
-          } catch (err) {
-          ${getErrorDestination(fieldType)}.push(${executionError});
-          }
-          if (${isPromiseInliner("__value")}) {
-           ${GLOBAL_EXECUTOR_NAME}(${GLOBAL_EXECUTION_CONTEXT}, __value, ${resolverHandler}, ${resolverErrorHandler},
-            ${destinationPaths.join(".")}, ${parentIndexes});
-          } else {
-            ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${destinationPaths.join(
-          "."
-        )}, __value, ${parentIndexes});
-          }`;
-      }
-      body += `
+  context.deferred.forEach((deferredField, index) => {
+    body += `
       if (${SAFETY_CHECK_PREFIX}${index}) {
-       ${getArguments(
-         subContext,
-         args,
-         topLevelArgs,
-         validArgs,
-         fieldType,
-         responsePath
-       )}
-        if (${validArgs} === true) {
-          ${mainBody}
-        }
+        ${compileDeferredField(context, deferredField)}
       }`;
-      context.hoistedFunctions.push(`
-      function ${resolverErrorHandler}(${GLOBAL_EXECUTION_CONTEXT}, err, ${parentIndexes}) {
-      ${getErrorDestination(fieldType)}.push(${executionError});}
-      `);
-      context.hoistedFunctions.push(`
+  });
+  return body;
+}
+
+function compileDeferredField(
+  context: CompilationContext,
+  deferredField: DeferredField,
+  appendix?: string
+): string {
+  const {
+    name,
+    originPaths,
+    destinationPaths,
+    fieldNodes,
+    fieldType,
+    fieldName,
+    responsePath,
+    parentType,
+    args
+  } = deferredField;
+  const subContext = createSubCompilationContext(context);
+  const nodeBody = compileType(
+    subContext,
+    parentType,
+    fieldType,
+    fieldNodes,
+    [fieldName],
+    [`${GLOBAL_PARENT_NAME}.${name}`],
+    responsePath
+  );
+  const parentIndexes = getParentIndexes(context);
+  const resolverName = getResolverName(parentType.name, fieldName);
+  const resolverHandler = getHoistedFunctionName(
+    context,
+    `${name}${resolverName}Handler`
+  );
+  const topLevelArgs = getArgumentsVarName(resolverName);
+  const validArgs = getValidArgumentsVarName(resolverName);
+  const executionError = createErrorObject(
+    context,
+    fieldNodes,
+    responsePath,
+    "err.message != null ? err.message : err",
+    "err"
+  );
+  const executionInfo = getExecutionInfo(
+    subContext,
+    parentType,
+    fieldType,
+    fieldName,
+    fieldNodes,
+    responsePath
+  );
+  const emptyError = createErrorObject(context, fieldNodes, responsePath, '""');
+  const resolverParentObject = originPaths.join(".");
+  const resolverCall = `${GLOBAL_EXECUTION_CONTEXT}.resolvers.${resolverName}(
+          ${resolverParentObject},${topLevelArgs},${GLOBAL_CONTEXT_NAME}, ${executionInfo})`;
+  const resultParentPath = destinationPaths.join(".");
+  const compiledArgs = compileArguments(
+    subContext,
+    args,
+    topLevelArgs,
+    validArgs,
+    fieldType,
+    responsePath
+  );
+  const body = `
+    ${compiledArgs}
+    if (${validArgs} === true) {
+      var __value = null;
+      try {
+        __value = ${resolverCall};
+      } catch (err) {
+        ${getErrorDestination(fieldType)}.push(${executionError});
+      }
+      if (${isPromiseInliner("__value")}) {
+      ${promiseStarted()}
+       __value.then(result => {
+        ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${resultParentPath}, result, ${parentIndexes});
+        ${promiseDone()}
+       }, err => {
+        if (err) {
+          ${getErrorDestination(fieldType)}.push(${executionError});
+        } else {
+          ${getErrorDestination(fieldType)}.push(${emptyError});
+        }
+        ${promiseDone()}
+       });
+      } else {
+        ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${resultParentPath}, __value, ${parentIndexes});
+      }
+    }`;
+  context.hoistedFunctions.push(`
        function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${fieldName}, ${parentIndexes}) {
           ${generateUniqueDeclarations(subContext)}
-          ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};\n
+          ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};
           ${compileDeferredFields(subContext)}
+          ${appendix ? appendix : ""}
         }
       `);
+  return body;
+}
+
+function compileDeferredFieldsSerially(context: CompilationContext): string {
+  let body = "";
+  context.deferred.forEach(deferredField => {
+    const { name, fieldName, parentType } = deferredField;
+    const resolverName = getResolverName(parentType.name, fieldName);
+    const mutationHandler = getHoistedFunctionName(
+      context,
+      `${name}${resolverName}Mutation`
+    );
+    body += `${GLOBAL_EXECUTION_CONTEXT}.queue.push(${mutationHandler});\n`;
+    const appendix = `
+    if (${GLOBAL_PROMISE_COUNTER} === 0) {
+      ${GLOBAL_RESOLVE}(${GLOBAL_EXECUTION_CONTEXT});
     }
-  );
+    `;
+    context.hoistedFunctions.push(`
+      function ${mutationHandler}(${GLOBAL_EXECUTION_CONTEXT}) {
+        ${compileDeferredField(context, deferredField, appendix)}
+      }
+      `);
+  });
   return body;
 }
 
@@ -970,45 +971,41 @@ function compileListType(
     "err.message != null ? err.message : err",
     "err"
   );
+  const emptyError = createErrorObject(context, fieldNodes, responsePath, '""');
   const uniqueDeclarations = generateUniqueDeclarations(listContext);
   const deferredFields = compileDeferredFields(listContext);
-  const safeMapPromiseHandler = getHoistedFunctionName(
+  const promiseHandler = getHoistedFunctionName(
     context,
     `${parentType.name}${originalObjectPaths.join("")}MapPromiseHandler`
   );
+  const childIndexes = getParentIndexes(listContext);
   listContext.hoistedFunctions.push(`
-  function ${safeMapPromiseHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, __safeMapNode, ${getParentIndexes(
-    listContext
-  )}) {
+  function ${promiseHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, __safeMapNode, ${childIndexes}) {
     ${uniqueDeclarations}
     ${GLOBAL_PARENT_NAME}[idx${newDepth}] = ${dataBody};
     ${deferredFields}
-  }
-  `);
-  const safeMapPromiseErrorHandler = getHoistedFunctionName(
-    context,
-    `${parentType.name}${originalObjectPaths.join("")}MapPromiseErrorHandler`
-  );
-  listContext.hoistedFunctions.push(`
-  function ${safeMapPromiseErrorHandler}(${GLOBAL_EXECUTION_CONTEXT}, err, ${getParentIndexes(
-    listContext
-  )}) {
-    ${getErrorDestination(fieldType)}.push(${executionError});
   }
   `);
   const safeMapHandler = getHoistedFunctionName(
     context,
     `${parentType.name}${originalObjectPaths.join("")}MapHandler`
   );
+  const parentIndexes = getParentIndexes(context);
   listContext.hoistedFunctions.push(`
-  function ${safeMapHandler}(${GLOBAL_EXECUTION_CONTEXT}, __safeMapNode, idx${newDepth}, newArray, ${getParentIndexes(
-    context
-  )}) {
+  function ${safeMapHandler}(${GLOBAL_EXECUTION_CONTEXT}, __safeMapNode, idx${newDepth}, newArray, ${parentIndexes}) {
     if (${isPromiseInliner("__safeMapNode")}) {
-      ${GLOBAL_EXECUTOR_NAME}(${GLOBAL_EXECUTION_CONTEXT}, __safeMapNode, ${safeMapPromiseHandler},
-      ${safeMapPromiseErrorHandler}, newArray, ${getParentIndexes(
-    listContext
-  )});
+      ${promiseStarted()}
+      __safeMapNode.then(result => {
+        ${promiseHandler}(${GLOBAL_EXECUTION_CONTEXT}, newArray, result, ${childIndexes});
+        ${promiseDone()}
+      }, err => {
+        if (err) {
+          ${getErrorDestination(fieldType)}.push(${executionError});
+        } else {
+          ${getErrorDestination(fieldType)}.push(${emptyError});
+        }
+        ${promiseDone()}
+      });
       return null;
     }
     ${uniqueDeclarations}
@@ -1018,9 +1015,7 @@ function compileListType(
   }
   `);
   return `(typeof ${name} === "string" || typeof ${name}[Symbol.iterator] !== "function") ?  ${errorCase} :
-  ${GLOBAL_SAFE_MAP_NAME}(${GLOBAL_EXECUTION_CONTEXT}, ${name}, ${safeMapHandler}, ${getParentIndexes(
-    context
-  )})`;
+  ${GLOBAL_SAFE_MAP_NAME}(${GLOBAL_EXECUTION_CONTEXT}, ${name}, ${safeMapHandler}, ${parentIndexes})`;
 }
 
 /**
@@ -1139,6 +1134,7 @@ function objectPath(topLevel: string, path: ObjectPath) {
     if (section.type === "literal") {
       objectPath += `["${section.key}"]`;
     } else {
+      /* istanbul ignore next */
       throw new Error("should only have received literal paths");
     }
   }
@@ -1155,7 +1151,7 @@ function objectPath(topLevel: string, path: ObjectPath) {
  * @param path
  * @returns {string}
  */
-function getArguments(
+function compileArguments(
   context: CompilationContext,
   args: Arguments,
   topLevelArg: string,
@@ -1511,198 +1507,20 @@ function getSerializerName(name: string) {
   return name + "Serializer";
 }
 
-type PromiseExecutor = (
-  context: ExecutionContext,
-  resolver: Promise<any>,
-  success: SuccessCallback,
-  error: ErrorCallback,
-  parent: object,
-  ...idxs: number[]
-) => void;
-
-/**
- * Handles the book keeping of running promises
- * loosely and returning a final callback.
- *
- * The final callback is called after every possible promise has returned.
- *
- * Exported only for tests.
- *
- * @param finalCb callback to be called once the all promises have been resolved
- * @param {(err: Error) => void} errorHandler global error handler in case of bugs in the runtime
- * @returns an object with two function, a execute function and checker when everything is resolved
- */
-export function loosePromiseExecutor(
-  finalCb: (context: ExecutionContext) => void,
-  errorHandler: (err: Error) => void
-) {
-  let counter = 1; // start with one to handle sync operations
-
-  // this will be called in the function footer for sync
-  function resolveIfDone(context: ExecutionContext) {
-    --counter;
-    if (counter === 0) {
-      finalCb(context);
-    }
-  }
-
-  function executor(
-    context: ExecutionContext,
-    value: Promise<any>,
-    success: SuccessCallback,
-    error: ErrorCallback,
-    parent: object,
-    ...idx: number[]
-  ) {
-    counter++;
-    value
-      .then(
-        res => {
-          success(context, parent, res, ...idx);
-          resolveIfDone(context);
-        },
-        err => {
-          error(context, err || new (GraphqlJitError as any)(""), ...idx);
-          resolveIfDone(context);
-        }
-      )
-      .catch(errorHandler);
-  }
-
-  function delayedExecutor(
-    context: ExecutionContext,
-    valueGen: () => Promise<any> | any,
-    success: SuccessCallback,
-    error: ErrorCallback,
-    parent: object
-  ) {
-    counter++;
-    let value;
-    try {
-      value = valueGen();
-    } catch (e) {
-      error(context, e);
-      resolveIfDone(context);
-      return;
-    }
-    if (isPromise(value)) {
-      value
-        .then(
-          res => {
-            success(context, parent, res);
-            resolveIfDone(context);
-          },
-          err => {
-            error(context, err || new (GraphqlJitError as any)(""));
-            resolveIfDone(context);
-          }
-        )
-        .catch(errorHandler);
-      return;
-    }
-    success(context, parent, value);
-    resolveIfDone(context);
-  }
-
-  return {
-    delayedExecutor,
-    executor,
-    resolveIfDone
-  };
+function promiseStarted() {
+  return `
+     // increase the promise counter
+     ++${GLOBAL_PROMISE_COUNTER};
+  `;
 }
 
-/**
- * Handles the book keeping of running the top level promises serially.
- * The serial phase places all units of work in a queue which
- * is only started once startOrContinueExecution is triggered.
- *
- * From then on, any new work is executed with the parallel executor.
- * New work is executed within the lifespan of the top level promise.
- * Once all promises are over, the executor will move on to the next serial
- * piece of work.
- *
- * The final callback is called after every possible promise has returned.
- *
- * Exported only for tests.
- *
- * @param finalCb callback to be called once the all promises have been resolved
- * @param {(err: Error) => void} errorHandler global error handler in case of bugs in the runtime
- * @returns an object with two function, a execute function to submit work and
- * startExecution to trigger the execution of everything submitted so far.
- */
-export function serialPromiseExecutor(
-  finalCb: (context: ExecutionContext) => void,
-  errorHandler: (err: Error) => void
-) {
-  const queue: Array<{
-    looseExecutor: {
-      executor: PromiseExecutor;
-      delayedExecutor: (
-        context: ExecutionContext,
-        resolver: () => Promise<any>,
-        success: SuccessCallback,
-        error: ErrorCallback,
-        parent: object
-      ) => void;
-      resolveIfDone: (context: ExecutionContext) => void;
-    };
-    value: () => Promise<any>;
-    success: SuccessCallback;
-    error: ErrorCallback;
-    parent: object;
-  }> = [];
-  // Serial phase is running until execution starts
-  let serialPhase = true;
-  let currentPostponedJob = 0;
-  let currentParallelExecutor: PromiseExecutor;
-
-  // this will be called in the function footer for starting the execution
-  function startOrContinueExecution(context: ExecutionContext) {
-    serialPhase = false;
-    if (currentPostponedJob < queue.length) {
-      const { value, success, error, parent, looseExecutor } = queue[
-        currentPostponedJob
-      ];
-      queue[currentPostponedJob] = null as any; // allow GC to clean up sooner
-      currentPostponedJob++;
-      currentParallelExecutor = looseExecutor.executor;
-      looseExecutor.delayedExecutor(context, value, success, error, parent);
-      looseExecutor.resolveIfDone(context);
-      return;
+function promiseDone() {
+  return `
+    --${GLOBAL_PROMISE_COUNTER};
+    if (${GLOBAL_PROMISE_COUNTER} === 0) {
+      ${GLOBAL_RESOLVE}(${GLOBAL_EXECUTION_CONTEXT});
     }
-    finalCb(context);
-  }
-
-  function addToQueue(
-    context: ExecutionContext,
-    value: any,
-    success: SuccessCallback,
-    error: ErrorCallback,
-    parent: object,
-    ...idx: number[]
-  ) {
-    if (serialPhase) {
-      const looseExecutor = loosePromiseExecutor(
-        startOrContinueExecution,
-        errorHandler
-      );
-      queue.push({
-        looseExecutor,
-        value,
-        success,
-        error,
-        parent
-      });
-    } else {
-      // We are using the parallel executor once the serial phase is over
-      currentParallelExecutor(context, value, success, error, parent, ...idx);
-    }
-  }
-
-  return {
-    addToQueue,
-    startOrContinueExecution
-  };
+  `;
 }
 
 function normalizeErrors(err: Error[] | Error): GraphQLError[] {
