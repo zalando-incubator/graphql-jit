@@ -1,7 +1,4 @@
-import Benchmark from "benchmark";
 import {
-  execute,
-  // execute,
   GraphQLBoolean,
   GraphQLID,
   GraphQLInt,
@@ -12,96 +9,8 @@ import {
   GraphQLString,
   parse
 } from "graphql";
-import { compileQuery } from "../";
 
-const schema = getSchema();
-const document = parse(`
-query ($id: ID! = "1", $width: Int = 640, $height: Int = 480){
-  feed {
-    __typename
-    id,
-    title
-  },
-  article(id: $id) {
-    ...articleFields,
-    author {
-      __typename
-      id,
-      name,
-      pic(width: $width, height: $height) {
-      __typename
-        url,
-        width,
-        height
-      },
-      recentArticle {
-        ...articleFields,
-        keywords
-      }
-    }
-  }
-}
-
-fragment articleFields on Article {
-  __typename
-  id,
-  isPublished,
-  title,
-  body,
-  hidden,
-  notdefined
-}
-`);
-
-const { query: compilerParserNoLeaf }: any = compileQuery(
-  schema,
-  document,
-  "",
-  {
-    disableLeafSerialization: true
-  }
-);
-const compilerParser: any = compileQuery(schema, document, "");
-const vars = { id: "1" };
-
-const suite = new Benchmark.Suite();
-
-suite
-  .add("graphql-js", {
-    defer: true,
-    fn(deferred: any) {
-      const p: any = execute(schema, document, undefined, undefined, vars);
-      p.then(() => deferred.resolve());
-    }
-  })
-  .add("graphql-jit", {
-    defer: true,
-    fn(deferred: any) {
-      compilerParser
-        .query(undefined, undefined, vars)
-        .then(() => deferred.resolve());
-    }
-  })
-  .add("graphql-jit - no leaf", {
-    defer: true,
-    fn(deferred: any) {
-      compilerParserNoLeaf(undefined, undefined, vars).then(() =>
-        deferred.resolve()
-      );
-    }
-  })
-  // add listeners
-  .on("cycle", (event: any) => {
-    // tslint:disable-next-line
-    console.log(String(event.target));
-  })
-  .on("complete", () => {
-    // tslint:disable-next-line
-    console.log("Fastest is " + suite.filter("fastest").map("name" as any));
-  })
-  .run();
-
-function getSchema() {
+export function schema() {
   const BlogImage = new GraphQLObjectType({
     name: "Image",
     fields: {
@@ -131,10 +40,7 @@ function getSchema() {
       id: { type: new GraphQLNonNull(GraphQLID) },
       isPublished: { type: GraphQLBoolean },
       author: { type: BlogAuthor },
-      title: {
-        type: GraphQLString,
-        resolve: article => Promise.resolve(article && article.title)
-      },
+      title: { type: GraphQLString },
       body: { type: GraphQLString },
       keywords: { type: new GraphQLList(GraphQLString) }
     }
@@ -198,3 +104,41 @@ function getSchema() {
     query: BlogQuery
   });
 }
+
+export const query = parse(`
+query ($id: ID! = "1", $width: Int = 640, $height: Int = 480) {
+  feed {
+    __typename
+    id,
+    title
+  },
+  article(id: $id) {
+    ...articleFields,
+    author {
+      __typename
+      id,
+      name,
+      pic(width: $width, height: $height) {
+      __typename
+        url,
+        width,
+        height
+      },
+      recentArticle {
+        ...articleFields,
+        keywords
+      }
+    }
+  }
+}
+
+fragment articleFields on Article {
+  __typename
+  id,
+  isPublished,
+  title,
+  body,
+  hidden,
+  notdefined
+}
+`);
