@@ -1,7 +1,4 @@
-import Benchmark from "benchmark";
 import {
-  execute,
-  // execute,
   GraphQLBoolean,
   GraphQLID,
   GraphQLInt,
@@ -12,112 +9,73 @@ import {
   GraphQLString,
   parse
 } from "graphql";
-import { compileQuery } from "../";
 
-const schema = getSchema();
-const document = parse(`
-{
-  feed {
-    __typename
-    id,
-    title
-  },
-  article(id: "1") {
-    ...articleFields,
-    author {
-      __typename
-      id,
-      name,
-      pic(width: 640, height: 480) {
-      __typename
-        url,
-        width,
-        height
-      },
-      recentArticle {
-        ...articleFields,
-        keywords
-      }
-    }
-  }
-}
-
-fragment articleFields on Article {
-  __typename
-  id,
-  isPublished,
-  title,
-  body,
-  hidden,
-  notdefined
-}
-`);
-
-const { query }: any = compileQuery(schema, document, "");
-
-const suite = new Benchmark.Suite();
-
-suite
-  .add("graphql-js", {
-    defer: true,
-    fn(deferred: any) {
-      const p: any = execute(schema, document);
-      p.then(() => deferred.resolve());
-    }
-  })
-  .add("graphql-jit", {
-    defer: true,
-    fn(deferred: any) {
-      query(undefined, undefined, {}).then(() => deferred.resolve());
-    }
-  })
-  // add listeners
-  .on("cycle", (event: any) => {
-    // tslint:disable-next-line
-    console.log(String(event.target));
-  })
-  .on("complete", () => {
-    // tslint:disable-next-line
-    console.log("Fastest is " + suite.filter("fastest").map("name" as any));
-  })
-  .run();
-
-function getSchema() {
+export function schema() {
   const BlogImage = new GraphQLObjectType({
     name: "Image",
     fields: {
-      url: { type: GraphQLString },
-      width: { type: GraphQLInt },
-      height: { type: GraphQLInt }
+      url: {
+        type: GraphQLString,
+        resolve: image => Promise.resolve(image.url)
+      },
+      width: {
+        type: GraphQLInt,
+        resolve: image => Promise.resolve(image.width)
+      },
+      height: {
+        type: GraphQLInt,
+        resolve: image => Promise.resolve(image.height)
+      }
     }
   });
 
   const BlogAuthor = new GraphQLObjectType({
     name: "Author",
     fields: () => ({
-      id: { type: GraphQLString },
-      name: { type: GraphQLString },
+      id: {
+        type: GraphQLString,
+        resolve: author => Promise.resolve(author.id)
+      },
+      name: {
+        type: GraphQLString,
+        resolve: author => Promise.resolve(author.name)
+      },
       pic: {
         args: { width: { type: GraphQLInt }, height: { type: GraphQLInt } },
         type: BlogImage,
         resolve: (obj, { width, height }) => obj.pic(width, height)
       },
-      recentArticle: { type: BlogArticle }
+      recentArticle: {
+        type: BlogArticle,
+        resolve: author => Promise.resolve(author.recentArticle)
+      }
     })
   });
 
   const BlogArticle: GraphQLObjectType = new GraphQLObjectType({
     name: "Article",
     fields: {
-      id: { type: new GraphQLNonNull(GraphQLID) },
-      isPublished: { type: GraphQLBoolean },
+      id: {
+        type: new GraphQLNonNull(GraphQLID),
+        resolve: article => Promise.resolve(article.id)
+      },
+      isPublished: {
+        type: GraphQLBoolean,
+        resolve: article => Promise.resolve(article.isPublished)
+      },
       author: { type: BlogAuthor },
       title: {
         type: GraphQLString,
         resolve: article => Promise.resolve(article && article.title)
       },
-      body: { type: GraphQLString },
-      keywords: { type: new GraphQLList(GraphQLString) }
+      body: {
+        type: GraphQLString,
+        resolve: article => Promise.resolve(article.body)
+      },
+      keywords: {
+        type: new GraphQLList(GraphQLString),
+        resolve: article => Promise.resolve(article.keywords)
+      }
     }
   });
 
@@ -167,6 +125,7 @@ function getSchema() {
       keywords: ["foo", "bar", 1, true, null]
     };
   }
+
   function getPic(uid: number, width: number, height: number) {
     return {
       url: `cdn://${uid}`,
@@ -179,3 +138,52 @@ function getSchema() {
     query: BlogQuery
   });
 }
+
+export const query = parse(`
+query ($id: ID! = "1", $width: Int = 640, $height: Int = 480) {
+  feed {
+    __typename
+    id,
+    title
+  },
+  article(id: $id) {
+    ...articleFields,
+    author {
+      __typename
+      id,
+      name,
+      pic(width: $width, height: $height) {
+      __typename
+        url,
+        width,
+        height
+      },
+      articles {
+        ...articleFields,
+        keywords,
+        badges {
+          color, text
+        },
+        adverts {
+          text,
+          image {
+            url,
+            width,
+            height
+          }
+        }
+      }
+    }
+  }
+}
+
+fragment articleFields on Article {
+  __typename
+  id,
+  isPublished,
+  title,
+  body,
+  hidden,
+  notdefined
+}
+`);

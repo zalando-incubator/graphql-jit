@@ -122,7 +122,7 @@ export interface CompiledQuery {
   query: (
     root: any,
     context: any,
-    variables: Maybe<{ [key: string]: GraphQLScalarSerializer<any> }>
+    variables: Maybe<{ [key: string]: any }>
   ) => Promise<ExecutionResult> | ExecutionResult;
   stringify: (v: any) => string;
 }

@@ -1,7 +1,4 @@
-import Benchmark from "benchmark";
 import {
-  execute,
-  // execute,
   GraphQLBoolean,
   GraphQLID,
   GraphQLInt,
@@ -12,77 +9,12 @@ import {
   GraphQLString,
   parse
 } from "graphql";
-import { compileQuery } from "../";
 
-const schema = getSchema();
-const document = parse(`
-{
-  feed {
-    __typename
-    id,
-    title
-  },
-  article(id: "1") {
-    ...articleFields,
-    author {
-      __typename
-      id,
-      name,
-      pic(width: 640, height: 480) {
-      __typename
-        url,
-        width,
-        height
-      },
-      recentArticle {
-        ...articleFields,
-        keywords
-      }
-    }
-  }
-}
+const articlesCount = 25;
+const badgesCount = 25;
+const advertsCount = 25;
 
-fragment articleFields on Article {
-  __typename
-  id,
-  isPublished,
-  title,
-  body,
-  hidden,
-  notdefined
-}
-`);
-
-const { query }: any = compileQuery(schema, document, "");
-
-const suite = new Benchmark.Suite();
-
-suite
-  .add("graphql-js", {
-    defer: true,
-    fn(deferred: any) {
-      const p: any = execute(schema, document);
-      p.then(() => deferred.resolve());
-    }
-  })
-  .add("graphql-jit", {
-    defer: true,
-    fn(deferred: any) {
-      query(undefined, undefined, {}).then(() => deferred.resolve());
-    }
-  })
-  // add listeners
-  .on("cycle", (event: any) => {
-    // tslint:disable-next-line
-    console.log(String(event.target));
-  })
-  .on("complete", () => {
-    // tslint:disable-next-line
-    console.log("Fastest is " + suite.filter("fastest").map("name" as any));
-  })
-  .run();
-
-function getSchema() {
+export function schema() {
   const BlogImage = new GraphQLObjectType({
     name: "Image",
     fields: {
@@ -101,6 +33,10 @@ function getSchema() {
     }
   });
 
+  const articles: any[] = [];
+  const badges: any[] = [];
+  const adverts: any[] = [];
+
   const BlogAuthor = new GraphQLObjectType({
     name: "Author",
     fields: () => ({
@@ -117,11 +53,39 @@ function getSchema() {
         type: BlogImage,
         resolve: (obj, { width, height }) => obj.pic(width, height)
       },
-      recentArticle: {
-        type: BlogArticle,
-        resolve: author => Promise.resolve(author.recentArticle)
+      articles: {
+        type: new GraphQLList(BlogArticle),
+        resolve: _ => Promise.resolve(articles)
       }
     })
+  });
+
+  const BlogArticleBadge: GraphQLObjectType = new GraphQLObjectType({
+    name: "ArticleBadge",
+    fields: {
+      color: {
+        type: GraphQLString,
+        resolve: badge => Promise.resolve(badge && badge.color)
+      },
+      text: {
+        type: GraphQLString,
+        resolve: badge => Promise.resolve(badge && badge.text)
+      }
+    }
+  });
+
+  const BlogArticleAdvert: GraphQLObjectType = new GraphQLObjectType({
+    name: "ArticleAdvert",
+    fields: {
+      text: {
+        type: GraphQLString,
+        resolve: advert => Promise.resolve(advert && advert.text)
+      },
+      image: {
+        type: BlogImage,
+        resolve: advert => Promise.resolve(advert && advert.image)
+      }
+    }
   });
 
   const BlogArticle: GraphQLObjectType = new GraphQLObjectType({
@@ -147,6 +111,12 @@ function getSchema() {
       keywords: {
         type: new GraphQLList(GraphQLString),
         resolve: article => Promise.resolve(article.keywords)
+      },
+      badges: {
+        type: new GraphQLList(BlogArticleBadge)
+      },
+      adverts: {
+        type: new GraphQLList(BlogArticleAdvert)
       }
     }
   });
@@ -178,6 +148,20 @@ function getSchema() {
     }
   });
 
+  for (let i = 0; i < badgesCount; i++) {
+    badges.push({
+      color: "color" + i,
+      text: "text" + i
+    });
+  }
+
+  for (let i = 0; i < advertsCount; i++) {
+    adverts.push({
+      text: "text" + i,
+      image: getPic(i, 100, 200)
+    });
+  }
+
   const johnSmith = {
     id: 123,
     name: "John Smith",
@@ -194,8 +178,14 @@ function getSchema() {
       title: "My Article " + id,
       body: "This is a post",
       hidden: "This data is not exposed in the schema",
-      keywords: ["foo", "bar", 1, true, null]
+      keywords: ["foo", "bar", 1, true, null],
+      badges,
+      adverts
     };
+  }
+
+  for (let i = 0; i < articlesCount; i++) {
+    articles.push(article(i));
   }
 
   function getPic(uid: number, width: number, height: number) {
@@ -210,3 +200,52 @@ function getSchema() {
     query: BlogQuery
   });
 }
+
+export const query = parse(`
+query ($id: ID! = "1", $width: Int = 640, $height: Int = 480) {
+  feed {
+    __typename
+    id,
+    title
+  },
+  article(id: $id) {
+    ...articleFields,
+    author {
+      __typename
+      id,
+      name,
+      pic(width: $width, height: $height) {
+      __typename
+        url,
+        width,
+        height
+      },
+      articles {
+        ...articleFields,
+        keywords,
+        badges {
+          color, text
+        },
+        adverts {
+          text,
+          image {
+            url,
+            width,
+            height
+          }
+        }
+      }
+    }
+  }
+}
+
+fragment articleFields on Article {
+  __typename
+  id,
+  isPublished,
+  title,
+  body,
+  hidden,
+  notdefined
+}
+`);
