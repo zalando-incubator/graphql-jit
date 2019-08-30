@@ -20,14 +20,14 @@ import {
   VariableDefinitionNode
 } from "graphql";
 import { addPath, computeLocations, ObjectPath } from "./ast";
-import { GraphQLError as GraphJITQLError } from "./error";
+import { GraphQLError as GraphQLJITError } from "./error";
 import createInspect from "./inspect";
 
 const inspect = createInspect();
 
-export type CoercedVariableValues = FailedVariableCoertion | VariableValues;
+export type CoercedVariableValues = FailedVariableCoercion | VariableValues;
 
-interface FailedVariableCoertion {
+interface FailedVariableCoercion {
   errors: ReadonlyArray<GraphQLError>;
 }
 
@@ -35,7 +35,7 @@ interface VariableValues {
   coerced: { [key: string]: any };
 }
 
-export function failToParseVariables(x: any): x is FailedVariableCoertion {
+export function failToParseVariables(x: any): x is FailedVariableCoercion {
   return x.errors;
 }
 
@@ -76,7 +76,7 @@ export function compileVariableParsing(
       // Must use input types for variables. This should be caught during
       // validation, however is checked again here for safety.
       errors.push(
-        new (GraphJITQLError as any)(
+        new (GraphQLJITError as any)(
           `Variable "$${varName}" expected value of type ` +
             `"${
               varType ? varType : print(varDefNode.type)
@@ -120,12 +120,12 @@ export function compileVariableParsing(
 
   return Function.apply(
     null,
-    ["GraphJITQLError", "inspect"]
+    ["GraphQLJITError", "inspect"]
       .concat(Array.from(dependencies.keys()))
       .concat(gen.toString())
   ).apply(
     null,
-    [GraphJITQLError, inspect].concat(Array.from(dependencies.values()))
+    [GraphQLJITError, inspect].concat(Array.from(dependencies.values()))
   );
 }
 
@@ -168,7 +168,7 @@ function generateInput(
     varType = varType.ofType;
     gen(`
       if (${currentOutput} == null) {
-        errors.push(new GraphJITQLError(${hasValueName} ? ${nonNullMessage} : ${omittedMessage}, ${errorLocation}));
+        errors.push(new GraphQLJITError(${hasValueName} ? ${nonNullMessage} : ${omittedMessage}, ${errorLocation}));
       }
     `);
   } else {
@@ -186,7 +186,7 @@ function generateInput(
           } else if (Number.isInteger(${currentInput})) {
             ${currentOutput} = ${currentInput}.toString();
           } else {
-            errors.push(new GraphJITQLError('Variable "$${varName}" got invalid value ' +
+            errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
               inspect(${currentInput}) + "; " +
               'Expected type ${varType.name}; ' +
               '${varType.name} cannot represent value: ' +
@@ -200,7 +200,7 @@ function generateInput(
           if (typeof ${currentInput} === "string") {
               ${currentOutput} = ${currentInput};
           } else {
-            errors.push(new GraphJITQLError('Variable "$${varName}" got invalid value ' +
+            errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
               inspect(${currentInput}) + "; " +
               'Expected type ${varType.name}; ' +
               '${varType.name} cannot represent a non string value: ' +
@@ -214,7 +214,7 @@ function generateInput(
         if (typeof ${currentInput} === "boolean") {
             ${currentOutput} = ${currentInput};
         } else {
-          errors.push(new GraphJITQLError('Variable "$${varName}" got invalid value ' +
+          errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
           inspect(${currentInput}) + "; " +
           'Expected type ${varType.name}; ' +
           '${varType.name} cannot represent a non boolean value: ' +
@@ -226,7 +226,7 @@ function generateInput(
         gen(`
         if (Number.isInteger(${currentInput})) {
           if (${currentInput} > ${MAX_32BIT_INT} || ${currentInput} < ${MIN_32BIT_INT}) {
-            errors.push(new GraphJITQLError('Variable "$${varName}" got invalid value ' +
+            errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
             inspect(${currentInput}) + "; " +
             'Expected type ${varType.name}; ' +
             '${
@@ -237,7 +237,7 @@ function generateInput(
             ${currentOutput} = ${currentInput};
           }
         } else {
-          errors.push(new GraphJITQLError('Variable "$${varName}" got invalid value ' +
+          errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
             inspect(${currentInput}) + "; " +
             'Expected type ${varType.name}; ' +
             '${varType.name} cannot represent non-integer value: ' +
@@ -251,7 +251,7 @@ function generateInput(
         if (Number.isFinite(${currentInput})) {
             ${currentOutput} = ${currentInput};
         } else {
-          errors.push(new GraphJITQLError('Variable "$${varName}" got invalid value ' +
+          errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
             inspect(${currentInput}) + "; " +
             'Expected type ${varType.name}; ' +
             '${varType.name} cannot represent non numeric value: ' +
@@ -269,13 +269,13 @@ function generateInput(
           try {
             const parseResult = ${varType.name}parseValue(${currentInput});
             if (parseResult === undefined || parseResult !== parseResult) {
-              errors.push(new GraphJITQLError('Variable "$${varName}" got invalid value ' +
+              errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
               inspect(${currentInput}) + "; " +
               'Expected type ${varType.name}.', ${errorLocation}));
             }
             ${currentOutput} = parseResult;
           } catch (error) {
-            errors.push(new GraphJITQLError('Variable "$${varName}" got invalid value ' +
+            errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
               inspect(${currentInput}) + "; " +
               'Expected type ${varType.name}.', ${errorLocation})
             );
@@ -294,14 +294,14 @@ function generateInput(
           ${currentOutput} = enumValue.value;
         } else {
           errors.push(
-            new GraphJITQLError('Variable "$${varName}" got invalid value ' +
+            new GraphQLJITError('Variable "$${varName}" got invalid value ' +
             inspect(${currentInput}) + "; " +
             'Expected type ${varType.name}.', ${errorLocation})
           );
         }
       } else {
         errors.push(
-          new GraphJITQLError('Variable "$${varName}" got invalid value ' +
+          new GraphQLJITError('Variable "$${varName}" got invalid value ' +
           inspect(${currentInput}) + "; " +
           'Expected type ${varType.name}.', ${errorLocation})
         );
@@ -341,7 +341,7 @@ function generateInput(
   } else if (isInputType(varType)) {
     gen(`
       if (typeof ${currentInput} !== 'object') {
-        errors.push(new GraphJITQLError('Variable "$${varName}" got invalid value ' +
+        errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
         inspect(${currentInput}) + "; " +
         'Expected type ${varType.name} to be an object.', ${errorLocation}));
       } else {
@@ -376,7 +376,7 @@ function generateInput(
       const allowedFields = ${JSON.stringify(allowedFields)};
       for (const fieldName of Object.keys(${currentInput})) {
         if (!allowedFields.includes(fieldName)) {
-          errors.push(new GraphJITQLError('Variable "$${varName}" got invalid value ' +
+          errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
             inspect(${currentInput}) + "; " +
             'Field "' + fieldName + '" is not defined by type ${
               varType.name

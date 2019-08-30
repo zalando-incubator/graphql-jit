@@ -406,7 +406,7 @@ function compileOperation(context: CompilationContext) {
       }
       context.queue[context.jobCounter++](context);
     };
-    // There might not no job to run due to invalid queries
+    // There might not be a job to run due to invalid queries
     if (${GLOBAL_EXECUTION_CONTEXT}.queue.length > 0) {
       ${GLOBAL_EXECUTION_CONTEXT}.jobCounter = 1; // since the first one will be run manually
       ${GLOBAL_EXECUTION_CONTEXT}.queue[0](${GLOBAL_EXECUTION_CONTEXT});
@@ -479,7 +479,7 @@ function compileDeferredField(
     [`${GLOBAL_PARENT_NAME}.${name}`],
     responsePath
   );
-  const parentIndexes = getParentIndexes(context);
+  const parentIndexes = getParentArgIndexes(context);
   const resolverName = getResolverName(parentType.name, fieldName);
   const resolverHandler = getHoistedFunctionName(
     context,
@@ -503,9 +503,9 @@ function compileDeferredField(
     responsePath
   );
   const emptyError = createErrorObject(context, fieldNodes, responsePath, '""');
-  const resolverParentObject = originPaths.join(".");
+  const resolverParentPath = originPaths.join(".");
   const resolverCall = `${GLOBAL_EXECUTION_CONTEXT}.resolvers.${resolverName}(
-          ${resolverParentObject},${topLevelArgs},${GLOBAL_CONTEXT_NAME}, ${executionInfo})`;
+          ${resolverParentPath},${topLevelArgs},${GLOBAL_CONTEXT_NAME}, ${executionInfo})`;
   const resultParentPath = destinationPaths.join(".");
   const compiledArgs = compileArguments(
     subContext,
@@ -698,7 +698,7 @@ function compileLeafType(
       type,
       context.options.customSerializers[type.name]
     );
-    const parentIndexes = getParentIndexes(context);
+    const parentIndexes = getParentArgIndexes(context);
     const serializerErrorHandler = getHoistedFunctionName(
       context,
       `${type.name}${originPaths.join("")}SerializerErrorHandler`
@@ -978,7 +978,7 @@ function compileListType(
     context,
     `${parentType.name}${originalObjectPaths.join("")}MapPromiseHandler`
   );
-  const childIndexes = getParentIndexes(listContext);
+  const childIndexes = getParentArgIndexes(listContext);
   listContext.hoistedFunctions.push(`
   function ${promiseHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, __safeMapNode, ${childIndexes}) {
     ${uniqueDeclarations}
@@ -990,7 +990,7 @@ function compileListType(
     context,
     `${parentType.name}${originalObjectPaths.join("")}MapHandler`
   );
-  const parentIndexes = getParentIndexes(context);
+  const parentIndexes = getParentArgIndexes(context);
   listContext.hoistedFunctions.push(`
   function ${safeMapHandler}(${GLOBAL_EXECUTION_CONTEXT}, __safeMapNode, idx${newDepth}, newArray, ${parentIndexes}) {
     if (${isPromiseInliner("__safeMapNode")}) {
@@ -1458,7 +1458,7 @@ function buildCompilationContext(
     hoistedFunctions: [],
     hoistedFunctionNames: new Map(),
     deferred: [],
-    depth: 0,
+    depth: -1,
     variableValues: {},
     fieldResolver: undefined as any,
     errors: errors as any
@@ -1548,10 +1548,10 @@ function isInvalid(value: any): boolean {
   return value === undefined || value !== value;
 }
 
-function getParentIndexes(context: CompilationContext) {
+function getParentArgIndexes(context: CompilationContext) {
   let args = "";
-  for (let i = 1; i <= context.depth; ++i) {
-    if (i > 1) {
+  for (let i = 0; i <= context.depth; ++i) {
+    if (i > 0) {
       args += ", ";
     }
     args += `idx${i}`;
