@@ -9,7 +9,7 @@ import {
   GraphQLSchema,
   parse
 } from "graphql";
-import { compileQuery } from "../index";
+import { compileQuery, isCompiledQuery } from "../index";
 
 class NumberHolder {
   theNumber: number;
@@ -105,8 +105,11 @@ function executeQuery(
   document: DocumentNode,
   rootValue: any
 ) {
-  const { query }: any = compileQuery(schema, document, "");
-  return query(rootValue, undefined, {});
+  const compiled = compileQuery(schema, document, "");
+  if (!isCompiledQuery(compiled)) {
+    throw compiled;
+  }
+  return compiled.query(rootValue, undefined, {});
 }
 
 describe("Execute: Handles mutation execution ordering", () => {

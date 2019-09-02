@@ -8,6 +8,8 @@ import {
   GraphQLAbstractType,
   GraphQLEnumType,
   GraphQLError,
+  GraphQLFieldResolver,
+  GraphQLIsTypeOfFn,
   GraphQLLeafType,
   GraphQLList,
   GraphQLObjectType,
@@ -27,8 +29,10 @@ import {
   print,
   TypeNameMetaFieldDef
 } from "graphql";
-import { collectFields, ExecutionContext } from "graphql/execution/execute";
-import { CoercedVariableValues } from "graphql/execution/values";
+import {
+  collectFields,
+  ExecutionContext as GraphQLContext
+} from "graphql/execution/execute";
 import { FieldNode, OperationDefinitionNode } from "graphql/language/ast";
 import Maybe from "graphql/tsutils/Maybe";
 import { GraphQLTypeResolver } from "graphql/type/definition";
@@ -50,7 +54,11 @@ import {
   createResolveInfoThunk,
   ResolveInfoEnricherInput
 } from "./resolve-info";
-import { compileVariableParsing } from "./variables";
+import {
+  CoercedVariableValues,
+  compileVariableParsing,
+  failToParseVariables
+} from "./variables";
 
 const inspect = createInspect();
 
@@ -77,8 +85,20 @@ export interface CompilerOptions {
  *
  * It stores deferred nodes to be processed later as well as the function arguments to be bounded at top level
  */
-interface CompilationContext extends ExecutionContext {
-  dependencies: Map<string, (...args: any[]) => any>;
+interface CompilationContext extends GraphQLContext {
+  resolvers: { [key: string]: GraphQLFieldResolver<any, any, any> };
+  serializers: {
+    [key: string]: (
+      c: ExecutionContext,
+      v: any,
+      onError: (c: ExecutionContext, msg: string) => void
+    ) => any;
+  };
+  hoistedFunctions: string[];
+  hoistedFunctionNames: Map<string, number>;
+  typeResolvers: { [key: string]: GraphQLTypeResolver<any, any> };
+  isTypeOfs: { [key: string]: GraphQLIsTypeOfFn<any, any> };
+  resolveInfos: { [key: string]: any };
   deferred: DeferredField[];
   options: CompilerOptions;
   depth: number;
@@ -86,15 +106,45 @@ interface CompilationContext extends ExecutionContext {
 
 // prefix for the variable used ot cache validation results
 const SAFETY_CHECK_PREFIX = "__validNode";
-const GLOBAL_DATA_NAME = "__globalData";
-const GLOBAL_ERRORS_NAME = "__globalErrors";
-const GLOBAL_NULL_ERRORS_NAME = "__globalNullErrors";
-const GLOBAL_EXECUTOR_NAME = "__executor";
-const GLOBAL_ROOT_NAME = "__rootValue";
-const GLOBAL_VARIABLES_NAME = "__variables";
-const GLOBAL_CONTEXT_NAME = "__context";
-const GLOBAL_INSPECT_NAME = "__inspect";
+const GLOBAL_DATA_NAME = "__context.data";
+const GLOBAL_ERRORS_NAME = "__context.errors";
+const GLOBAL_NULL_ERRORS_NAME = "__context.nullErrors";
+const GLOBAL_ROOT_NAME = "__context.rootValue";
+const GLOBAL_VARIABLES_NAME = "__context.variables";
+const GLOBAL_CONTEXT_NAME = "__context.context";
+const GLOBAL_EXECUTION_CONTEXT = "__context";
+const GLOBAL_PROMISE_COUNTER = "__context.promiseCounter";
+const GLOBAL_INSPECT_NAME = "__context.inspect";
+const GLOBAL_SAFE_MAP_NAME = "__context.safeMap";
+const GRAPHQL_ERROR = "__context.GraphQLError";
+const GLOBAL_RESOLVE = "__context.resolve";
 const GLOBAL_PARENT_NAME = "__parent";
+
+interface ExecutionContext {
+  promiseCounter: number;
+  data: any;
+  errors: GraphQLError[];
+  nullErrors: GraphQLError[];
+  resolve?: () => void;
+  inspect: typeof inspect;
+  variables: { [key: string]: any };
+  context: any;
+  rootValue: any;
+  safeMap: typeof safeMap;
+  GraphQLError: typeof GraphqlJitError;
+  resolvers: { [key: string]: GraphQLFieldResolver<any, any, any> };
+  trimmer: NullTrimmer;
+  serializers: {
+    [key: string]: (
+      c: ExecutionContext,
+      v: any,
+      onError: (c: ExecutionContext, msg: string) => void
+    ) => any;
+  };
+  typeResolvers: { [key: string]: GraphQLTypeResolver<any, any> };
+  isTypeOfs: { [key: string]: GraphQLIsTypeOfFn<any, any> };
+  resolveInfos: { [key: string]: any };
+}
 
 interface DeferredField {
   name: string;
@@ -108,15 +158,6 @@ interface DeferredField {
   args: Arguments;
 }
 
-export type SuccessCallback = (d: object | null) => void;
-export type ErrorCallback = (e: Error | null) => void;
-
-export type JITCallback = (
-  p: object,
-  d: object | null,
-  e: Error | null
-) => void;
-
 export interface CompiledQuery {
   operationName?: string;
   query: (
@@ -125,6 +166,10 @@ export interface CompiledQuery {
     variables: Maybe<{ [key: string]: any }>
   ) => Promise<ExecutionResult> | ExecutionResult;
   stringify: (v: any) => string;
+}
+
+interface InternalCompiledQuery extends CompiledQuery {
+  __DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation: string;
 }
 
 /**
@@ -185,26 +230,23 @@ export function compileQuery(
       context.operation.variableDefinitions || []
     );
 
-    const mainBody = compileOperation(context);
-    const functionBody = `
-  ${getFunctionSignature(context)} {
-  ${functionHeader}
-  ${mainBody}
-  ${functionFooter}
-  }`;
-    const func = new Function(functionBody)();
-    return {
+    const functionBody = compileOperation(context);
+    const compiledQuery: InternalCompiledQuery = {
       query: createBoundQuery(
         context,
         document,
-        func,
+        new Function("return " + functionBody)(),
         getVariables,
         context.operation.name != null
           ? context.operation.name.value
           : undefined
       ),
-      stringify
+      stringify,
+      // result of the compilation useful for debugging issues
+      // and visualization tools like try-jit.
+      __DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation: functionBody
     };
+    return compiledQuery;
   } catch (err) {
     return {
       errors: normalizeErrors(err)
@@ -223,15 +265,18 @@ export function isCompiledQuery<
 export function createBoundQuery(
   compilationContext: CompilationContext,
   document: DocumentNode,
-  func: (...args: any[]) => any,
+  func: (context: ExecutionContext) => Promise<any> | undefined,
   getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
   operationName?: string
 ) {
   const {
-    operation: { operation }
+    resolvers,
+    typeResolvers,
+    isTypeOfs,
+    serializers,
+    resolveInfos
   } = compilationContext;
   const trimmer = createNullTrimmer(compilationContext);
-  const resolvers = getFunctionResolvers(compilationContext);
   const fnName = operationName ? operationName : "query";
 
   /* tslint:disable */
@@ -253,86 +298,47 @@ export function createBoundQuery(
       variables: Maybe<{ [key: string]: any }>
     ): Promise<ExecutionResult> | ExecutionResult {
       // this can be shared across in a batch request
-      const { errors, coerced } = getVariableValues(variables || {});
+      const parsedVariables = getVariableValues(variables || {});
 
       // Return early errors if variable coercing failed.
-      if (errors) {
-        return { errors };
+      if (failToParseVariables(parsedVariables)) {
+        return { errors: parsedVariables.errors };
       }
-
-      let result: ExecutionResult | null = null;
-      const maybePromise: {
-        resolve: (r: ExecutionResult) => void;
-        reject: (e: Error) => void;
-      } = {
-        resolve: (r: ExecutionResult) => {
-          result = r;
-        },
-        reject: (err: Error) => {
-          throw err;
-        }
-      };
-      const callback = (
-        data: any,
-        errors: GraphQLError[],
-        nullErrors: GraphQLError[]
-      ) => {
-        if (result) {
-          throw new Error("called the final cb more than once");
-        }
-        maybePromise.resolve(
-          postProcessResult(trimmer, data, errors, nullErrors)
-        );
-      };
-      const globalErrorHandler = (err: Error) => {
-        // Logging the culprit
-        // tslint:disable-next-line
-        console.error(`bad function: ${func.toString()}`);
-        // tslint:disable-next-line
-        console.error(`good query: ${print(document)}`);
-        maybePromise.reject(err);
-      };
-      let executor;
-      let resolveIfDone;
-      if (operation === "mutation") {
-        const serial = serialPromiseExecutor(callback, globalErrorHandler);
-        executor = serial.addToQueue;
-        resolveIfDone = serial.startExecution;
-      } else {
-        const loose = loosePromiseExecutor(callback, globalErrorHandler);
-        executor = loose.executor;
-        resolveIfDone = loose.resolveIfDone;
-      }
-      func.apply(null, [
+      const executionContext: ExecutionContext = {
         rootValue,
         context,
-        coerced,
-        executor,
-        resolveIfDone,
+        variables: parsedVariables.coerced,
         safeMap,
         inspect,
-        GraphqlJitError,
-        ...resolvers
-      ]);
-      if (result) {
-        return result;
+        GraphQLError: GraphqlJitError,
+        resolvers,
+        typeResolvers,
+        isTypeOfs,
+        serializers,
+        resolveInfos,
+        trimmer,
+        promiseCounter: 0,
+        data: {},
+        nullErrors: [],
+        errors: []
+      };
+      const result = func.call(null, executionContext);
+      if (isPromise(result)) {
+        return result.then(postProcessResult);
       }
-      return new Promise((resolve, reject) => {
-        maybePromise.resolve = resolve;
-        maybePromise.reject = reject;
-      });
+      return postProcessResult(executionContext);
     }
   };
 
   return ret[fnName];
 }
 
-function postProcessResult(
-  trimmer: NullTrimmer,
-  data: any,
-  errors: GraphQLError[],
-  nullErrors: GraphQLError[]
-) {
+function postProcessResult({
+  data,
+  nullErrors,
+  errors,
+  trimmer
+}: ExecutionContext) {
   if (nullErrors.length > 0) {
     const trimmed = trimmer(data, nullErrors);
     return {
@@ -361,6 +367,7 @@ function postProcessResult(
  */
 function compileOperation(context: CompilationContext) {
   const type = getOperationRootType(context.schema, context.operation);
+  const serialExecution = context.operation.operation === "mutation";
   const fieldMap = collectFields(
     context,
     type,
@@ -379,9 +386,51 @@ function compileOperation(context: CompilationContext) {
     fieldMap,
     true
   );
-  let body = generateUniqueDeclarations(context, true);
-  body += `const ${GLOBAL_DATA_NAME} = ${topLevel}\n`;
-  body += compileDeferredFields(context);
+  let body = `function query (${GLOBAL_EXECUTION_CONTEXT}) {
+  "use strict";
+`;
+  if (serialExecution) {
+    body += `${GLOBAL_EXECUTION_CONTEXT}.queue = [];`;
+  }
+  body += generateUniqueDeclarations(context, true);
+  body += `${GLOBAL_DATA_NAME} = ${topLevel}\n`;
+  if (serialExecution) {
+    body += compileDeferredFieldsSerially(context);
+    body += `
+    ${GLOBAL_EXECUTION_CONTEXT}.finalResolve = () => {};
+    ${GLOBAL_RESOLVE} = (context) => {
+      if (context.jobCounter >= context.queue.length) {
+        // All mutations have finished
+        context.finalResolve(context);
+        return;
+      }
+      context.queue[context.jobCounter++](context);
+    };
+    // There might not be a job to run due to invalid queries
+    if (${GLOBAL_EXECUTION_CONTEXT}.queue.length > 0) {
+      ${GLOBAL_EXECUTION_CONTEXT}.jobCounter = 1; // since the first one will be run manually
+      ${GLOBAL_EXECUTION_CONTEXT}.queue[0](${GLOBAL_EXECUTION_CONTEXT});
+    }
+    // Promises have been scheduled so a new promise is returned
+    // that will be resolved once every promise is done
+    if (${GLOBAL_PROMISE_COUNTER} > 0) {
+      return new Promise(resolve => ${GLOBAL_EXECUTION_CONTEXT}.finalResolve = resolve);
+    }
+  `;
+  } else {
+    body += compileDeferredFields(context);
+    body += `
+    // Promises have been scheduled so a new promise is returned
+    // that will be resolved once every promise is done
+    if (${GLOBAL_PROMISE_COUNTER} > 0) {
+      return new Promise(resolve => ${GLOBAL_RESOLVE} = resolve);
+    }`;
+  }
+  body += `
+  // sync execution, the results are ready
+  return undefined;
+  }`;
+  body += context.hoistedFunctions.join("\n");
   return body;
 }
 
@@ -395,83 +444,135 @@ function compileOperation(context: CompilationContext) {
  */
 function compileDeferredFields(context: CompilationContext): string {
   let body = "";
-  context.deferred.forEach(
-    (
-      {
-        name,
-        originPaths,
-        destinationPaths,
-        fieldNodes,
-        fieldType,
-        fieldName,
-        responsePath,
-        parentType,
-        args
-      },
-      index
-    ) => {
-      const subContext = createSubCompilationContext(context);
-      const nodeBody = compileType(
-        subContext,
-        parentType,
-        fieldType,
-        fieldNodes,
-        [fieldName],
-        [`${GLOBAL_PARENT_NAME}.${name}`],
-        responsePath
-      );
-      const resolverName = getResolverName(parentType.name, fieldName);
-      const topLevelArgs = getArgumentsVarName(resolverName);
-      const validArgs = getValidArgumentsVarName(resolverName);
-      body += `
-  if (${SAFETY_CHECK_PREFIX}${index}) {
-   ${getArguments(
-     subContext,
-     args,
-     topLevelArgs,
-     validArgs,
-     fieldType,
-     responsePath
-   )}
-   if (${validArgs} === true) {
-     ${GLOBAL_EXECUTOR_NAME}(() => ${resolverName}(
-     ${originPaths.join(".")},
-     ${topLevelArgs},
-     ${GLOBAL_CONTEXT_NAME},
-     ${getExecutionInfo(
-       subContext,
-       parentType,
-       fieldType,
-       fieldName,
-       fieldNodes,
-       responsePath
-     )}),
-     (${GLOBAL_PARENT_NAME}, ${fieldName}, err) => {
-      if (err != null) {
-          ${
-            isNonNullType(fieldType)
-              ? GLOBAL_NULL_ERRORS_NAME
-              : GLOBAL_ERRORS_NAME
-          }.push(${
-        createErrorObject(
-          context,
-          fieldNodes,
-          responsePath,
-          "err.message != null ? err.message : err",
-          "err"
-        ) /* TODO: test why no return here*/
-      });
-      }
-      ${generateUniqueDeclarations(subContext)}
-      ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};\n
-      ${compileDeferredFields(subContext)}
-    },${destinationPaths.join(
-      "."
-    )}, ${GLOBAL_DATA_NAME}, ${GLOBAL_ERRORS_NAME}, ${GLOBAL_NULL_ERRORS_NAME})
-    }
-  }`;
-    }
+  context.deferred.forEach((deferredField, index) => {
+    body += `
+      if (${SAFETY_CHECK_PREFIX}${index}) {
+        ${compileDeferredField(context, deferredField)}
+      }`;
+  });
+  return body;
+}
+
+function compileDeferredField(
+  context: CompilationContext,
+  deferredField: DeferredField,
+  appendix?: string
+): string {
+  const {
+    name,
+    originPaths,
+    destinationPaths,
+    fieldNodes,
+    fieldType,
+    fieldName,
+    responsePath,
+    parentType,
+    args
+  } = deferredField;
+  const subContext = createSubCompilationContext(context);
+  const nodeBody = compileType(
+    subContext,
+    parentType,
+    fieldType,
+    fieldNodes,
+    [fieldName],
+    [`${GLOBAL_PARENT_NAME}.${name}`],
+    responsePath
   );
+  const parentIndexes = getParentArgIndexes(context);
+  const resolverName = getResolverName(parentType.name, fieldName);
+  const resolverHandler = getHoistedFunctionName(
+    context,
+    `${name}${resolverName}Handler`
+  );
+  const topLevelArgs = getArgumentsName(resolverName);
+  const validArgs = getValidArgumentsVarName(resolverName);
+  const executionError = createErrorObject(
+    context,
+    fieldNodes,
+    responsePath,
+    "err.message != null ? err.message : err",
+    "err"
+  );
+  const executionInfo = getExecutionInfo(
+    subContext,
+    parentType,
+    fieldType,
+    fieldName,
+    fieldNodes,
+    responsePath
+  );
+  const emptyError = createErrorObject(context, fieldNodes, responsePath, '""');
+  const resolverParentPath = originPaths.join(".");
+  const resolverCall = `${GLOBAL_EXECUTION_CONTEXT}.resolvers.${resolverName}(
+          ${resolverParentPath},${topLevelArgs},${GLOBAL_CONTEXT_NAME}, ${executionInfo})`;
+  const resultParentPath = destinationPaths.join(".");
+  const compiledArgs = compileArguments(
+    subContext,
+    args,
+    topLevelArgs,
+    validArgs,
+    fieldType,
+    responsePath
+  );
+  const body = `
+    ${compiledArgs}
+    if (${validArgs} === true) {
+      var __value = null;
+      try {
+        __value = ${resolverCall};
+      } catch (err) {
+        ${getErrorDestination(fieldType)}.push(${executionError});
+      }
+      if (${isPromiseInliner("__value")}) {
+      ${promiseStarted()}
+       __value.then(result => {
+        ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${resultParentPath}, result, ${parentIndexes});
+        ${promiseDone()}
+       }, err => {
+        if (err) {
+          ${getErrorDestination(fieldType)}.push(${executionError});
+        } else {
+          ${getErrorDestination(fieldType)}.push(${emptyError});
+        }
+        ${promiseDone()}
+       });
+      } else {
+        ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${resultParentPath}, __value, ${parentIndexes});
+      }
+    }`;
+  context.hoistedFunctions.push(`
+       function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${fieldName}, ${parentIndexes}) {
+          ${generateUniqueDeclarations(subContext)}
+          ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};
+          ${compileDeferredFields(subContext)}
+          ${appendix ? appendix : ""}
+        }
+      `);
+  return body;
+}
+
+function compileDeferredFieldsSerially(context: CompilationContext): string {
+  let body = "";
+  context.deferred.forEach(deferredField => {
+    const { name, fieldName, parentType } = deferredField;
+    const resolverName = getResolverName(parentType.name, fieldName);
+    const mutationHandler = getHoistedFunctionName(
+      context,
+      `${name}${resolverName}Mutation`
+    );
+    body += `${GLOBAL_EXECUTION_CONTEXT}.queue.push(${mutationHandler});\n`;
+    const appendix = `
+    if (${GLOBAL_PROMISE_COUNTER} === 0) {
+      ${GLOBAL_RESOLVE}(${GLOBAL_EXECUTION_CONTEXT});
+    }
+    `;
+    context.hoistedFunctions.push(`
+      function ${mutationHandler}(${GLOBAL_EXECUTION_CONTEXT}) {
+        ${compileDeferredField(context, deferredField, appendix)}
+      }
+      `);
+  });
   return body;
 }
 
@@ -592,19 +693,28 @@ function compileLeafType(
   ) {
     body += `${originPaths.join(".")}`;
   } else {
-    context.dependencies.set(
-      getSerializerName(type.name),
-      getSerializer(type, context.options.customSerializers[type.name])
+    const serializerName = getSerializerName(type.name);
+    context.serializers[serializerName] = getSerializer(
+      type,
+      context.options.customSerializers[type.name]
     );
-    body += getSerializerName(type.name);
-    body += `(${originPaths.join(
-      "."
-    )}, (message) => {${errorDestination}.push(${createErrorObject(
+    const parentIndexes = getParentArgIndexes(context);
+    const serializerErrorHandler = getHoistedFunctionName(
+      context,
+      `${type.name}${originPaths.join("")}SerializerErrorHandler`
+    );
+    context.hoistedFunctions.push(`
+    function ${serializerErrorHandler}(${GLOBAL_EXECUTION_CONTEXT}, message, ${parentIndexes}) {
+    ${errorDestination}.push(${createErrorObject(
       context,
       fieldNodes,
       previousPath,
       "message"
-    )});})`;
+    )});}
+    `);
+    body += `${GLOBAL_EXECUTION_CONTEXT}.serializers.${serializerName}(${GLOBAL_EXECUTION_CONTEXT}, ${originPaths.join(
+      "."
+    )}, ${serializerErrorHandler}, ${parentIndexes})`;
   }
   return body;
 }
@@ -635,8 +745,10 @@ function compileObjectType(
 ): string {
   let body = "(";
   if (typeof type.isTypeOf === "function" && !alwaysDefer) {
-    context.dependencies.set(type.name + "IsTypeOf", type.isTypeOf);
-    body += `!${type.name}IsTypeOf(${originPaths.join(
+    context.isTypeOfs[type.name + "IsTypeOf"] = type.isTypeOf;
+    body += `!${GLOBAL_EXECUTION_CONTEXT}.isTypeOfs["${
+      type.name
+    }IsTypeOf"](${originPaths.join(
       "."
     )}) ? (${errorDestination}.push(${createErrorObject(
       context,
@@ -683,10 +795,7 @@ function compileObjectType(
         fieldNodes,
         args: getArgumentDefs(field, fieldNodes[0])
       });
-      context.dependencies.set(
-        getResolverName(type.name, field.name),
-        resolver
-      );
+      context.resolvers[getResolverName(type.name, field.name)] = resolver;
       body += `(${SAFETY_CHECK_PREFIX}${context.deferred.length -
         1} = true, null)`;
     } else {
@@ -722,7 +831,8 @@ function compileAbstractType(
     resolveType = (value: any, context: any, info: GraphQLResolveInfo) =>
       defaultResolveTypeFn(value, context, info, type);
   }
-  context.dependencies.set(getTypeResolverName(type.name), resolveType);
+  const typeResolverName = getTypeResolverName(type.name);
+  context.typeResolvers[typeResolverName] = resolveType;
   const collectedTypes = context.schema
     .getPossibleTypes(type)
     .map(objectType => {
@@ -795,8 +905,10 @@ function compileAbstractType(
       return null;
     }
   })(
-    ${getTypeResolverName(type.name)}(${originPaths.join(".")},
-    __context,
+    ${GLOBAL_EXECUTION_CONTEXT}.typeResolvers.${typeResolverName}(${originPaths.join(
+    "."
+  )},
+    ${GLOBAL_CONTEXT_NAME},
     ${getExecutionInfo(
       context,
       parentType,
@@ -852,112 +964,90 @@ function compileListType(
     responsePath,
     errorMessage
   )}), null)`;
-  return `(typeof ${name} === "string" || typeof ${name}[Symbol.iterator] !== "function") ?  ${errorCase} :
-  __safeMap(${name}, (__safeMapNode, idx${newDepth}, newArray) => {
-    if (${isPromiseInliner("__safeMapNode")}) {
-      ${GLOBAL_EXECUTOR_NAME}(() => __safeMapNode,
-        (${GLOBAL_PARENT_NAME}, __safeMapNode, err) => {
-          if (err != null) {
-            ${
-              isNonNullType(fieldType)
-                ? GLOBAL_NULL_ERRORS_NAME
-                : GLOBAL_ERRORS_NAME
-            }.push(${createErrorObject(
+  const executionError = createErrorObject(
     context,
     fieldNodes,
     addPath(responsePath, "idx" + newDepth, "variable"),
     "err.message != null ? err.message : err",
     "err"
-  )});
-            return;
-          }
-          ${generateUniqueDeclarations(listContext)}
-          ${GLOBAL_PARENT_NAME}[idx${newDepth}] = ${dataBody};\n
-          ${compileDeferredFields(listContext)}
-        }, newArray, ${GLOBAL_DATA_NAME}, ${GLOBAL_ERRORS_NAME}, ${GLOBAL_NULL_ERRORS_NAME});
+  );
+  const emptyError = createErrorObject(context, fieldNodes, responsePath, '""');
+  const uniqueDeclarations = generateUniqueDeclarations(listContext);
+  const deferredFields = compileDeferredFields(listContext);
+  const promiseHandler = getHoistedFunctionName(
+    context,
+    `${parentType.name}${originalObjectPaths.join("")}MapPromiseHandler`
+  );
+  const childIndexes = getParentArgIndexes(listContext);
+  listContext.hoistedFunctions.push(`
+  function ${promiseHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, __safeMapNode, ${childIndexes}) {
+    ${uniqueDeclarations}
+    ${GLOBAL_PARENT_NAME}[idx${newDepth}] = ${dataBody};
+    ${deferredFields}
+  }
+  `);
+  const safeMapHandler = getHoistedFunctionName(
+    context,
+    `${parentType.name}${originalObjectPaths.join("")}MapHandler`
+  );
+  const parentIndexes = getParentArgIndexes(context);
+  listContext.hoistedFunctions.push(`
+  function ${safeMapHandler}(${GLOBAL_EXECUTION_CONTEXT}, __safeMapNode, idx${newDepth}, newArray, ${parentIndexes}) {
+    if (${isPromiseInliner("__safeMapNode")}) {
+      ${promiseStarted()}
+      __safeMapNode.then(result => {
+        ${promiseHandler}(${GLOBAL_EXECUTION_CONTEXT}, newArray, result, ${childIndexes});
+        ${promiseDone()}
+      }, err => {
+        if (err) {
+          ${getErrorDestination(fieldType)}.push(${executionError});
+        } else {
+          ${getErrorDestination(fieldType)}.push(${emptyError});
+        }
+        ${promiseDone()}
+      });
       return null;
     }
-    ${generateUniqueDeclarations(listContext)}
+    ${uniqueDeclarations}
     const __child = ${dataBody};
-    ${compileDeferredFields(listContext)}
+    ${deferredFields}
     return __child;
-  })`;
-}
-
-/**
- * Converts a promise to a callbackable interface
- * @param valueGen a function that can return a promise or an value
- * @param {SuccessCallback} success callback to be called with the result, the cb should only called once
- * @param {ErrorCallback} error callback to be called in case of errors, the cb should only called once
- * @param errorHandler handler for unexpected errors caused by bugs
- */
-function unpromisify(
-  valueGen: () => Promise<any> | any,
-  success: SuccessCallback,
-  error: ErrorCallback,
-  errorHandler: (err: Error) => void
-): void {
-  let value: any;
-  try {
-    value = valueGen();
-  } catch (e) {
-    error(e);
-    return;
   }
-
-  if (isPromise(value)) {
-    value.then(success, error).catch(errorHandler);
-    return;
-  }
-  success(value);
+  `);
+  return `(typeof ${name} === "string" || typeof ${name}[Symbol.iterator] !== "function") ?  ${errorCase} :
+  ${GLOBAL_SAFE_MAP_NAME}(${GLOBAL_EXECUTION_CONTEXT}, ${name}, ${safeMapHandler}, ${parentIndexes})`;
 }
 
 /**
  * Implements a generic map operation for any iterable.
  *
  * If the iterable is not valid, null is returned.
+ * @param context
  * @param {Iterable<any> | string} iterable possible iterable
  * @param {(a: any) => any} cb callback that receives the item being iterated
+ * @param idx
  * @returns {any[]} a new array with the result of the callback
  */
 function safeMap(
+  context: ExecutionContext,
   iterable: Iterable<any> | string,
-  cb: (a: any, idx: number, newArray: any[]) => any
+  cb: (
+    context: ExecutionContext,
+    a: any,
+    index: number,
+    newArray: any[],
+    ...idx: number[]
+  ) => any,
+  ...idx: number[]
 ): any[] {
   let index = 0;
   const result = [];
   for (const a of iterable) {
-    const item = cb(a, index, result);
+    const item = cb(context, a, index, result, ...idx);
     result.push(item);
     ++index;
   }
   return result;
-}
-
-/**
- * Extracts the names to be bounded on the compiled function
- * @param {CompilationContext} context that contains the function args
- * @returns {string} a comma separated string with variable names
- */
-function getResolversVariablesName(context: CompilationContext): string {
-  let decl = "";
-  for (const name of context.dependencies.keys()) {
-    decl += `${name},`;
-  }
-  return decl;
-}
-
-/**
- * Gets the variables that should be bounded to the compiled function
- * @param {CompilationContext} context that contains the function args
- * @returns {any[]} an array with references to the boundable variables
- */
-function getFunctionResolvers(context: CompilationContext): any[] {
-  const resolvers = [];
-  for (const resolver of context.dependencies.values()) {
-    resolvers.push(resolver);
-  }
-  return resolvers;
 }
 
 const MAGIC_MINUS_INFINITY =
@@ -1012,27 +1102,24 @@ function getExecutionInfo(
   const resolveInfoName = createResolveInfoName(responsePath);
   const { schema, fragments, operation } = context;
 
-  context.dependencies.set(
-    resolveInfoName,
-    createResolveInfoThunk(
-      {
-        schema,
-        fragments,
-        operation,
-        parentType,
-        fieldName,
-        fieldType,
-        fieldNodes
-      },
-      context.options.resolverInfoEnricher
-    )
+  context.resolveInfos[resolveInfoName] = createResolveInfoThunk(
+    {
+      schema,
+      fragments,
+      operation,
+      parentType,
+      fieldName,
+      fieldType,
+      fieldNodes
+    },
+    context.options.resolverInfoEnricher
   );
-  return `${resolveInfoName}(${GLOBAL_ROOT_NAME}, ${GLOBAL_VARIABLES_NAME}, ${serializeResponsePath(
+  return `${GLOBAL_EXECUTION_CONTEXT}.resolveInfos.${resolveInfoName}(${GLOBAL_ROOT_NAME}, ${GLOBAL_VARIABLES_NAME}, ${serializeResponsePath(
     responsePath
   )})`;
 }
 
-function getArgumentsVarName(prefixName: string) {
+function getArgumentsName(prefixName: string) {
   return `${prefixName}Args`;
 }
 
@@ -1047,6 +1134,7 @@ function objectPath(topLevel: string, path: ObjectPath) {
     if (section.type === "literal") {
       objectPath += `["${section.key}"]`;
     } else {
+      /* istanbul ignore next */
       throw new Error("should only have received literal paths");
     }
   }
@@ -1063,7 +1151,7 @@ function objectPath(topLevel: string, path: ObjectPath) {
  * @param path
  * @returns {string}
  */
-function getArguments(
+function compileArguments(
   context: CompilationContext,
   args: Arguments,
   topLevelArg: string,
@@ -1076,9 +1164,7 @@ function getArguments(
   let ${validArgs} = true;
   const ${topLevelArg} = ${objectStringify(args.values)};
   `;
-  const errorDestination = isNonNullType(returnType)
-    ? GLOBAL_NULL_ERRORS_NAME
-    : GLOBAL_ERRORS_NAME;
+  const errorDestination = getErrorDestination(returnType);
   for (const variable of args.missing) {
     const varName = variable.valueNode.name.value;
     body += `if (Object.prototype.hasOwnProperty.call(${GLOBAL_VARIABLES_NAME}, "${varName}")) {`;
@@ -1190,6 +1276,10 @@ function serializeResponsePathAsArray(path: ObjectPath) {
   return src + "]";
 }
 
+function getErrorDestination(type: GraphQLType): string {
+  return isNonNullType(type) ? GLOBAL_NULL_ERRORS_NAME : GLOBAL_ERRORS_NAME;
+}
+
 function createResolveInfoName(path: ObjectPath) {
   return (
     flattenPath(path)
@@ -1227,23 +1317,34 @@ function serializeResponsePath(path: ObjectPath | undefined): string {
 function getSerializer(
   scalar: GraphQLScalarType | GraphQLEnumType,
   customSerializer?: GraphQLScalarSerializer<any>
-): (v: any, onError: (msg: string) => void) => any {
+) {
   const { name } = scalar;
   const serialize = customSerializer
     ? customSerializer
     : (val: any) => scalar.serialize(val);
-  return (v: any, onError: (msg: string) => void) => {
+  return function leafSerializer(
+    context: ExecutionContext,
+    v: any,
+    onError: (c: ExecutionContext, msg: string, ...idx: number[]) => void,
+    ...idx: number[]
+  ) {
     try {
       const value = serialize(v);
       if (isInvalid(value)) {
-        onError(`Expected a value of type "${name}" but received: ${v}`);
+        onError(
+          context,
+          `Expected a value of type "${name}" but received: ${v}`,
+          ...idx
+        );
         return null;
       }
       return value;
     } catch (e) {
       onError(
+        context,
         (e && e.message) ||
-          `Expected a value of type "${name}" but received an Error`
+          `Expected a value of type "${name}" but received an Error`,
+        ...idx
       );
       return null;
     }
@@ -1349,9 +1450,15 @@ function buildCompilationContext(
     contextValue: null,
     operation,
     options,
-    dependencies: new Map(),
+    resolvers: {},
+    serializers: {},
+    typeResolvers: {},
+    isTypeOfs: {},
+    resolveInfos: {},
+    hoistedFunctions: [],
+    hoistedFunctionNames: new Map(),
     deferred: [],
-    depth: 0,
+    depth: -1,
     variableValues: {},
     fieldResolver: undefined as any,
     errors: errors as any
@@ -1364,6 +1471,16 @@ function getFieldNodesName(nodes: FieldNode[]) {
     : nodes[0].name.value;
 }
 
+function getHoistedFunctionName(context: CompilationContext, name: string) {
+  const count = context.hoistedFunctionNames.get(name);
+  if (count === undefined) {
+    context.hoistedFunctionNames.set(name, 0);
+    return name;
+  }
+  context.hoistedFunctionNames.set(name, count + 1);
+  return `${name}${count + 1}`;
+}
+
 function createErrorObject(
   context: CompilationContext,
   nodes: ASTNode[],
@@ -1371,7 +1488,7 @@ function createErrorObject(
   message: string,
   originalError?: string
 ): string {
-  return `new GraphQLError(${message},
+  return `new ${GRAPHQL_ERROR}(${message},
     ${JSON.stringify(computeLocations(nodes))},
       ${serializeResponsePathAsArray(path)},
       ${originalError ? originalError : "undefined"},
@@ -1390,191 +1507,20 @@ function getSerializerName(name: string) {
   return name + "Serializer";
 }
 
-/**
- * Create the function signature
- * @param {CompilationContext} context compilation context
- * @returns {string} compiled function signature
- */
-function getFunctionSignature(context: CompilationContext) {
-  return `return function query (
-  ${GLOBAL_ROOT_NAME}, ${GLOBAL_CONTEXT_NAME}, ${GLOBAL_VARIABLES_NAME}, ${GLOBAL_EXECUTOR_NAME},
-   __resolveIfDone, __safeMap, ${GLOBAL_INSPECT_NAME}, GraphQLError,
-    ${getResolversVariablesName(context)})`;
+function promiseStarted() {
+  return `
+     // increase the promise counter
+     ++${GLOBAL_PROMISE_COUNTER};
+  `;
 }
 
-// static function footer that contain bookkeeping for sync resolutions
-const functionFooter = `
-  __resolveIfDone(${GLOBAL_DATA_NAME}, ${GLOBAL_ERRORS_NAME}, ${GLOBAL_NULL_ERRORS_NAME})
-`;
-// static function header that contain bookkeeping
-// for the callbacks being used throughout the tree
-const functionHeader = `
-  "use strict";
-  const ${GLOBAL_NULL_ERRORS_NAME} = [];
-  const ${GLOBAL_ERRORS_NAME} = [];
-`;
-
-/**
- * Handles the book keeping of running promises
- * loosely and returning a final callback.
- *
- * The final callback is called after every possible promise has returned.
- *
- * Exported only for tests.
- *
- * @param finalCb callback to be called once the all promises have been resolved
- * @param {(err: Error) => void} errorHandler global error handler in case of bugs in the runtime
- * @returns an object with two function, a execute function and checker when everything is resolved
- */
-export function loosePromiseExecutor(
-  finalCb: (
-    data: object,
-    errors: GraphQLError[],
-    nullErrors: GraphQLError[]
-  ) => void,
-  errorHandler: (err: Error) => void
-) {
-  let counter = 1; // start with one to handle sync operations
-
-  // this will be called in the function footer for sync
-  function resolveIfDone(
-    data: object,
-    errors: GraphQLError[],
-    nullErrors: GraphQLError[]
-  ) {
-    --counter;
-    if (counter === 0) {
-      finalCb(data, errors, nullErrors);
+function promiseDone() {
+  return `
+    --${GLOBAL_PROMISE_COUNTER};
+    if (${GLOBAL_PROMISE_COUNTER} === 0) {
+      ${GLOBAL_RESOLVE}(${GLOBAL_EXECUTION_CONTEXT});
     }
-  }
-
-  function executor(
-    resolver: () => Promise<any>,
-    cb: JITCallback,
-    parent: object,
-    data: object,
-    errors: GraphQLError[],
-    nullErrors: GraphQLError[]
-  ) {
-    counter++;
-    unpromisify(
-      resolver,
-      res => {
-        cb(parent, res, null);
-        resolveIfDone(data, errors, nullErrors);
-      },
-      err => {
-        cb(parent, null, err || new (GraphqlJitError as any)(""));
-        resolveIfDone(data, errors, nullErrors);
-      },
-      errorHandler
-    );
-  }
-
-  return {
-    executor,
-    resolveIfDone
-  };
-}
-
-/**
- * Handles the book keeping of running the top level promises serially.
- * The serial phase places all units of work in a queue which
- * is only started once startExecution is triggered.
- *
- * From then on, any new work is executed with the parallel executor.
- * New work is executed within the lifespan of the top level promise.
- * Once all promises are over, the executor will move on to the next serial
- * piece of work.
- *
- * The final callback is called after every possible promise has returned.
- *
- * Exported only for tests.
- *
- * @param finalCb callback to be called once the all promises have been resolved
- * @param {(err: Error) => void} errorHandler global error handler in case of bugs in the runtime
- * @returns an object with two function, a execute function to submit work and
- * startExecution to trigger the execution of everything submitted so far.
- */
-export function serialPromiseExecutor(
-  finalCb: (
-    data: object,
-    errors: GraphQLError[],
-    nullErrors: GraphQLError[]
-  ) => void,
-  errorHandler: (err: Error) => void
-) {
-  const queue: Array<{
-    executor: (
-      resolver: () => Promise<any>,
-      cb: JITCallback,
-      parent: object,
-      data: object,
-      errors: GraphQLError[],
-      nullErrors: GraphQLError[]
-    ) => void;
-    resolveIfDone: (
-      data: object,
-      errors: GraphQLError[],
-      nullErrors: GraphQLError[]
-    ) => void;
-    resolver: () => Promise<any>;
-    cb: JITCallback;
-    parent: object;
-  }> = [];
-  // Serial phase is running until execution starts
-  let serialPhase = true;
-  let currentExecutor: any;
-
-  // this will be called in the function footer for starting the execution
-  function continueExecution(
-    data: object,
-    errors: GraphQLError[],
-    nullErrors: GraphQLError[]
-  ) {
-    serialPhase = false;
-    const postponedWork = queue.shift();
-    if (postponedWork) {
-      const { resolver, cb, parent, executor, resolveIfDone } = postponedWork;
-      currentExecutor = executor;
-      currentExecutor(resolver, cb, parent, data, errors, nullErrors);
-      resolveIfDone(data, errors, nullErrors);
-      return;
-    }
-    finalCb(data, errors, nullErrors);
-  }
-
-  function addToQueue(
-    resolver: () => Promise<any>,
-    cb: JITCallback,
-    parent: object,
-    data: object,
-    errors: GraphQLError[],
-    nullErrors: GraphQLError[]
-  ) {
-    if (serialPhase) {
-      const { executor, resolveIfDone } = loosePromiseExecutor(
-        (data: object, errors: GraphQLError[], nullErrors: GraphQLError[]) =>
-          continueExecution(data, errors, nullErrors),
-        errorHandler
-      );
-      queue.push({
-        executor,
-        resolveIfDone,
-        resolver,
-        cb,
-        parent
-      });
-    } else {
-      // We are using the parallel executor once the serial phase is over
-      currentExecutor(resolver, cb, parent, data, errors, nullErrors);
-    }
-  }
-
-  return {
-    addToQueue,
-    startExecution: continueExecution
-  };
+  `;
 }
 
 function normalizeErrors(err: Error[] | Error): GraphQLError[] {
@@ -1600,4 +1546,15 @@ function normalizeError(err: Error): GraphQLError {
  */
 function isInvalid(value: any): boolean {
   return value === undefined || value !== value;
+}
+
+function getParentArgIndexes(context: CompilationContext) {
+  let args = "";
+  for (let i = 0; i <= context.depth; ++i) {
+    if (i > 0) {
+      args += ", ";
+    }
+    args += `idx${i}`;
+  }
+  return args;
 }

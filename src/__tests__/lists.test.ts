@@ -576,10 +576,15 @@ describe("Execute: Handles nested lists", () => {
     check(GraphQLString, undefined, [["test"]], { data: { test: [["test"]] } })
   );
   test(
-    "[[Promise<Scalar>]]",
-    check(GraphQLString, undefined, [[Promise.resolve("test")]], {
-      data: { test: [["test"]] }
-    })
+    "[Promise<[Promise<Scalar>]>]",
+    check(
+      GraphQLString,
+      undefined,
+      [Promise.resolve([Promise.resolve("test")])],
+      {
+        data: { test: [["test"]] }
+      }
+    )
   );
   test(
     "[[PromiseRejected<Scalar>]]",
@@ -589,6 +594,19 @@ describe("Execute: Handles nested lists", () => {
         {
           locations: [{ column: 3, line: 1 }],
           message: "test",
+          path: ["test", 0, 0]
+        }
+      ]
+    })
+  );
+  test(
+    "wrong type for serialization [[Promise<BadScalar>]]",
+    check(GraphQLString, undefined, [[Promise.resolve({ test: "" })]], {
+      data: { test: [[null]] },
+      errors: [
+        {
+          locations: [{ column: 3, line: 1 }],
+          message: 'String cannot represent value: { test: "" }',
           path: ["test", 0, 0]
         }
       ]
@@ -754,7 +772,7 @@ describe("resolved fields in object list", () => {
     `;
 
     const prepared: any = compileQuery(
-      getSchema([{ id: 123 }, new Error("test")]),
+      getSchema([{ id: 123 }, { id: new Error("test") }]),
       parse(request),
       ""
     );
@@ -765,9 +783,9 @@ describe("resolved fields in object list", () => {
       },
       errors: [
         {
-          locations: [{ column: 9, line: 3 }],
+          locations: [{ column: 11, line: 4 }],
           message: "test",
-          path: ["feed", 1]
+          path: ["feed", 1, "id"]
         }
       ]
     });

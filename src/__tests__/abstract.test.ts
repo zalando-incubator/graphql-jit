@@ -13,12 +13,15 @@ import {
   GraphQLUnionType,
   parse
 } from "graphql";
-import { compileQuery } from "../index";
+import { compileQuery, isCompiledQuery } from "../index";
 
 function graphql(schema: GraphQLSchema, query: string) {
-  const ast = parse(query);
-  const compiled: any = compileQuery(schema, ast, "");
-  return compiled.query(undefined, undefined, {});
+  const document = parse(query);
+  const prepared = compileQuery(schema, document, "");
+  if (!isCompiledQuery(prepared)) {
+    return prepared;
+  }
+  return prepared.query(undefined, undefined, undefined);
 }
 
 class Dog {

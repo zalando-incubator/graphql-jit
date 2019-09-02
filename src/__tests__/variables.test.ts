@@ -19,7 +19,7 @@ import {
   parse
 } from "graphql";
 import { GraphQLArgumentConfig } from "graphql/type/definition";
-import { compileQuery } from "../index";
+import { compileQuery, isCompiledQuery } from "../index";
 import createInspect from "../inspect";
 
 const inspect = createInspect(10, 4);
@@ -153,8 +153,8 @@ const schema = new GraphQLSchema({ query: TestType });
 
 function executeQuery(query: string, variableValues?: any, s = schema) {
   const document = parse(query);
-  const prepared: any = compileQuery(s, document, "");
-  if (prepared.errors) {
+  const prepared = compileQuery(s, document, "");
+  if (!isCompiledQuery(prepared)) {
     return prepared;
   }
   return prepared.query(undefined, undefined, variableValues);
