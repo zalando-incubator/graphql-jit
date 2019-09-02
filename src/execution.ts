@@ -485,7 +485,7 @@ function compileDeferredField(
     context,
     `${name}${resolverName}Handler`
   );
-  const topLevelArgs = getArgumentsVarName(resolverName);
+  const topLevelArgs = getArgumentsName(resolverName);
   const validArgs = getValidArgumentsVarName(resolverName);
   const executionError = createErrorObject(
     context,
@@ -1119,7 +1119,7 @@ function getExecutionInfo(
   )})`;
 }
 
-function getArgumentsVarName(prefixName: string) {
+function getArgumentsName(prefixName: string) {
   return `${prefixName}Args`;
 }
 
