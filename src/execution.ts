@@ -950,8 +950,8 @@ function compileListType(
     parentType,
     fieldType,
     fieldNodes,
-    ["__safeMapNode"],
-    ["__child"],
+    ["__currentItem"],
+    [`${GLOBAL_PARENT_NAME}[idx${newDepth}]`],
     addPath(responsePath, "idx" + newDepth, "variable")
   );
 
@@ -974,13 +974,13 @@ function compileListType(
   const emptyError = createErrorObject(context, fieldNodes, responsePath, '""');
   const uniqueDeclarations = generateUniqueDeclarations(listContext);
   const deferredFields = compileDeferredFields(listContext);
-  const promiseHandler = getHoistedFunctionName(
+  const itemHandler = getHoistedFunctionName(
     context,
-    `${parentType.name}${originalObjectPaths.join("")}MapPromiseHandler`
+    `${parentType.name}${originalObjectPaths.join("")}MapItemHandler`
   );
   const childIndexes = getParentArgIndexes(listContext);
   listContext.hoistedFunctions.push(`
-  function ${promiseHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, __safeMapNode, ${childIndexes}) {
+  function ${itemHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, __currentItem, ${childIndexes}) {
     ${uniqueDeclarations}
     ${GLOBAL_PARENT_NAME}[idx${newDepth}] = ${dataBody};
     ${deferredFields}
@@ -992,13 +992,14 @@ function compileListType(
   );
   const parentIndexes = getParentArgIndexes(context);
   listContext.hoistedFunctions.push(`
-  function ${safeMapHandler}(${GLOBAL_EXECUTION_CONTEXT}, __safeMapNode, idx${newDepth}, newArray, ${parentIndexes}) {
-    if (${isPromiseInliner("__safeMapNode")}) {
+  function ${safeMapHandler}(${GLOBAL_EXECUTION_CONTEXT}, __currentItem, idx${newDepth}, resultArray, ${parentIndexes}) {
+    if (${isPromiseInliner("__currentItem")}) {
       ${promiseStarted()}
-      __safeMapNode.then(result => {
-        ${promiseHandler}(${GLOBAL_EXECUTION_CONTEXT}, newArray, result, ${childIndexes});
+      __currentItem.then(result => {
+        ${itemHandler}(${GLOBAL_EXECUTION_CONTEXT}, resultArray, result, ${childIndexes});
         ${promiseDone()}
       }, err => {
+        resultArray.push(null);
         if (err) {
           ${getErrorDestination(fieldType)}.push(${executionError});
         } else {
@@ -1006,12 +1007,9 @@ function compileListType(
         }
         ${promiseDone()}
       });
-      return null;
+    } else {
+       ${itemHandler}(${GLOBAL_EXECUTION_CONTEXT}, resultArray, __currentItem, ${childIndexes});
     }
-    ${uniqueDeclarations}
-    const __child = ${dataBody};
-    ${deferredFields}
-    return __child;
   }
   `);
   return `(typeof ${name} === "string" || typeof ${name}[Symbol.iterator] !== "function") ?  ${errorCase} :
@@ -1035,16 +1033,15 @@ function safeMap(
     context: ExecutionContext,
     a: any,
     index: number,
-    newArray: any[],
+    resultArray: any[],
     ...idx: number[]
   ) => any,
   ...idx: number[]
 ): any[] {
   let index = 0;
-  const result = [];
+  const result: any[] = [];
   for (const a of iterable) {
-    const item = cb(context, a, index, result, ...idx);
-    result.push(item);
+    cb(context, a, index, result, ...idx);
     ++index;
   }
   return result;

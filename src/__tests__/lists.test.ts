@@ -645,6 +645,40 @@ describe("Execute: Handles nested lists", () => {
     )
   );
   test(
+    "[[Promise<Object with nested resolver>]]",
+    check(
+      new GraphQLObjectType({
+        name: "Object",
+        fields: () => ({
+          obj: {
+            type: GraphQLString,
+            resolve: ({ obj }) => obj
+          }
+        })
+      }),
+      "{test {obj}}",
+      [[Promise.resolve({ obj: "test" })]],
+      { data: { test: [[{ obj: "test" }]] } }
+    )
+  );
+  test(
+    "[[Promise<Object with Promise field>]]",
+    check(
+      new GraphQLObjectType({
+        name: "Object",
+        fields: () => ({
+          obj: {
+            type: GraphQLString,
+            resolve: ({ obj }) => Promise.resolve(obj)
+          }
+        })
+      }),
+      "{test {obj}}",
+      [[Promise.resolve({ obj: "test" })]],
+      { data: { test: [[{ obj: "test" }]] } }
+    )
+  );
+  test(
     "[[PromiseRejected<Object>]]",
     check(
       new GraphQLObjectType({
