@@ -85,6 +85,30 @@ describe("Execute: Handles basic execution tasks", () => {
     ).toThrow("resolverInfoEnricher must be a function");
   });
 
+  test("return the generated function if debug is passed in the options", async () => {
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Type",
+        fields: {
+          a: { type: GraphQLString }
+        }
+      })
+    });
+
+    let compiled: any = compileQuery(schema, parse("{ field }"), "", {
+      debug: true
+    } as any);
+
+    expect(
+      compiled.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation
+    ).toBeDefined();
+
+    compiled = compileQuery(schema, parse("{ field }"));
+    expect(
+      compiled.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation
+    ).not.toBeDefined();
+  });
+
   test("throws if no schema is provided", async () => {
     expect(() =>
       executeArgs({
