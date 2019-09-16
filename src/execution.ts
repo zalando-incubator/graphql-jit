@@ -26,7 +26,6 @@ import {
   isObjectType,
   isSpecifiedScalarType,
   Kind,
-  print,
   TypeNameMetaFieldDef
 } from "graphql";
 import {
@@ -169,7 +168,7 @@ export interface CompiledQuery {
 }
 
 interface InternalCompiledQuery extends CompiledQuery {
-  __DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation: string;
+  __DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation?: string;
 }
 
 /**
@@ -241,11 +240,13 @@ export function compileQuery(
           ? context.operation.name.value
           : undefined
       ),
-      stringify,
+      stringify
+    };
+    if ((options as any).debug) {
       // result of the compilation useful for debugging issues
       // and visualization tools like try-jit.
-      __DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation: functionBody
-    };
+      compiledQuery.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation = functionBody;
+    }
     return compiledQuery;
   } catch (err) {
     return {
