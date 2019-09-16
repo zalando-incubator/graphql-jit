@@ -243,6 +243,8 @@ export function compileQuery(
       stringify
     };
     if ((options as any).debug) {
+      // result of the compilation useful for debugging issues
+      // and visualization tools like try-jit.
       compiledQuery.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation = functionBody;
     }
     return compiledQuery;
