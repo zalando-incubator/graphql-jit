@@ -50,6 +50,7 @@ const benchmarks: { [key: string]: BenchmarkMaterial } = {
 
 async function runBenchmarks() {
   const skipJS = process.argv[2] === "skip-js";
+  const skipJSON = process.argv[2] === "skip-json";
   const benchs = await Promise.all(
     Object.entries(benchmarks).map(
       async ([bench, { query, schema, variables }]) => {
@@ -98,10 +99,12 @@ async function runBenchmarks() {
               );
               if (isPromise(result)) {
                 return result.then(res =>
-                  deferred.resolve(JSON.stringify(res))
+                  deferred.resolve(skipJSON ? res : JSON.stringify(res))
                 );
               }
-              return deferred.resolve(JSON.stringify(result));
+              return deferred.resolve(
+                skipJSON ? result : JSON.stringify(result)
+              );
             }
           });
         }
@@ -117,10 +120,14 @@ async function runBenchmarks() {
               );
               if (isPromise(result)) {
                 return result.then(res =>
-                  deferred.resolve(compiledQuery.stringify(res))
+                  deferred.resolve(
+                    skipJSON ? res : compiledQuery.stringify(res)
+                  )
                 );
               }
-              return deferred.resolve(compiledQuery.stringify(result));
+              return deferred.resolve(
+                skipJSON ? result : compiledQuery.stringify(result)
+              );
             }
           })
           // add listeners
@@ -141,10 +148,6 @@ async function runBenchmarks() {
   let benchRunning = 1;
   benchsToRun.forEach(bench =>
     bench.on("complete", () => {
-      if (!skipJS) {
-        // tslint:disable-next-line
-        console.log("Fastest is " + bench.filter("fastest").map("name" as any));
-      }
       if (benchRunning < benchsToRun.length) {
         benchsToRun[benchRunning++].run();
       }

@@ -11,15 +11,20 @@ code which yields much better performance.
 #### Benchmarks
 
 ```bash
-$ ts-node -T ./src/__benchmarks__/schema.benchmark.ts 
-graphql-js x 12,315 ops/sec ±4.55% (75 runs sampled)
-graphql-jit x 123,367 ops/sec ±1.13% (81 runs sampled)
-Fastest is graphql-jit
-
-$ ts-node -T ./src/__benchmarks__/schema-many-resolvers.benchmark.ts 
-graphql-js x 14,006 ops/sec ±2.05% (78 runs sampled)
-graphql-jit x 52,248 ops/sec ±1.36% (81 runs sampled)
-Fastest is graphql-jit
+$ ts-node -T ./src/__benchmarks__/benchmarks.ts skip-json
+Starting introspection
+graphql-js x 1,155 ops/sec ±1.55% (215 runs sampled)
+graphql-jit x 5,961 ops/sec ±5.34% (216 runs sampled)
+Starting fewResolvers
+graphql-js x 14,313 ops/sec ±1.43% (224 runs sampled)
+graphql-jit x 409,587 ops/sec ±1.08% (216 runs sampled)
+Starting manyResolvers
+graphql-js x 13,201 ops/sec ±1.50% (216 runs sampled)
+graphql-jit x 229,025 ops/sec ±1.18% (216 runs sampled)
+Starting nestedArrays
+graphql-js x 108 ops/sec ±1.30% (216 runs sampled)
+graphql-jit x 1,317 ops/sec ±2.38% (213 runs sampled)
+Done in 141.94s.
 ```
 
 ### Support
