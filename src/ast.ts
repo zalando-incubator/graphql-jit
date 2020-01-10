@@ -53,9 +53,6 @@ export function collectFields(
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
       case Kind.FIELD:
-        if (!shouldIncludeNode(exeContext, selection)) {
-          continue;
-        }
         const name = getFieldEntryKey(selection);
         if (!fields[name]) {
           fields[name] = [];
@@ -63,10 +60,7 @@ export function collectFields(
         fields[name].push(selection);
         break;
       case Kind.INLINE_FRAGMENT:
-        if (
-          !shouldIncludeNode(exeContext, selection) ||
-          !doesFragmentConditionMatch(exeContext, selection, runtimeType)
-        ) {
+        if (!doesFragmentConditionMatch(exeContext, selection, runtimeType)) {
           continue;
         }
         collectFields(
@@ -79,10 +73,7 @@ export function collectFields(
         break;
       case Kind.FRAGMENT_SPREAD:
         const fragName = selection.name.value;
-        if (
-          visitedFragmentNames[fragName] ||
-          !shouldIncludeNode(exeContext, selection)
-        ) {
+        if (visitedFragmentNames[fragName]) {
           continue;
         }
         visitedFragmentNames[fragName] = true;
@@ -104,34 +95,6 @@ export function collectFields(
     }
   }
   return fields;
-}
-
-/**
- * Determines if a field should be included based on the @include and @skip
- * directives, where @skip has higher precedence than @include.
- */
-function shouldIncludeNode(
-  exeContext: ExecutionContext,
-  node: FragmentSpreadNode | FieldNode | InlineFragmentNode
-): boolean {
-  const skip = getDirectiveValues(
-    GraphQLSkipDirective,
-    node,
-    exeContext.variableValues
-  );
-  if (skip && skip.if === true) {
-    return false;
-  }
-
-  const include = getDirectiveValues(
-    GraphQLIncludeDirective,
-    node,
-    exeContext.variableValues
-  );
-  if (include && include.if === false) {
-    return false;
-  }
-  return true;
 }
 
 /**

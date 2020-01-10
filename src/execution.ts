@@ -119,6 +119,11 @@ const GRAPHQL_ERROR = "__context.GraphQLError";
 const GLOBAL_RESOLVE = "__context.resolve";
 const GLOBAL_PARENT_NAME = "__parent";
 const LOCAL_JS_FIELD_NAME_PREFIX = "__field";
+const GLOBAL_MAKE_OBJECT_NAME = "__makeObject";
+
+const LOCAL_OBJECT_VAR_NAME = "__object";
+const LOCAL_IS_SKIPPED_NAME = "__isSkipped";
+const LOCAL_SOURCE_NAME = "__source";
 
 interface ExecutionContext {
   promiseCounter: number;
@@ -235,7 +240,6 @@ export function compileQuery(
     const compiledQuery: InternalCompiledQuery = {
       query: createBoundQuery(
         context,
-        document,
         new Function("return " + functionBody)(),
         getVariables,
         context.operation.name != null
@@ -264,10 +268,8 @@ export function isCompiledQuery<
   return "query" in query && typeof query.query === "function";
 }
 
-// Exported only for an error test
-export function createBoundQuery(
+function createBoundQuery(
   compilationContext: CompilationContext,
-  document: DocumentNode,
   func: (context: ExecutionContext) => Promise<any> | undefined,
   getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
   operationName?: string
@@ -520,6 +522,7 @@ function compileDeferredField(
     fieldType,
     responsePath
   );
+
   const body = `
     ${compiledArgs}
     if (${validArgs} === true) {
@@ -546,14 +549,15 @@ function compileDeferredField(
         ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${resultParentPath}, __value, ${parentIndexes});
       }
     }`;
+
   context.hoistedFunctions.push(`
-       function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${jsFieldName}, ${parentIndexes}) {
-          ${generateUniqueDeclarations(subContext)}
-          ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};
-          ${compileDeferredFields(subContext)}
-          ${appendix ? appendix : ""}
-        }
-      `);
+    function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${jsFieldName}, ${parentIndexes}) {
+      ${generateUniqueDeclarations(subContext)}
+      ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};
+      ${compileDeferredFields(subContext)}
+      ${appendix ? appendix : ""}
+    }
+  `);
   return body;
 }
 
@@ -764,7 +768,9 @@ function compileObjectType(
       }" but got: $\{${GLOBAL_INSPECT_NAME}(${originPaths.join(".")})}.\``
     )}), null) :`;
   }
-  body += "{";
+
+  let iifeBody = "";
+
   for (const name of Object.keys(fieldMap)) {
     const fieldNodes = fieldMap[name];
     const field = resolveFieldDef(context, type, fieldNodes);
@@ -773,21 +779,81 @@ function compileObjectType(
       // but the error is swallowed for compatibility reasons.
       continue;
     }
+
+    let compiledSkipDirective;
+    let compiledIncludeDirective;
+
+    if (responsePath != null) {
+      compiledSkipDirective = compileQueryDirective(
+        context,
+        "skip",
+        `skip${name}`,
+        fieldNodes[0],
+        type,
+        responsePath
+      );
+      compiledIncludeDirective = compileQueryDirective(
+        context,
+        "include",
+        `include${name}`,
+        fieldNodes[0],
+        type,
+        responsePath
+      );
+    }
+
+    const isSkippedName = getIsSkippedName(name);
+
+    iifeBody += `
+      var ${isSkippedName} = false;
+    `;
+    if (compiledIncludeDirective != null) {
+      iifeBody += `
+        ${compiledIncludeDirective.body}
+        if (${compiledIncludeDirective.argsName}.if === true) {
+          ${isSkippedName} = false
+        }
+      `;
+    }
+
+    // "skip" overrides "include"
+    if (compiledSkipDirective != null) {
+      iifeBody += `
+        ${compiledSkipDirective.body}
+        if (${compiledSkipDirective.argsName}.if === true) {
+          ${isSkippedName} = true
+        }
+      `;
+    }
+
     // Name is the field name or an alias supplied by the user
-    body += `${name}: `;
+    iifeBody += `
+      if (!${isSkippedName}) {
+        ${LOCAL_OBJECT_VAR_NAME}.${name} = `;
 
     // Inline __typename
     // No need to call a resolver for typename
     if (field === TypeNameMetaFieldDef) {
-      body += `"${type.name}",`;
+      iifeBody += `"${type.name}"; }`;
       continue;
     }
 
     let resolver = field.resolve;
-    if (!resolver && alwaysDefer) {
-      const fieldName = field.name;
-      resolver = parent => parent && parent[fieldName];
+
+    if (resolver == null) {
+      const shouldDefer =
+        alwaysDefer ||
+        fieldNodes.some(
+          fieldNode =>
+            fieldNode.directives != null && fieldNode.directives.length > 0
+        );
+
+      if (shouldDefer) {
+        const fieldName = field.name;
+        resolver = parent => parent && parent[fieldName];
+      }
     }
+
     if (resolver) {
       context.deferred.push({
         name,
@@ -802,10 +868,10 @@ function compileObjectType(
         args: getArgumentDefs(field, fieldNodes[0])
       });
       context.resolvers[getResolverName(type.name, field.name)] = resolver;
-      body += `(${SAFETY_CHECK_PREFIX}${context.deferred.length -
+      iifeBody += `(${SAFETY_CHECK_PREFIX}${context.deferred.length -
         1} = true, null)`;
     } else {
-      body += compileType(
+      iifeBody += compileType(
         context,
         type,
         field.type,
@@ -815,9 +881,18 @@ function compileObjectType(
         addPath(responsePath, name)
       );
     }
-    body += ",";
+    iifeBody += "}";
   }
-  body += "})";
+
+  body += `
+    (() => {
+      const ${LOCAL_OBJECT_VAR_NAME} = {};
+      ${iifeBody}
+      return ${LOCAL_OBJECT_VAR_NAME};
+    })()`;
+
+  body += ")";
+
   return body;
 }
 
@@ -1145,6 +1220,46 @@ function objectPath(topLevel: string, path?: ObjectPath) {
     }
   }
   return objectPath;
+}
+
+function compileQueryDirective(
+  context: CompilationContext,
+  directiveName: string,
+  prefix: string,
+  fieldNode: FieldNode,
+  returnType: GraphQLOutputType,
+  path: ObjectPath
+): null | { argsName: string; body: string } {
+  if (fieldNode.directives == null) {
+    return null;
+  }
+
+  const directive = context.schema.getDirective(directiveName);
+  if (directive == null) {
+    throw new GraphQLError(
+      `Directive @${directiveName} is not defined`,
+      fieldNode
+    );
+  }
+
+  const directiveNode = fieldNode.directives.find(
+    directive => directive.name.value === directiveName
+  );
+  if (directiveNode == null) {
+    return null;
+  }
+
+  const argsName = getArgumentsName(prefix);
+  const body = compileArguments(
+    context,
+    getArgumentDefs(directive, directiveNode),
+    argsName,
+    getValidArgumentsVarName(prefix),
+    returnType,
+    path
+  );
+
+  return { argsName, body };
 }
 
 /**
@@ -1511,6 +1626,10 @@ function getTypeResolverName(name: string) {
 
 function getSerializerName(name: string) {
   return name + "Serializer";
+}
+
+function getIsSkippedName(fieldName: string): string {
+  return `${LOCAL_IS_SKIPPED_NAME}${fieldName}`;
 }
 
 function promiseStarted() {

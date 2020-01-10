@@ -2,40 +2,34 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/directives-test.js
  */
 
-import {
-  GraphQLObjectType,
-  GraphQLSchema,
-  GraphQLString,
-  parse
-} from "graphql";
+import { parse } from "graphql";
 import { compileQuery } from "../index";
+import { makeExecutableSchema } from "graphql-tools";
 
-const schema = new GraphQLSchema({
-  query: new GraphQLObjectType({
-    name: "TestType",
-    fields: {
-      a: {
-        type: GraphQLString,
-        resolve() {
-          return "a";
-        }
-      },
-      b: {
-        type: GraphQLString,
-        resolve() {
-          return "b";
-        }
-      }
+const testSchema = makeExecutableSchema({
+  typeDefs: `
+    schema {
+      query: TestType
     }
-  })
+    type TestType {
+      a: String
+      b: String
+    }
+  `,
+  resolvers: {
+    TestType: {
+      a: () => "a",
+      b: () => "b"
+    }
+  }
 });
 
 const data = {};
 
-function executeTestQuery(query: string) {
+function executeTestQuery(query: string, variables = {}, schema = testSchema) {
   const ast = parse(query);
   const compiled: any = compileQuery(schema, ast, "");
-  return compiled.query(data, undefined, {});
+  return compiled.query(data, undefined, variables);
 }
 
 // tslint:disable-next-line
@@ -310,6 +304,71 @@ describe("Execute: handles directives", () => {
 
       expect(result).toEqual({
         data: { a: "a" }
+      });
+    });
+  });
+
+  describe("directives -> resolvers", () => {
+    const schema = makeExecutableSchema({
+      typeDefs: `
+        type Query {
+          foo: Foo
+        }
+        type Foo {
+          a: String
+          b: Int
+          bar: Bar
+        }
+        type Bar {
+          c: String
+          d: String
+        }
+        directive @upperCase on FIELD_DEFINITION
+      `,
+      directiveResolvers: {
+        upperCase(next) {
+          console.log("comes here");
+          return next().then(txt => txt.toUpperCase());
+        }
+      },
+      resolvers: {
+        Query: {
+          foo: () => ({
+            a: "a",
+            b: 42
+          })
+        },
+        Foo: {
+          bar() {
+            return {
+              c: "ccc",
+              d: "ddd"
+            };
+          },
+          a() {
+            return "aa";
+          }
+        }
+      }
+    });
+    test("field directives are treated as explicit resolvers", async () => {
+      const result = await executeTestQuery(
+        `
+          query ($skip: Boolean!, $include: Boolean!) {
+            foo {
+              a @skip(if: $skip)
+              bar @include(if: $include) {
+                c
+              }
+            }
+          }
+        `,
+        { skip: true, include: true },
+        schema
+      );
+
+      expect(result).toEqual({
+        data: { foo: { bar: { c: "ccc" } } }
       });
     });
   });
