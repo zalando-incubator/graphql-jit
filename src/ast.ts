@@ -4,17 +4,13 @@ import {
   DirectiveNode,
   FieldNode,
   FragmentDefinitionNode,
-  FragmentSpreadNode,
-  getDirectiveValues,
   getLocation,
   GraphQLArgument,
   GraphQLDirective,
   GraphQLError,
   GraphQLField,
-  GraphQLIncludeDirective,
   GraphQLInputType,
   GraphQLObjectType,
-  GraphQLSkipDirective,
   InlineFragmentNode,
   isEnumType,
   isInputObjectType,
@@ -35,6 +31,13 @@ import { isAbstractType } from "graphql/type";
 import createInspect from "./inspect";
 
 const inspect = createInspect();
+
+type Writeable<T> = { -readonly [P in keyof T]: T[P] };
+
+export interface JitFieldNode extends FieldNode {
+  fragmentDirectives?: DirectiveNode[][];
+}
+
 /**
  * Given a selectionSet, adds all of the fields in that selection to
  * the passed in map of fields, and returns it at the end.
@@ -47,9 +50,10 @@ export function collectFields(
   exeContext: ExecutionContext,
   runtimeType: GraphQLObjectType,
   selectionSet: SelectionSetNode,
-  fields: { [key: string]: FieldNode[] },
-  visitedFragmentNames: { [key: string]: boolean }
-): { [key: string]: FieldNode[] } {
+  fields: { [key: string]: JitFieldNode[] },
+  // The directives on fragments along the field's path in query
+  fragmentDirectives?: Array<Array<DirectiveNode>>
+): { [key: string]: JitFieldNode[] } {
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
       case Kind.FIELD:
@@ -57,26 +61,38 @@ export function collectFields(
         if (!fields[name]) {
           fields[name] = [];
         }
-        fields[name].push(selection);
+        const jitFieldNode: JitFieldNode = selection;
+        if (fragmentDirectives != null) {
+          if (jitFieldNode.fragmentDirectives == null) {
+            jitFieldNode.fragmentDirectives = [];
+          }
+          jitFieldNode.fragmentDirectives.push(...fragmentDirectives);
+        }
+        fields[name].push(jitFieldNode);
         break;
       case Kind.INLINE_FRAGMENT:
         if (!doesFragmentConditionMatch(exeContext, selection, runtimeType)) {
           continue;
+        }
+        let nextInlineFragmentDirectives = fragmentDirectives;
+        if (selection.directives != null) {
+          nextInlineFragmentDirectives = [
+            ...(nextInlineFragmentDirectives != null
+              ? nextInlineFragmentDirectives
+              : []),
+            selection.directives as Writeable<DirectiveNode[]>
+          ];
         }
         collectFields(
           exeContext,
           runtimeType,
           selection.selectionSet,
           fields,
-          visitedFragmentNames
+          nextInlineFragmentDirectives
         );
         break;
       case Kind.FRAGMENT_SPREAD:
         const fragName = selection.name.value;
-        if (visitedFragmentNames[fragName]) {
-          continue;
-        }
-        visitedFragmentNames[fragName] = true;
         const fragment = exeContext.fragments[fragName];
         if (
           !fragment ||
@@ -84,12 +100,19 @@ export function collectFields(
         ) {
           continue;
         }
+        let nextFragmentDirectives = fragmentDirectives;
+        if (selection.directives != null) {
+          nextFragmentDirectives = [
+            ...(nextFragmentDirectives != null ? nextFragmentDirectives : []),
+            selection.directives as Writeable<DirectiveNode[]>
+          ];
+        }
         collectFields(
           exeContext,
           runtimeType,
           fragment.selectionSet,
           fields,
-          visitedFragmentNames
+          nextFragmentDirectives
         );
         break;
     }
@@ -157,9 +180,8 @@ function _collectSubfields(
   exeContext: ExecutionContext,
   returnType: GraphQLObjectType,
   fieldNodes: FieldNode[]
-): { [key: string]: FieldNode[] } {
-  let subFieldNodes = Object.create(null);
-  const visitedFragmentNames = Object.create(null);
+): { [key: string]: JitFieldNode[] } {
+  let subFieldNodes: { [key: string]: JitFieldNode[] } = Object.create(null);
   for (const fieldNode of fieldNodes) {
     const selectionSet = fieldNode.selectionSet;
     if (selectionSet) {
@@ -167,8 +189,7 @@ function _collectSubfields(
         exeContext,
         returnType,
         selectionSet,
-        subFieldNodes,
-        visitedFragmentNames
+        subFieldNodes
       );
     }
   }
@@ -180,12 +201,12 @@ function memoize3(
     exeContext: ExecutionContext,
     returnType: GraphQLObjectType,
     fieldNodes: FieldNode[]
-  ) => { [key: string]: FieldNode[] }
+  ) => { [key: string]: JitFieldNode[] }
 ): (
   exeContext: ExecutionContext,
   returnType: GraphQLObjectType,
   fieldNodes: FieldNode[]
-) => { [key: string]: FieldNode[] } {
+) => { [key: string]: JitFieldNode[] } {
   let cache0: WeakMap<any, any>;
 
   function memoized(a1: any, a2: any, a3: any) {

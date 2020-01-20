@@ -136,7 +136,6 @@ function parseQueryNullables(exeContext: ExecutionContext): QueryMetadata {
     exeContext,
     type,
     exeContext.operation.selectionSet,
-    Object.create(null),
     Object.create(null)
   );
   const properties = Object.create(null);
