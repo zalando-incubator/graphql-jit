@@ -6,7 +6,7 @@
 ### Why?
 
 GraphQL-JS is a very well written runtime implementation of the latest GraphQL spec. However, by compiling to JS, V8 is able to create optimized
-code which yields much better performance.
+code which yields much better performance. `graphql-jit` leverages this behaviour of V8 optimization by compiling the queries into functions to significantly improve performance (See [benchmarks](#benchmarks) below)
 
 #### Benchmarks
 
@@ -27,15 +27,15 @@ graphql-jit x 1,317 ops/sec ±2.38% (213 runs sampled)
 Done in 141.94s.
 ```
 
-### Support
+### Support for GraphQL spec
 
 The goal is to support the [June 2018 version of the GraphQL spec](https://facebook.github.io/graphql/June2018/). At this moment,
-the only missing feature is support for the @skip and @include directives.
+the only missing feature is support for the `@skip` and `@include` directives.
 
-#### Differences to graphql-js
+#### Differences to `graphql-js`
 
-In order to achieve better performance, the compiler introduces some limitations.
-The main one is that all computed properties must have a resolver and only these can return a Promise.
+In order to achieve better performance, the `graphql-jit` compiler introduces some limitations.
+The primary limitation is that all computed properties must have a resolver and these can only return a Promise or a function.
 
 ## Install
 
@@ -101,17 +101,16 @@ console.log(executionResult);
 
 Compiles the `document` AST, using an optional operationName and compiler options.
 
-- `schema` {GraphQLSchema} - `graphql-js` schema object
-- `document` {DocumentNode} - document query AST ,can be obtained by `parse` from `graphql-js`
-- `operationName` {string} - optional operation name in case the document contains multiple queries/operations.
-- `compilerOptions` {Object} - Configurable options on the agent pool
+- `schema` {GraphQLSchema} - `graphql` schema object
+- `document` {DocumentNode} - document query AST ,can be obtained by `parse` from `graphql`
+- `operationName` {string} - optional operation name in case the document contains multiple [operations](http://spec.graphql.org/draft/#sec-Language.Operations)(queries/mutations/subscription).
+- `compilerOptions` {Object} - Configurable options for the compiler
 
   - `disableLeafSerialization` {boolean, default: false} - disables leaf node serializers. The serializers validate the content of the field
     so this option should only be set to true if there are strong assurances that the values are valid.
   - `customSerializers` {Object as Map, default: {}} - Replace serializer functions for specific types. Can be used as a safer alternative
-    for overly expensive
-  - `customJSONSerializer` {boolean, default: false} - Whether to produce also a JSON serializer function using `fast-json-stringify`,
-    otherwise the stringify function is just `JSON.stringify`
+    for overly expensive serializers
+  - `customJSONSerializer` {boolean, default: false} - Whether to produce also a JSON serializer function using `fast-json-stringify`. The default stringifier function is `JSON.stringify`
 
 #### compiledQuery.compiled(root: any, context: any, variables: Maybe<{ [key: string]: any }>)
 
