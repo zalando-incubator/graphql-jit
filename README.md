@@ -35,7 +35,7 @@ the only missing feature is support for the `@skip` and `@include` directives.
 #### Differences to `graphql-js`
 
 In order to achieve better performance, the `graphql-jit` compiler introduces some limitations.
-The primary limitation is that all computed properties must have a resolver and these can only return a Promise or a function.
+The primary limitation is that all computed properties must have a resolver and only these can return a `Promise`.
 
 ## Install
 
