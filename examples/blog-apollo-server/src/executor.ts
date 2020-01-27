@@ -1,12 +1,12 @@
 import { GraphQLExecutor } from "apollo-server-core";
 import { GraphQLSchema } from "graphql";
+import LRU from "tiny-lru";
 import {
   CompiledQuery,
   compileQuery,
   CompilerOptions,
   isCompiledQuery
-} from "graphql-jit";
-import LRU from "tiny-lru";
+} from "../../../";
 
 export const executor = (
   schema: GraphQLSchema,

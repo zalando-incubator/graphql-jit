@@ -1,8 +1,8 @@
 import { ApolloServer, makeExecutableSchema } from "apollo-server";
 import { readFileSync } from "fs";
 import path from "path";
-import resolvers from "../../blog/src/resolvers";
 import { executor } from "./executor";
+import resolvers from "./resolvers";
 
 const schema = makeExecutableSchema({
   typeDefs: readFileSync(path.join(__dirname, "../schema.gql"), "utf-8"),
