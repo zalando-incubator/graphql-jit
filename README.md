@@ -106,7 +106,7 @@ Compiles the `document` AST, using an optional operationName and compiler option
 - `operationName` {string} - optional operation name in case the document contains multiple [operations](http://spec.graphql.org/draft/#sec-Language.Operations)(queries/mutations/subscription).
 - `compilerOptions` {Object} - Configurable options for the compiler
 
-  - `disableLeafSerialization` {boolean, default: false} - disables leaf node serializers. The serializers validate the content of the field
+  - `disableLeafSerialization` {boolean, default: false} - disables leaf node serializers. The serializers validate the content of the field at runtime
     so this option should only be set to true if there are strong assurances that the values are valid.
   - `customSerializers` {Object as Map, default: {}} - Replace serializer functions for specific types. Can be used as a safer alternative
     for overly expensive serializers
