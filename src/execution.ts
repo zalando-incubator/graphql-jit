@@ -28,6 +28,7 @@ import {
   Kind,
   TypeNameMetaFieldDef
 } from "graphql";
+import zip from "lodash.zip";
 import { ExecutionContext as GraphQLContext } from "graphql/execution/execute";
 import {
   FieldNode,
@@ -755,7 +756,7 @@ function compileObjectType(
   fieldNodes: FieldNode[],
   originPaths: string[],
   destinationPaths: string[],
-  responsePath: ObjectPath | undefined,
+  responsePath: ObjectPath,
   errorDestination: string,
   fieldMap: { [key: string]: JitFieldNode[] },
   alwaysDefer: boolean
@@ -791,24 +792,42 @@ function compileObjectType(
     const isSkippedName = getIsSkippedName(name);
 
     iifeBody += `
-      var ${isSkippedName} = false;
+      const ${isSkippedName} = [];
     `;
+
+    let counters = {
+      directives: 0
+    };
 
     if (responsePath != null) {
       for (const fieldNode of fieldNodes) {
-        if (fieldNode.fragmentDirectives != null) {
-          for (const directives of fieldNode.fragmentDirectives) {
-            iifeBody += compileSkipIncludeDirectives(
+        let compiledFragmentDirectives: string | undefined = undefined;
+
+        if (
+          fieldNode.fragmentDirectives != null &&
+          fieldNode.fragmentDirectives.length > 0
+        ) {
+          const fragmentDirectives = fieldNode.fragmentDirectives;
+          let previousSkipIncludeBody: string = "";
+
+          for (let i = fragmentDirectives.length - 1, j = 0; i >= 0; i--, j++) {
+            const directives = fragmentDirectives[i];
+            previousSkipIncludeBody = previousSkipIncludeBody = compileSkipIncludeDirectives(
               context,
-              directives,
+              directives as DirectiveNode[],
               name,
               isSkippedName,
               fieldNode,
               type,
-              responsePath
+              responsePath,
+              counters,
+              previousSkipIncludeBody
             );
           }
+
+          compiledFragmentDirectives = previousSkipIncludeBody;
         }
+
         if (fieldNode.directives != null) {
           iifeBody += compileSkipIncludeDirectives(
             context,
@@ -817,15 +836,19 @@ function compileObjectType(
             isSkippedName,
             fieldNode,
             type,
-            responsePath
+            responsePath,
+            counters,
+            compiledFragmentDirectives != null ? compiledFragmentDirectives : ""
           );
+        } else if (compiledFragmentDirectives != null) {
+          iifeBody += compiledFragmentDirectives;
         }
       }
     }
 
     // Name is the field name or an alias supplied by the user
     iifeBody += `
-      if (!${isSkippedName}) {
+      if (${isSkippedName}.length === 0 || ${isSkippedName}.includes(false)) {
         ${LOCAL_OBJECT_VAR_NAME}.${name} = `;
 
     // Inline __typename
@@ -1226,59 +1249,78 @@ function compileSkipIncludeDirectives(
   isSkippedName: string,
   fieldNode: FieldNode,
   returnType: GraphQLOutputType,
-  responsePath: ObjectPath
+  responsePath: ObjectPath,
+  counters: { directives: number },
+  ifNotSkippedBody: string
 ): string {
   let body = "";
 
-  const compiledDirectives: {
+  interface CompiledDirective {
     name: string;
     argsName: string;
     body: string;
-  }[] = [];
+  }
+
+  let compiledSkip: CompiledDirective | undefined = undefined;
+  let compiledInclude: CompiledDirective | undefined = undefined;
 
   for (const directive of directiveNodes) {
     if (directive.name.value === "skip" || directive.name.value === "include") {
       const compiledDirective = compileQueryDirective(
         context,
         directive,
-        `${directive.name.value}${fieldName}`,
+        `${directive.name.value}${fieldName}${counters.directives++}`,
         fieldNode,
         returnType,
         responsePath
       );
+      // console.log("CompiledDirective", directive.name.value, compiledDirective);
       if (compiledDirective) {
-        compiledDirectives.push(compiledDirective);
+        if (compiledDirective.name === "skip") {
+          compiledSkip = compiledDirective;
+        } else {
+          compiledInclude = compiledDirective;
+        }
       }
     }
   }
 
-  /**
-   * Skip has higher priority than include.
-   * So we push it to the end
-   */
-  const sortedDirectives = compiledDirectives.sort((a, b) => {
-    if (a.name === b.name) return 0;
-    if (a.name === "skip") return 1;
-    if (b.name === "include") return -1;
-    return 0;
-  });
-
-  for (const compiledDirective of sortedDirectives) {
-    body += `${compiledDirective.body}`;
-
-    if (compiledDirective.name === "skip") {
-      body += `
-        if (${compiledDirective.argsName}.if === true) {
-          ${isSkippedName} = true;
-        }
-      `;
-    } else if (compiledDirective.name === "include") {
-      body += `
-        if (${compiledDirective.argsName}.if === false) {
-          ${isSkippedName} = true;
-        }
-      `;
-    }
+  if (compiledSkip != null && compiledInclude != null) {
+    body += `
+      ${compiledSkip.body}
+      ${compiledInclude.body}
+      if (
+        ${compiledSkip.argsName}.if === false &&
+        ${compiledInclude.argsName}.if === true
+      ) {
+        ${isSkippedName}.push(false);
+        ${ifNotSkippedBody}
+      } else {
+        ${isSkippedName}.push(true);
+      }
+    `;
+  } else if (compiledSkip != null) {
+    body += `
+      ${compiledSkip.body}
+      if (${compiledSkip.argsName}.if === true) {
+        ${isSkippedName}.push(true);
+      } else {
+        ${isSkippedName}.push(false);
+        ${ifNotSkippedBody}
+      }
+    `;
+  } else if (compiledInclude != null) {
+    body += `
+      ${compiledInclude.body}
+      if (${compiledInclude.argsName}.if === false) {
+        ${isSkippedName}.push(true);
+      } else {
+        ${isSkippedName}.push(false);
+        ${ifNotSkippedBody}
+      }
+    `;
+  } else {
+    console.log("No skip or include directive for", fieldName);
   }
 
   return body;

@@ -29,11 +29,12 @@ const data = {};
 
 function executeTestQuery(query: string, variables = {}, schema = testSchema) {
   const ast = parse(query);
-  const compiled: any = compileQuery(schema, ast, "");
+  const compiled: any = compileQuery(schema, ast, "", { debug: true } as any);
   if (!isCompiledQuery(compiled)) {
     console.error(compiled);
     throw new Error("compilation failed");
   }
+  // console.log(compiled.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation);
   return compiled.query(data, undefined, variables);
 }
 
@@ -332,7 +333,6 @@ describe("Execute: handles directives", () => {
       resolvers: {
         Query: {
           foo: () => ({
-            a: "a",
             b: 42
           })
         },
@@ -470,6 +470,7 @@ describe("Execute: handles directives", () => {
 
     describe("nested fragments", () => {
       const query = `
+       # TRUE, true, true, false
         query ($skip1: Boolean!, $skip2: Boolean!, $include1: Boolean!, $include2: Boolean) {
           ...x @skip(if: $skip1)
           ... @include(if: $include1) {
@@ -478,7 +479,7 @@ describe("Execute: handles directives", () => {
             }
           }
         }
-        fragment x on Foo {
+        fragment x on Query {
           ... @skip(if: $skip2) {
             foo {
               a @include(if: $include2)
@@ -499,7 +500,7 @@ describe("Execute: handles directives", () => {
         );
       }
 
-      test("all skipped", async () => {
+      test.only("all skipped", async () => {
         const result = await exec(true, true, false, false);
         expect(result).toEqual({ data: {} });
       });
@@ -511,6 +512,68 @@ describe("Execute: handles directives", () => {
 
       test("correct skip and include are applied", async () => {
         const result = await exec(false, false, false, false);
+        expect(result).toEqual({ data: { foo: {} } });
+      });
+
+      test("correct skip and include are applied - 2", async () => {
+        const result = await exec(false, false, false, true);
+        expect(result).toEqual({ data: { foo: { a: "aa" } } });
+      });
+
+      test("skip follows the tree top down", async () => {
+        const result = await exec(true, false, false, false);
+        expect(result).toEqual({ data: {} });
+      });
+
+      test("skip follows the tree top down (include true)", async () => {
+        const result = await exec(true, false, true, false);
+        expect(result).toEqual({ data: { foo: {} } });
+      });
+    });
+
+    describe("nested - non top-level fields", () => {
+      const query = `
+        query ($skip1: Boolean!, $skip2: Boolean!, $include1: Boolean!, $include2: Boolean) {
+          foo {
+            ...aFragment @skip(if: $skip1)
+            ... @skip(if: $skip2) {
+              b
+            }
+            ...barFragment
+          }
+        }
+        fragment aFragment on Foo {
+          a
+        }
+        fragment barFragment on Foo {
+          ... @include(if: $include1) {
+            bar {
+              d
+              ...cFragment
+            }
+          }
+        }
+        fragment cFragment on Bar {
+          ... @include(if: $include2) {
+            c
+          }
+        }
+      `;
+      function exec(
+        skip1: boolean,
+        skip2: boolean,
+        include1: boolean,
+        include2: boolean
+      ) {
+        return executeTestQuery(
+          query,
+          { skip1, skip2, include1, include2 },
+          schema
+        );
+      }
+
+      test("all skipped", async () => {
+        const result = await exec(true, true, false, false);
         expect(result).toEqual({ data: { foo: {} } });
       });
     });

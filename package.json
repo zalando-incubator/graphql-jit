@@ -59,6 +59,7 @@
     "@types/lodash.memoize": "^4.1.6",
     "@types/lodash.merge": "^4.6.6",
     "@types/lodash.mergewith": "^4.6.6",
+    "@types/lodash.zip": "^4.2.6",
     "@types/node": "^10.17.26",
     "benchmark": "^2.1.4",
     "codecov": "^3.3.0",
@@ -80,7 +81,8 @@
     "json-schema": "^0.2.3",
     "lodash.memoize": "^4.1.2",
     "lodash.merge": "4.6.2",
-    "lodash.mergewith": "4.6.2"
+    "lodash.mergewith": "4.6.2",
+    "lodash.zip": "^4.2.0"
   },
   "lint-staged": {
     "linters": {
