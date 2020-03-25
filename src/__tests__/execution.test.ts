@@ -16,6 +16,7 @@ import {
   parse
 } from "graphql";
 import { CompiledQuery, compileQuery, isCompiledQuery } from "../execution";
+import { makeExecutableSchema } from "graphql-tools";
 
 function executeArgs(args: any) {
   const {
@@ -1162,6 +1163,69 @@ describe("Execute: Handles basic execution tasks", () => {
         parent: "works"
       }
     });
+  });
+
+  test("should allow js keywords in field names", () => {
+    const rootValue = {
+      import: {
+        export: "export",
+        var: "var"
+      },
+      async: {
+        await: {
+          import: {
+            export: "export",
+            var: "var"
+          }
+        },
+        for: "for",
+        const: "const"
+      }
+    };
+
+    const schema = makeExecutableSchema({
+      typeDefs: `
+        type Query {
+          import: Import
+          async: Async
+        }
+        type Async {
+          await: Await
+          for: String
+          const: String
+        }
+        type Await {
+          import: Import
+        }
+        type Import {
+          export: String
+          var: String
+        }
+      `,
+      resolvers: {}
+    });
+
+    const query = `
+      query {
+        import {
+          export
+          var
+        }
+        async {
+          await {
+            import {
+              export
+              var
+            }
+          }
+          for
+          const
+        }
+      }
+    `;
+
+    const result = executeQuery(schema, parse(query), rootValue);
+    expect(result.data).toEqual(expect.objectContaining(rootValue));
   });
 });
 

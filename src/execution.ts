@@ -118,6 +118,7 @@ const GLOBAL_SAFE_MAP_NAME = "__context.safeMap";
 const GRAPHQL_ERROR = "__context.GraphQLError";
 const GLOBAL_RESOLVE = "__context.resolve";
 const GLOBAL_PARENT_NAME = "__parent";
+const LOCAL_JS_FIELD_NAME_PREFIX = "__field";
 
 interface ExecutionContext {
   promiseCounter: number;
@@ -152,6 +153,7 @@ interface DeferredField {
   destinationPaths: string[];
   parentType: GraphQLObjectType;
   fieldName: string;
+  jsFieldName: string;
   fieldType: GraphQLOutputType;
   fieldNodes: FieldNode[];
   args: Arguments;
@@ -466,17 +468,19 @@ function compileDeferredField(
     fieldNodes,
     fieldType,
     fieldName,
+    jsFieldName,
     responsePath,
     parentType,
     args
   } = deferredField;
+
   const subContext = createSubCompilationContext(context);
   const nodeBody = compileType(
     subContext,
     parentType,
     fieldType,
     fieldNodes,
-    [fieldName],
+    [jsFieldName],
     [`${GLOBAL_PARENT_NAME}.${name}`],
     responsePath
   );
@@ -543,7 +547,7 @@ function compileDeferredField(
       }
     }`;
   context.hoistedFunctions.push(`
-       function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${fieldName}, ${parentIndexes}) {
+       function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${jsFieldName}, ${parentIndexes}) {
           ${generateUniqueDeclarations(subContext)}
           ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};
           ${compileDeferredFields(subContext)}
@@ -792,6 +796,7 @@ function compileObjectType(
         destinationPaths,
         parentType: type,
         fieldName: field.name,
+        jsFieldName: getJsFieldName(field.name),
         fieldType: field.type,
         fieldNodes,
         args: getArgumentDefs(field, fieldNodes[0])
@@ -1555,4 +1560,8 @@ function getParentArgIndexes(context: CompilationContext) {
     args += `idx${i}`;
   }
   return args;
+}
+
+function getJsFieldName(fieldName: string) {
+  return `${LOCAL_JS_FIELD_NAME_PREFIX}${fieldName}`;
 }
