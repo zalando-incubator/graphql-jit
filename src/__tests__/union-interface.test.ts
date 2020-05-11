@@ -135,8 +135,8 @@ describe("Execute: Union and intersection types", () => {
           kind: "INTERFACE",
           name: "Named",
           fields: [{ name: "name" }],
-          interfaces: null,
-          possibleTypes: [{ name: "Person" }, { name: "Dog" }, { name: "Cat" }],
+          interfaces: [],
+          possibleTypes: [{ name: "Dog" }, { name: "Cat" }, { name: "Person" }],
           enumValues: null,
           inputFields: null
         },
