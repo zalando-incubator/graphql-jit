@@ -4,11 +4,14 @@ import {
   GraphQLError,
   GraphQLFloat,
   GraphQLID,
+  GraphQLInputObjectType,
   GraphQLInputType,
   GraphQLInt,
+  GraphQLList,
   GraphQLSchema,
   GraphQLString,
   isEnumType,
+  isInputObjectType,
   isInputType,
   isListType,
   isNonNullType,
@@ -17,12 +20,9 @@ import {
   SourceLocation,
   typeFromAST,
   valueFromAST,
-  VariableDefinitionNode,
-  GraphQLInputObjectType,
-  GraphQLList,
-  isInputObjectType
+  VariableDefinitionNode
 } from "graphql";
-import { addPath, computeLocations, ObjectPath, flattenPath } from "./ast";
+import { addPath, computeLocations, flattenPath, ObjectPath } from "./ast";
 import { GraphQLError as GraphQLJITError } from "./error";
 import createInspect from "./inspect";
 
