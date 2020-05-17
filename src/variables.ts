@@ -18,7 +18,9 @@ import {
   typeFromAST,
   valueFromAST,
   VariableDefinitionNode,
-  GraphQLInputObjectType
+  GraphQLInputObjectType,
+  GraphQLList,
+  isInputObjectType
 } from "graphql";
 import { addPath, computeLocations, ObjectPath, flattenPath } from "./ast";
 import { GraphQLError as GraphQLJITError } from "./error";
@@ -120,7 +122,7 @@ export function compileVariableParsing(
 
   const gen = genFn();
   gen(`
-    const currentStack = new Set();
+    const visitedInputValues = new Set();
 
     function getPath(o, path) {
       let current = o;
@@ -352,47 +354,16 @@ function generateInput(
       }
       `);
   } else if (isListType(varType)) {
-    context.errorMessage = `'Variable "$${varName}" got invalid value ' + inspect(${currentInput}) + '; '`;
-    const hasValueName = hasValue(context.inputPath);
-    const index = `idx${context.depth}`;
-
-    const subContext = createSubCompilationContext(context);
-    subContext.responsePath = addPath(
-      subContext.responsePath,
-      index,
-      "variable"
+    gen(
+      compileInputListType(
+        context,
+        varType,
+        varName,
+        useInputPath,
+        useResponsePath
+      )
     );
-    subContext.inputPath = addPath(subContext.inputPath, index, "variable");
-    subContext.depth++;
-    gen(`
-      if (Array.isArray(${currentInput})) {
-        setPath(coerced, ${responsePath}, []);
-        for (let ${index} = 0; ${index} < ${currentInput}.length; ++${index}) {
-          const ${hasValueName} =
-          ${getObjectPath(subContext.inputPath)} !== undefined;
-          ${generateInput(
-            subContext,
-            varType.ofType,
-            varName,
-            hasValueName,
-            false,
-            useInputPath,
-            useResponsePath
-          )}
-        }
-      } else {
-        ${generateInput(
-          context,
-          varType.ofType,
-          varName,
-          hasValueName,
-          true,
-          useInputPath,
-          useResponsePath
-        )}
-      }
-    `);
-  } else if (isInputType(varType)) {
+  } else if (isInputObjectType(varType)) {
     gen(
       compileInputObjectType(
         context,
@@ -412,6 +383,71 @@ function generateInput(
     );
   }
   gen(`}`);
+  return gen.toString();
+}
+
+function compileInputListType(
+  context: CompilationContext,
+  varType: GraphQLList<GraphQLInputType>,
+  varName: string,
+  useInputPath: boolean,
+  useResponsePath: boolean
+) {
+  const responsePath = useResponsePath
+    ? "responsePath"
+    : pathToExpression(context.responsePath);
+  const currentInput = useInputPath
+    ? `getPath(input, inputPath)`
+    : getObjectPath(context.inputPath);
+
+  const gen = genFn();
+
+  context.errorMessage = `'Variable "$${varName}" got invalid value ' + inspect(${currentInput}) + '; '`;
+  const hasValueName = hasValue(context.inputPath);
+  const index = `idx${context.depth}`;
+
+  const subContext = createSubCompilationContext(context);
+  subContext.responsePath = addPath(subContext.responsePath, index, "variable");
+  subContext.inputPath = addPath(subContext.inputPath, index, "variable");
+  subContext.depth++;
+
+  const nextInputPath = useInputPath
+    ? `getPath(input, inputPath)[${index}]`
+    : getObjectPath(context.inputPath);
+
+  gen(`
+    if (Array.isArray(${currentInput})) {
+      setPath(coerced, ${responsePath}, []);
+      for (let ${index} = 0; ${index} < ${currentInput}.length; ++${index}) {
+        const ${hasValueName} =
+        ${nextInputPath} !== undefined;
+        ${generateInput(
+          subContext,
+          varType.ofType,
+          varName,
+          hasValueName,
+          false,
+          // TODO(boopathi): Investigate a bit more
+          // why we cannot forward useInputPath, and useResponsePath
+          false,
+          false
+        )}
+      }
+    } else {
+      ${generateInput(
+        context,
+        varType.ofType,
+        varName,
+        hasValueName,
+        true,
+        // TODO(boopathi): Investigate a bit more
+        // why we cannot forward useInputPath, and useResponsePath
+        false,
+        false
+      )}
+    }
+  `);
+
   return gen.toString();
 }
 
@@ -462,17 +498,20 @@ function compileInputObjectType(
 
     const varTypeParserName = "__fieldParser" + varType.name + field.name;
 
-    const nextInput = flattenPath(subContext.inputPath)
-      .map(({ key }) => key)
-      .reverse()
-      .slice(1);
+    const nextInputPath = useInputPath
+      ? `inputPath.concat("${field.name}")`
+      : pathToExpression(subContext.inputPath);
+
+    const nextResponsePath = useResponsePath
+      ? `responsePath.concat("${field.name}")`
+      : pathToExpression(subContext.responsePath);
 
     gen(`
       ${varTypeParserName}(
         input,
-        ${JSON.stringify(nextInput)},
+        ${nextInputPath},
         coerced,
-        ${pathToExpression(subContext.responsePath)},
+        ${nextResponsePath},
         errors,
         ${hasValueName}
       );
@@ -484,6 +523,23 @@ function compileInputObjectType(
         varTypeParserName,
         `
           function ${varTypeParserName} (input, inputPath, coerced, responsePath, errors, ${hasValueName}) {
+            const __inputValue = getPath(input, inputPath);
+            if (visitedInputValues.has(__inputValue)) {
+              errors.push(
+                new GraphQLJITError(
+                  "Circular reference detected in input variable '$"
+                    + inputPath[0]
+                    + "' at "
+                    + inputPath.slice(1).join("."),
+                  [${errorLocation}]
+                )
+              );
+              return;
+            }
+            if (__inputValue != null) {
+              visitedInputValues.add(__inputValue);
+            }
+
             ${generateInput(
               subContext,
               field.type,
@@ -519,12 +575,16 @@ function compileInputObjectType(
 }
 
 function pathToExpression(path: ObjectPath) {
-  return JSON.stringify(
-    flattenPath(path)
-      .map(({ key }) => key)
-      .reverse()
-      .slice(1)
-  );
+  const expr = flattenPath(path)
+    // object access pattern - flatten returns in reverse order from leaf to root
+    .reverse()
+    // remove the variable name (input/coerced - are the cases in this file)
+    .slice(1)
+    // serialize
+    .map(({ key, type }) => (type === "literal" ? `"${key}"` : key))
+    .join(",");
+
+  return `[${expr}]`;
 }
 
 function hasValue(path: ObjectPath) {
