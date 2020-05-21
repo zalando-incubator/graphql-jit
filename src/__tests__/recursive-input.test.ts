@@ -16,7 +16,7 @@ describe("recursive input types", () => {
       resolvers: {
         Query: {
           foo(_, args) {
-            // used as the acutal value in test matchers
+            // used as the actual value in test matchers
             return JSON.stringify(args);
           }
         }
@@ -49,6 +49,11 @@ describe("recursive input types", () => {
         })
       );
     });
+
+    // Reminder to self
+    // TODO(boopathi): write tests to handle same value inputs
+    // { foo: 3, bar: 3 }
+    // Solution: object types only
 
     test("should not fail with variables using recursive input types", () => {
       const document = parse(`
@@ -198,7 +203,7 @@ describe("recursive input types", () => {
       resolvers: {
         Query: {
           products(_, args) {
-            // used as the acutal value in test matchers
+            // used as the actual value in test matchers
             return JSON.stringify(args);
           }
         }
@@ -337,6 +342,53 @@ describe("recursive input types", () => {
       expect(result.errors[0].message).toBe(
         "Circular reference detected in input variable '$filter1' at and.left.or.left.and"
       );
+    });
+  });
+
+  describe("lists and non-nulls", () => {
+    const schema = makeExecutableSchema({
+      typeDefs: `
+        type Query {
+          items(filters: [Filter]): String
+        }
+        input Filter {
+          or: [Filter]
+          and: [Filter]
+          like: String
+        }
+      `,
+      resolvers: {
+        Query: {
+          items(_, input) {
+            // used as the actual value in test matchers
+            return JSON.stringify(input);
+          }
+        }
+      }
+    });
+
+    test("should work with recursion in lists", () => {
+      const document = parse(`
+        query ($filters: [Filter]) {
+          items(filters: $filters)
+        }
+      `);
+      const variables = {
+        filters: [
+          {
+            or: [
+              {
+                like: "gallery",
+                or: [{ like: "photo" }, { like: "video" }]
+              }
+            ]
+          }
+        ]
+      };
+
+      const result = executeQuery(schema, document, variables);
+      expect(result.errors).toBeUndefined();
+      expect(JSON.parse(result.data.items).filters).toEqual(variables.filters);
     });
   });
 });
