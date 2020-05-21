@@ -105,15 +105,15 @@ export function compileVariableParsing(
     )}, "${varName}");\n`;
     context.inputPath = addPath(context.inputPath, varName);
     context.responsePath = addPath(context.responsePath, varName);
-    mainBody += generateInput(
+    mainBody += generateInput({
       context,
       varType,
       varName,
       hasValueName,
-      false,
-      false,
-      false
-    );
+      wrapInList: false,
+      useInputPath: false,
+      useResponsePath: false
+    });
   }
 
   if (errors.length > 0) {
@@ -140,8 +140,8 @@ export function compileVariableParsing(
       current[path[path.length - 1]] = value;
     }
 
-    function isObject(o) {
-      return o != null && typeof o === "object" && !Array.isArray(o);
+    function isObjectLike(o) {
+      return o != null && typeof o === "object";
     }
 
     ${Array.from(hoistedFunctions)
@@ -161,6 +161,12 @@ export function compileVariableParsing(
 
   const generatedFn = gen.toString();
 
+  // require("fs").writeFileSync(
+  //   `${__dirname}/../test-variables.js`,
+  //   require("prettier").format(generatedFn, { parser: "typescript" }),
+  //   "utf8"
+  // );
+
   return Function.apply(
     null,
     ["GraphQLJITError", "inspect"]
@@ -177,15 +183,25 @@ export function compileVariableParsing(
 const MAX_32BIT_INT = 2147483647;
 const MIN_32BIT_INT = -2147483648;
 
-function generateInput(
-  context: CompilationContext,
-  varType: GraphQLInputType,
-  varName: string,
-  hasValueName: string,
-  wrapInList: boolean,
-  useInputPath: boolean,
-  useResponsePath: boolean
-) {
+interface GenerateInputParams {
+  context: CompilationContext;
+  varType: GraphQLInputType;
+  varName: string;
+  hasValueName: string;
+  wrapInList: boolean;
+  useInputPath: boolean;
+  useResponsePath: boolean;
+}
+
+function generateInput({
+  context,
+  varType,
+  varName,
+  hasValueName,
+  wrapInList,
+  useInputPath,
+  useResponsePath
+}: GenerateInputParams) {
   const currentOutput = getObjectPath(context.responsePath);
   const responsePath = useResponsePath
     ? "responsePath"
@@ -406,6 +422,9 @@ function compileInputListType(
   const currentInput = useInputPath
     ? `getPath(input, inputPath)`
     : getObjectPath(context.inputPath);
+  const errorLocation = printErrorLocation(
+    computeLocations([context.varDefNode])
+  );
 
   const gen = genFn();
 
@@ -429,32 +448,35 @@ function compileInputListType(
 
         const __inputListValue = getPath(input, inputPath);
 
-        if (isObject(__inputListValue)) {
-          visitedInputValues.add(__inputListValue);
-        }
+        ${generateCircularReferenceCheck(
+          "__inputListValue",
+          "inputPath",
+          errorLocation,
+          false
+        )}
 
         const ${hasValueName} = __inputListValue !== undefined;
 
-        ${generateInput(
-          subContext,
-          varType.ofType,
+        ${generateInput({
+          context: subContext,
+          varType: varType.ofType,
           varName,
           hasValueName,
-          false,
+          wrapInList: false,
           useInputPath,
           useResponsePath
-        )}
+        })}
       }
     } else {
-      ${generateInput(
+      ${generateInput({
         context,
-        varType.ofType,
+        varType: varType.ofType,
         varName,
         hasValueName,
-        true,
+        wrapInList: true,
         useInputPath,
         useResponsePath
-      )}
+      })}
     }
   `);
 
@@ -516,9 +538,6 @@ function compileInputObjectType(
       ? `responsePath.concat("${field.name}")`
       : pathToExpression(subContext.responsePath);
 
-    const previousIndices = context.depth > 1 ? `indices` : `[]`;
-    const nextIndex = context.depth > 1 ? `idx${context.depth - 1}` : "";
-
     gen(`
       ${varTypeParserName}(
         input,
@@ -526,9 +545,7 @@ function compileInputObjectType(
         coerced,
         ${nextResponsePath},
         errors,
-        ${hasValueName},
-        ...${previousIndices},
-        ${nextIndex}
+        ${hasValueName}
       );
     `);
 
@@ -543,37 +560,26 @@ function compileInputObjectType(
             coerced,
             responsePath,
             errors,
-            ${hasValueName},
-            ...indices
+            ${hasValueName}
           ) {
             const __inputValue = getPath(input, inputPath);
 
-            if (visitedInputValues.has(__inputValue)) {
-              errors.push(
-                new GraphQLJITError(
-                  "Circular reference detected in input variable '$"
-                    + inputPath[0]
-                    + "' at "
-                    + inputPath.slice(1).join("."),
-                  [${errorLocation}]
-                )
-              );
-              return;
-            }
-
-            if (isObject(__inputValue)) {
-              visitedInputValues.add(__inputValue);
-            }
-
-            ${generateInput(
-              subContext,
-              field.type,
-              field.name,
-              hasValueName,
-              false,
-              true,
+            ${generateCircularReferenceCheck(
+              "__inputValue",
+              "inputPath",
+              errorLocation,
               true
             )}
+
+            ${generateInput({
+              context: subContext,
+              varType: field.type,
+              varName: field.name,
+              hasValueName,
+              wrapInList: false,
+              useInputPath: true,
+              useResponsePath: true
+            })}
           }
         `
       );
@@ -595,6 +601,40 @@ function compileInputObjectType(
   `);
 
   gen(`}`);
+
+  return gen.toString();
+}
+
+function generateCircularReferenceCheck(
+  inputValueName: string,
+  inputPathName: string,
+  errorLocation: string,
+  shouldReturn: boolean
+) {
+  const gen = genFn();
+  gen(`if (visitedInputValues.has(${inputValueName})) {`);
+  gen(`
+    errors.push(
+      new GraphQLJITError(
+        "Circular reference detected in input variable '$"
+          + ${inputPathName}[0]
+          + "' at "
+          + ${inputPathName}.slice(1).join("."),
+        [${errorLocation}]
+      )
+    );
+  `);
+
+  if (shouldReturn) {
+    gen(`return;`);
+  }
+
+  gen(`}`);
+  gen(`
+    if (isObjectLike(${inputValueName})) {
+      visitedInputValues.add(${inputValueName});
+    }
+  `);
 
   return gen.toString();
 }

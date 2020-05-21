@@ -345,7 +345,7 @@ describe("recursive input types", () => {
     });
   });
 
-  describe("lists and non-nulls", () => {
+  describe("lists", () => {
     const schema = makeExecutableSchema({
       typeDefs: `
         type Query {
@@ -367,7 +367,7 @@ describe("recursive input types", () => {
       }
     });
 
-    test("should work with recursion in lists", () => {
+    test("should work with recursive types in lists", () => {
       const document = parse(`
         query ($filters: [Filter]) {
           items(filters: $filters)
@@ -389,6 +389,148 @@ describe("recursive input types", () => {
       const result = executeQuery(schema, document, variables);
       expect(result.errors).toBeUndefined();
       expect(JSON.parse(result.data.items).filters).toEqual(variables.filters);
+    });
+
+    test("should throw error for runtime circular dependencies in lists", () => {
+      const document = parse(`
+        query ($filters: [Filter]) {
+          items(filters: $filters)
+        }
+      `);
+      const variables: any = {
+        filters: [{}]
+      };
+      variables.filters[0].or = variables.filters;
+
+      const result = executeQuery(schema, document, variables);
+      expect(result.errors[0].message).toBe(
+        `Circular reference detected in input variable '$filters' at 0.or.0`
+      );
+    });
+
+    test("should throw error for runtime circular dependencies in lists - 2", () => {
+      const document = parse(`
+        query ($filters: [Filter]) {
+          items(filters: $filters)
+        }
+      `);
+      const variables: any = {
+        filters: [
+          {
+            or: [
+              {
+                like: "gallery",
+                or: [{ like: "photo" }]
+              }
+            ]
+          }
+        ]
+      };
+      variables.filters[0].or[0].or[0].or = variables.filters;
+
+      const result = executeQuery(schema, document, variables);
+      expect(result.errors[0].message).toBe(
+        `Circular reference detected in input variable '$filters' at 0.or.0.or.0.or.0`
+      );
+    });
+
+    test("should throw error for runtime circular dependencies in lists - 3", () => {
+      const document = parse(`
+        query ($filters: [Filter]) {
+          items(filters: $filters)
+        }
+      `);
+      const variables: any = {
+        filters: [
+          {
+            or: [
+              {
+                and: [{ like: "foo" }, { like: "bar" }]
+              }
+            ]
+          }
+        ]
+      };
+      variables.filters[0].or[1] = variables.filters[0];
+
+      const result = executeQuery(schema, document, variables);
+      expect(result.errors[0].message).toBe(
+        `Circular reference detected in input variable '$filters' at 0.or.1`
+      );
+    });
+  });
+
+  describe("lists - 2", () => {
+    const schema = makeExecutableSchema({
+      typeDefs: `
+        type Query {
+          flatten(list: [[[[[Item]]]]]): String
+        }
+        input Item {
+          id: ID
+        }
+      `,
+      resolvers: {
+        Query: {
+          flatten(_, input) {
+            // used as the actual value in test matchers
+            return JSON.stringify(input);
+          }
+        }
+      }
+    });
+
+    test("should work with recursive types in lists", () => {
+      const document = parse(`
+        query ($list: [[[[[Item]]]]]) {
+          flatten(list: $list)
+        }
+      `);
+      const variables = {
+        list: [
+          [[[[{ id: "1" }, { id: "2" }]]]],
+          [[[[{ id: "3" }, { id: "4" }]]]]
+        ]
+      };
+
+      const result = executeQuery(schema, document, variables);
+      expect(result.errors).toBeUndefined();
+      expect(JSON.parse(result.data.flatten).list).toEqual(variables.list);
+    });
+
+    test("should throw when lists are circular referenced", () => {
+      const document = parse(`
+        query ($list: [[[[[Item]]]]]) {
+          flatten(list: $list)
+        }
+      `);
+      const variables: any = {
+        list: []
+      };
+      variables.list.push(variables.list);
+
+      const result = executeQuery(schema, document, variables);
+      expect(result.errors[0].message).toBe(
+        "Circular reference detected in input variable '$list' at 0.0"
+      );
+    });
+
+    test("should throw when lists are mutually circular referenced", () => {
+      const document = parse(`
+        query ($list: [[[[[Item]]]]]) {
+          flatten(list: $list)
+        }
+      `);
+      const variables: any = {
+        list: [[], []]
+      };
+      variables.list[0].push(variables.list[1]);
+      variables.list[1].push(variables.list[0]);
+
+      const result = executeQuery(schema, document, variables);
+      expect(result.errors[0].message).toBe(
+        "Circular reference detected in input variable '$list' at 0.0.0"
+      );
     });
   });
 });
