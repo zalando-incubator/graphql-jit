@@ -161,12 +161,6 @@ export function compileVariableParsing(
 
   const generatedFn = gen.toString();
 
-  // require("fs").writeFileSync(
-  //   `${__dirname}/../test-variables.js`,
-  //   require("prettier").format(generatedFn, { parser: "typescript" }),
-  //   "utf8"
-  // );
-
   return Function.apply(
     null,
     ["GraphQLJITError", "inspect"]
