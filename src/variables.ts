@@ -42,7 +42,24 @@ export function failToParseVariables(x: any): x is FailedVariableCoercion {
   return x.errors;
 }
 
+export interface VariablesCompilerOptions {
+  /**
+   * If true, the generated code for variables compilation validates
+   * that there are no circular references (at runtime). For most cases,
+   * the variables are the result of JSON.parse and in these cases, we
+   * do not need this. Enable this if the variables passed to the execute
+   * function may contain circular references.
+   *
+   * When enabled, the code checks for circular references in the
+   * variables input, and throws an error when found.
+   *
+   * Default: false (set in execution.ts)
+   */
+  variablesCircularReferenceCheck: boolean;
+}
+
 interface CompilationContext {
+  options: VariablesCompilerOptions;
   inputPath: ObjectPath;
   responsePath: ObjectPath;
   depth: number;
@@ -60,6 +77,7 @@ function createSubCompilationContext(
 
 export function compileVariableParsing(
   schema: GraphQLSchema,
+  options: VariablesCompilerOptions,
   varDefNodes: ReadonlyArray<VariableDefinitionNode>
 ): (inputs: { [key: string]: any }) => CoercedVariableValues {
   const errors = [];
@@ -70,6 +88,7 @@ export function compileVariableParsing(
   const hoistedFunctions = new Map();
   for (const varDefNode of varDefNodes) {
     const context: CompilationContext = {
+      options,
       varDefNode,
       depth: 0,
       inputPath: addPath(undefined, "input"),
@@ -443,6 +462,7 @@ function compileInputListType(
         const __inputListValue = getPath(input, inputPath);
 
         ${generateCircularReferenceCheck(
+          context,
           "__inputListValue",
           "inputPath",
           errorLocation,
@@ -559,6 +579,7 @@ function compileInputObjectType(
             const __inputValue = getPath(input, inputPath);
 
             ${generateCircularReferenceCheck(
+              context,
               "__inputValue",
               "inputPath",
               errorLocation,
@@ -600,11 +621,20 @@ function compileInputObjectType(
 }
 
 function generateCircularReferenceCheck(
+  context: CompilationContext,
   inputValueName: string,
   inputPathName: string,
   errorLocation: string,
   shouldReturn: boolean
 ) {
+  /**
+   * If the variablesCircularReferenceCheck is `false`, do not generate
+   * code to verify circular references.
+   */
+  if (!context.options.variablesCircularReferenceCheck) {
+    return "";
+  }
+
   const gen = genFn();
   gen(`if (visitedInputValues.has(${inputValueName})) {`);
   gen(`

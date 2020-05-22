@@ -173,7 +173,7 @@ describe("recursive input types", () => {
       };
       variables.f.foo = variables.f;
 
-      const result = executeQuery(schema, document, variables);
+      const result = executeQuery(schema, document, variables, true);
       expect(result.errors[0].message).toBe(
         "Circular reference detected in input variable '$f' at foo.foo"
       );
@@ -338,7 +338,7 @@ describe("recursive input types", () => {
       variables.filter1.and.left.or = variables.filter1.or;
       variables.filter1.or.left.and = variables.filter1.and;
 
-      const result = executeQuery(schema, document, variables);
+      const result = executeQuery(schema, document, variables, true);
       expect(result.errors[0].message).toBe(
         "Circular reference detected in input variable '$filter1' at and.left.or.left.and"
       );
@@ -402,7 +402,7 @@ describe("recursive input types", () => {
       };
       variables.filters[0].or = variables.filters;
 
-      const result = executeQuery(schema, document, variables);
+      const result = executeQuery(schema, document, variables, true);
       expect(result.errors[0].message).toBe(
         `Circular reference detected in input variable '$filters' at 0.or.0`
       );
@@ -428,7 +428,7 @@ describe("recursive input types", () => {
       };
       variables.filters[0].or[0].or[0].or = variables.filters;
 
-      const result = executeQuery(schema, document, variables);
+      const result = executeQuery(schema, document, variables, true);
       expect(result.errors[0].message).toBe(
         `Circular reference detected in input variable '$filters' at 0.or.0.or.0.or.0`
       );
@@ -453,7 +453,7 @@ describe("recursive input types", () => {
       };
       variables.filters[0].or[1] = variables.filters[0];
 
-      const result = executeQuery(schema, document, variables);
+      const result = executeQuery(schema, document, variables, true);
       expect(result.errors[0].message).toBe(
         `Circular reference detected in input variable '$filters' at 0.or.1`
       );
@@ -509,7 +509,7 @@ describe("recursive input types", () => {
       };
       variables.list.push(variables.list);
 
-      const result = executeQuery(schema, document, variables);
+      const result = executeQuery(schema, document, variables, true);
       expect(result.errors[0].message).toBe(
         "Circular reference detected in input variable '$list' at 0.0"
       );
@@ -527,7 +527,7 @@ describe("recursive input types", () => {
       variables.list[0].push(variables.list[1]);
       variables.list[1].push(variables.list[0]);
 
-      const result = executeQuery(schema, document, variables);
+      const result = executeQuery(schema, document, variables, true);
       expect(result.errors[0].message).toBe(
         "Circular reference detected in input variable '$list' at 0.0.0"
       );
@@ -539,13 +539,13 @@ function executeQuery(
   schema: GraphQLSchema,
   document: DocumentNode,
   variableValues?: any,
-  rootValue?: any,
-  contextValue?: any,
-  operationName?: string
+  variablesCircularReferenceCheck?: boolean
 ) {
-  const prepared: any = compileQuery(schema, document as any, operationName);
+  const prepared: any = compileQuery(schema, document as any, undefined, {
+    variablesCircularReferenceCheck
+  });
   if (!isCompiledQuery(prepared)) {
     return prepared;
   }
-  return prepared.query(rootValue, contextValue, variableValues || {});
+  return prepared.query({}, {}, variableValues || {});
 }
