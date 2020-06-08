@@ -148,7 +148,7 @@ describe("json schema creator", () => {
     });
     test("valid response serialization", async () => {
       const prepared: any = compileQuery(blogSchema, parse(query), "", {
-        fastJson: require('fast-json-stringify')
+        fastJson: require("fast-json-stringify")
       });
       const response = await prepared.query(undefined, undefined, {});
       expect(prepared.stringify).not.toBe(JSON.stringify);

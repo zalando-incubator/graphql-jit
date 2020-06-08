@@ -4,6 +4,15 @@
  * @type       {<type>}
  */
 import {
+  ArraySchema,
+  BooleanSchema,
+  IntegerSchema,
+  NullSchema,
+  NumberSchema,
+  ObjectSchema,
+  StringSchema
+} from "fast-json-stringify";
+import {
   FieldNode,
   getOperationRootType,
   GraphQLType,
@@ -14,11 +23,16 @@ import {
   isObjectType,
   isScalarType
 } from "graphql";
-import { ObjectSchema, ArraySchema, StringSchema, NumberSchema, BooleanSchema, IntegerSchema, NullSchema, Schema } from 'fast-json-stringify'
 import { collectFields, ExecutionContext } from "graphql/execution/execute";
 import { collectSubfields, resolveFieldDef } from "./ast";
 
-const PRIMITIVES: { [key: string]: (StringSchema | NumberSchema | BooleanSchema | IntegerSchema)['type'] } = {
+const PRIMITIVES: {
+  [key: string]: (
+    | StringSchema
+    | NumberSchema
+    | BooleanSchema
+    | IntegerSchema)["type"];
+} = {
   Int: "integer",
   Float: "number",
   String: "string",
@@ -103,7 +117,14 @@ function transformNode(
   exeContext: ExecutionContext,
   fieldNodes: FieldNode[],
   type: GraphQLType
-): ObjectSchema | ArraySchema | StringSchema | NumberSchema | BooleanSchema | IntegerSchema | NullSchema {
+):
+  | ObjectSchema
+  | ArraySchema
+  | StringSchema
+  | NumberSchema
+  | BooleanSchema
+  | IntegerSchema
+  | NullSchema {
   if (isObjectType(type)) {
     const subfields = collectSubfields(exeContext, type, fieldNodes);
     const properties = Object.create(null);
@@ -139,13 +160,15 @@ function transformNode(
   }
   if (isNonNullType(type)) {
     const nullable = transformNode(exeContext, fieldNodes, type.ofType);
-    if ('nullable' in nullable) delete nullable.nullable;
+    if ("nullable" in nullable) {
+      delete nullable.nullable;
+    }
     return nullable;
   }
   if (isEnumType(type)) {
     return {
       type: "string",
-      nullable: true,
+      nullable: true
     };
   }
   if (isScalarType(type)) {
@@ -153,14 +176,18 @@ function transformNode(
     if (jsonSchemaType) {
       return {
         type: jsonSchemaType,
-        nullable: true,
+        nullable: true
       } as StringSchema | NumberSchema | BooleanSchema | IntegerSchema;
     }
   }
   if (isAbstractType(type)) {
     return exeContext.schema.getPossibleTypes(type).reduce(
       (res, t) => {
-        const jsonSchema = transformNode(exeContext, fieldNodes, t) as ObjectSchema;
+        const jsonSchema = transformNode(
+          exeContext,
+          fieldNodes,
+          t
+        ) as ObjectSchema;
         res.properties = { ...res.properties, ...jsonSchema.properties };
         return res;
       },

@@ -62,7 +62,10 @@ import {
 const inspect = createInspect();
 
 export interface CompilerOptions {
-  fastJson?: (schema: ObjectSchema, options?: FastJSONOptions) => (doc: string) => string;
+  fastJson?: (
+    schema: ObjectSchema,
+    options?: FastJSONOptions
+  ) => (doc: string) => string;
 
   // Disable builtin scalars and enum serialization
   // which is responsible for coercion,
@@ -208,7 +211,7 @@ export function compileQuery(
       fastJson: undefined,
       customSerializers: {},
       ...partialOptions
-    }
+    };
 
     // If a valid context cannot be created due to incorrect arguments,
     // a "Response" with only errors is returned.
