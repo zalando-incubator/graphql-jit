@@ -14,11 +14,11 @@ import {
   isObjectType,
   isScalarType
 } from "graphql";
-import { ObjectSchema, StringSchema, ArraySchema, NumberSchema, BooleanSchema, IntegerSchema, NullSchema } from 'fast-json-stringify'
+import { ObjectSchema, ArraySchema, StringSchema, NumberSchema, BooleanSchema, IntegerSchema, NullSchema, Schema } from 'fast-json-stringify'
 import { collectFields, ExecutionContext } from "graphql/execution/execute";
 import { collectSubfields, resolveFieldDef } from "./ast";
 
-const PRIMITIVES: { [key: string]: "integer" | "number" | "string" | "boolean" } = {
+const PRIMITIVES: { [key: string]: (StringSchema | NumberSchema | BooleanSchema | IntegerSchema)['type'] } = {
   Int: "integer",
   Float: "number",
   String: "string",
@@ -103,7 +103,7 @@ function transformNode(
   exeContext: ExecutionContext,
   fieldNodes: FieldNode[],
   type: GraphQLType
-): any {
+): ObjectSchema | ArraySchema | StringSchema | NumberSchema | BooleanSchema | IntegerSchema | NullSchema {
   if (isObjectType(type)) {
     const subfields = collectSubfields(exeContext, type, fieldNodes);
     const properties = Object.create(null);
@@ -139,7 +139,7 @@ function transformNode(
   }
   if (isNonNullType(type)) {
     const nullable = transformNode(exeContext, fieldNodes, type.ofType);
-    delete nullable.nullable;
+    if ('nullable' in nullable) delete nullable.nullable;
     return nullable;
   }
   if (isEnumType(type)) {
@@ -150,13 +150,12 @@ function transformNode(
   }
   if (isScalarType(type)) {
     const jsonSchemaType = PRIMITIVES[type.name];
-    if (!jsonSchemaType) {
-      return {}
+    if (jsonSchemaType) {
+      return {
+        type: jsonSchemaType,
+        nullable: true,
+      } as StringSchema | NumberSchema | BooleanSchema | IntegerSchema;
     }
-    return {
-      type: jsonSchemaType,
-      nullable: true,
-    };
   }
   if (isAbstractType(type)) {
     return exeContext.schema.getPossibleTypes(type).reduce(
