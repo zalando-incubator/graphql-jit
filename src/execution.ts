@@ -202,11 +202,13 @@ export function compileQuery(
     throw new Error("resolverInfoEnricher must be a function");
   }
   try {
-    const options = Object.assign(partialOptions || {}, {
+    const options = {
       disablingCapturingStackErrors: false,
       disableLeafSerialization: false,
+      fastJson: undefined,
       customSerializers: {},
-    })
+      ...partialOptions
+    }
 
     // If a valid context cannot be created due to incorrect arguments,
     // a "Response" with only errors is returned.
