@@ -14,12 +14,11 @@ import {
   isObjectType,
   isScalarType
 } from "graphql";
-import { ObjectSchema } from 'fast-json-stringify'
+import { ObjectSchema, StringSchema, ArraySchema, NumberSchema, BooleanSchema, IntegerSchema, NullSchema } from 'fast-json-stringify'
 import { collectFields, ExecutionContext } from "graphql/execution/execute";
-import { JSONSchema6, JSONSchema6TypeName } from "json-schema";
 import { collectSubfields, resolveFieldDef } from "./ast";
 
-const PRIMITIVES: { [key: string]: JSONSchema6TypeName } = {
+const PRIMITIVES: { [key: string]: "integer" | "number" | "string" | "boolean" } = {
   Int: "integer",
   Float: "number",
   String: "string",
@@ -104,7 +103,7 @@ function transformNode(
   exeContext: ExecutionContext,
   fieldNodes: FieldNode[],
   type: GraphQLType
-): JSONSchema6 {
+): any {
   if (isObjectType(type)) {
     const subfields = collectSubfields(exeContext, type, fieldNodes);
     const properties = Object.create(null);
@@ -126,52 +125,51 @@ function transformNode(
       );
     }
     return {
-      type: ["object", "null"],
+      type: "object",
+      nullable: true,
       properties
     };
   }
   if (isListType(type)) {
     return {
-      type: ["array", "null"],
+      type: "array",
+      nullable: true,
       items: transformNode(exeContext, fieldNodes, type.ofType)
     };
   }
   if (isNonNullType(type)) {
     const nullable = transformNode(exeContext, fieldNodes, type.ofType);
-    if (nullable.type && Array.isArray(nullable.type)) {
-      const nonNullable = nullable.type.filter(x => x !== "null");
-      return {
-        ...nullable,
-        type: nonNullable.length === 1 ? nonNullable[0] : nonNullable
-      };
-    }
-    return {};
+    delete nullable.nullable;
+    return nullable;
   }
   if (isEnumType(type)) {
     return {
-      type: ["string", "null"]
+      type: "string",
+      nullable: true,
     };
   }
   if (isScalarType(type)) {
     const jsonSchemaType = PRIMITIVES[type.name];
     if (!jsonSchemaType) {
-      return {};
+      return {}
     }
     return {
-      type: [jsonSchemaType, "null"]
+      type: jsonSchemaType,
+      nullable: true,
     };
   }
   if (isAbstractType(type)) {
     return exeContext.schema.getPossibleTypes(type).reduce(
       (res, t) => {
-        const jsonSchema = transformNode(exeContext, fieldNodes, t);
+        const jsonSchema = transformNode(exeContext, fieldNodes, t) as ObjectSchema;
         res.properties = { ...res.properties, ...jsonSchema.properties };
         return res;
       },
       {
-        type: ["object", "null"],
+        type: "object",
+        nullable: true,
         properties: {}
-      } as JSONSchema6
+      }
     );
   }
   throw new Error(`Got unhandled type: ${type.name}`);
