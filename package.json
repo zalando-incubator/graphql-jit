@@ -62,6 +62,7 @@
     "@types/node": "^10.11.7",
     "benchmark": "^2.1.4",
     "codecov": "^3.3.0",
+    "fast-json-stringify": "^2.0.1",
     "graphql": "^15.0.0",
     "graphql-tools": "^4.0.4",
     "jest": "^24.7.1",
@@ -75,7 +76,6 @@
     "typescript": "^3.4.2"
   },
   "dependencies": {
-    "fast-json-stringify": "^1.13.0",
     "generate-function": "^2.3.1",
     "json-schema": "^0.2.3",
     "lodash.memoize": "^4.1.2",
