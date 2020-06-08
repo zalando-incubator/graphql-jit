@@ -14,6 +14,7 @@ import {
   isObjectType,
   isScalarType
 } from "graphql";
+import { ObjectSchema } from 'fast-json-stringify'
 import { collectFields, ExecutionContext } from "graphql/execution/execute";
 import { JSONSchema6, JSONSchema6TypeName } from "json-schema";
 import { collectSubfields, resolveFieldDef } from "./ast";
@@ -32,7 +33,7 @@ const PRIMITIVES: { [key: string]: JSONSchema6TypeName } = {
  * @param exeContext
  * @return     {object}  A plain JavaScript object which conforms to JSON Schema
  */
-export function queryToJSONSchema(exeContext: ExecutionContext): JSONSchema6 {
+export function queryToJSONSchema(exeContext: ExecutionContext): ObjectSchema {
   const type = getOperationRootType(exeContext.schema, exeContext.operation);
   const fields = collectFields(
     exeContext,
@@ -59,8 +60,9 @@ export function queryToJSONSchema(exeContext: ExecutionContext): JSONSchema6 {
     type: "object",
     properties: {
       data: {
-        type: ["object", "null"],
-        properties: fieldProperties
+        type: "object",
+        properties: fieldProperties,
+        nullable: true
       },
       errors: {
         type: "array",

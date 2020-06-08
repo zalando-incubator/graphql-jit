@@ -1,4 +1,4 @@
-import fastJson from "fast-json-stringify";
+import { ObjectSchema, Options as FastJSONOptions } from "fast-json-stringify";
 import {
   ASTNode,
   DocumentNode,
@@ -62,7 +62,7 @@ import {
 const inspect = createInspect();
 
 export interface CompilerOptions {
-  customJSONSerializer: boolean;
+  fastJson?: (schema: ObjectSchema, options?: FastJSONOptions) => (doc: string) => string;
 
   // Disable builtin scalars and enum serialization
   // which is responsible for coercion,
@@ -202,13 +202,11 @@ export function compileQuery(
     throw new Error("resolverInfoEnricher must be a function");
   }
   try {
-    const options = {
+    const options = Object.assign(partialOptions || {}, {
       disablingCapturingStackErrors: false,
-      customJSONSerializer: false,
       disableLeafSerialization: false,
       customSerializers: {},
-      ...partialOptions
-    };
+    })
 
     // If a valid context cannot be created due to incorrect arguments,
     // a "Response" with only errors is returned.
@@ -220,9 +218,9 @@ export function compileQuery(
     );
 
     let stringify: (v: any) => string;
-    if (options.customJSONSerializer) {
+    if (options.fastJson) {
       const jsonSchema = queryToJSONSchema(context);
-      stringify = fastJson(jsonSchema);
+      stringify = options.fastJson(jsonSchema);
     } else {
       stringify = JSON.stringify;
     }
