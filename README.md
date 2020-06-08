@@ -118,7 +118,7 @@ the compiled function that can be called with a root value, a context and the re
 
 #### compiledQuery.stringify(value: any)
 
-the compiled function for producing a JSON string. It will be `JSON.stringify` unless `compilerOptions.customJSONSerializer` is true.
+the compiled function for producing a JSON string. It will be `JSON.stringify` unless `compilerOptions.fastJson` is set.
 The value argument should the return of the compiled GraphQL function.
 
 ## LICENSE
