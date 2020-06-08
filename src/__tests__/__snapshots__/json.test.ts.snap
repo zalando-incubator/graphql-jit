@@ -4,6 +4,7 @@ exports[`json schema creator json schema creation 1`] = `
 Object {
   "properties": Object {
     "data": Object {
+      "nullable": true,
       "properties": Object {
         "article": Object {
           "properties": Object {
@@ -127,10 +128,7 @@ Object {
           ],
         },
       },
-      "type": Array [
-        "object",
-        "null",
-      ],
+      "type": "object",
     },
     "errors": Object {
       "items": Object {

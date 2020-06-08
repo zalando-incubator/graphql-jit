@@ -148,16 +148,14 @@ describe("json schema creator", () => {
     });
     test("valid response serialization", async () => {
       const prepared: any = compileQuery(blogSchema, parse(query), "", {
-        customJSONSerializer: true
+        fastJson: require('fast-json-stringify')
       });
       const response = await prepared.query(undefined, undefined, {});
       expect(prepared.stringify).not.toBe(JSON.stringify);
       expect(prepared.stringify(response)).toEqual(JSON.stringify(response));
     });
     test("valid response serialization 2", async () => {
-      const prepared: any = compileQuery(blogSchema, parse(query), "", {
-        customJSONSerializer: false
-      });
+      const prepared: any = compileQuery(blogSchema, parse(query), "");
       expect(prepared.stringify).toBe(JSON.stringify);
     });
     test("error response serialization", async () => {
