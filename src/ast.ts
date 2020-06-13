@@ -335,7 +335,7 @@ export function getArgumentDefs(
 
 interface MissingVariablePath {
   valueNode: VariableNode;
-  path: ObjectPath;
+  path?: ObjectPath;
   argument?: { definition: GraphQLArgument; node: ArgumentNode };
 }
 
