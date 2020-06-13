@@ -59,7 +59,7 @@
     "@types/lodash.memoize": "^4.1.6",
     "@types/lodash.merge": "^4.6.6",
     "@types/lodash.mergewith": "^4.6.6",
-    "@types/node": "^10.11.7",
+    "@types/node": "^10.17.26",
     "benchmark": "^2.1.4",
     "codecov": "^3.3.0",
     "graphql": "^15.0.0",
