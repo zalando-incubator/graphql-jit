@@ -72,7 +72,7 @@
     "tslint": "^5.15.0",
     "tslint-config-prettier": "^1.18.0",
     "tslint-plugin-prettier": "^2.0.1",
-    "typescript": "^3.4.2"
+    "typescript": "^3.9.5"
   },
   "dependencies": {
     "fast-json-stringify": "^1.13.0",
