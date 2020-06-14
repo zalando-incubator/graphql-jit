@@ -1130,7 +1130,10 @@ function getValidArgumentsVarName(prefixName: string) {
   return `${prefixName}ValidArgs`;
 }
 
-function objectPath(topLevel: string, path: ObjectPath) {
+function objectPath(topLevel: string, path?: ObjectPath) {
+  if (!path) {
+    return topLevel;
+  }
   let objectPath = topLevel;
   const flattened = flattenPath(path);
   for (const section of flattened) {
