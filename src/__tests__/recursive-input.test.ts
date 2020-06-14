@@ -50,11 +50,6 @@ describe("recursive input types", () => {
       );
     });
 
-    // Reminder to self
-    // TODO(boopathi): write tests to handle same value inputs
-    // { foo: 3, bar: 3 }
-    // Solution: object types only
-
     test("should not fail with variables using recursive input types", () => {
       const document = parse(`
         query ($f: FooInput) {
@@ -177,6 +172,48 @@ describe("recursive input types", () => {
       expect(result.errors[0].message).toBe(
         "Circular reference detected in input variable '$f' at foo.foo"
       );
+    });
+  });
+
+  describe("simple recursive input - 2", () => {
+    const schema = makeExecutableSchema({
+      typeDefs: `
+        type Query {
+          foo(input: FooInput): String
+        }
+        input FooInput {
+          foo: FooInput
+          bar: String
+        }
+      `,
+      resolvers: {
+        Query: {
+          foo(_, args) {
+            // used as the actual value in test matchers
+            return JSON.stringify(args);
+          }
+        }
+      }
+    });
+
+    test("should nòt fail for same leaf values", () => {
+      const document = parse(`
+        query ($f: FooInput) {
+          foo(input: $f)
+        }
+      `);
+      const variables = {
+        f: {
+          foo: {
+            bar: "bar"
+          },
+          bar: "bar"
+        }
+      };
+
+      const result = executeQuery(schema, document, variables);
+      expect(result.errors).toBeUndefined();
+      expect(JSON.parse(result.data.foo).input).toEqual(variables.f);
     });
   });
 
