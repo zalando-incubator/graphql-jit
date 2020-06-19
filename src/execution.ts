@@ -28,26 +28,25 @@ import {
   Kind,
   TypeNameMetaFieldDef
 } from "graphql";
-import zip from "lodash.zip";
 import { ExecutionContext as GraphQLContext } from "graphql/execution/execute";
 import {
+  DirectiveNode,
   FieldNode,
-  OperationDefinitionNode,
-  DirectiveNode
+  OperationDefinitionNode
 } from "graphql/language/ast";
 import Maybe from "graphql/tsutils/Maybe";
 import { GraphQLTypeResolver } from "graphql/type/definition";
 import {
   addPath,
   Arguments,
+  collectFields,
   collectSubfields,
   computeLocations,
   flattenPath,
   getArgumentDefs,
-  ObjectPath,
-  resolveFieldDef,
   JitFieldNode,
-  collectFields
+  ObjectPath,
+  resolveFieldDef
 } from "./ast";
 import { GraphQLError as GraphqlJitError } from "./error";
 import createInspect from "./inspect";
@@ -125,11 +124,9 @@ const GRAPHQL_ERROR = "__context.GraphQLError";
 const GLOBAL_RESOLVE = "__context.resolve";
 const GLOBAL_PARENT_NAME = "__parent";
 const LOCAL_JS_FIELD_NAME_PREFIX = "__field";
-const GLOBAL_MAKE_OBJECT_NAME = "__makeObject";
 
 const LOCAL_OBJECT_VAR_NAME = "__object";
 const LOCAL_IS_SKIPPED_NAME = "__isSkipped";
-const LOCAL_SOURCE_NAME = "__source";
 
 interface ExecutionContext {
   promiseCounter: number;
@@ -795,13 +792,13 @@ function compileObjectType(
       const ${isSkippedName} = [];
     `;
 
-    let counters = {
+    const counters = {
       directives: 0
     };
 
     if (responsePath != null) {
       for (const fieldNode of fieldNodes) {
-        let compiledFragmentDirectives: string | undefined = undefined;
+        let compiledFragmentDirectives: string | undefined;
 
         if (
           fieldNode.fragmentDirectives != null &&
@@ -1261,8 +1258,8 @@ function compileSkipIncludeDirectives(
     body: string;
   }
 
-  let compiledSkip: CompiledDirective | undefined = undefined;
-  let compiledInclude: CompiledDirective | undefined = undefined;
+  let compiledSkip: CompiledDirective | undefined;
+  let compiledInclude: CompiledDirective | undefined;
 
   for (const directive of directiveNodes) {
     if (directive.name.value === "skip" || directive.name.value === "include") {
@@ -1320,7 +1317,8 @@ function compileSkipIncludeDirectives(
       }
     `;
   } else {
-    console.log("No skip or include directive for", fieldName);
+    // tslint:disable-next-line:no-console
+    console.warn("No skip or include directive for", fieldName);
   }
 
   return body;

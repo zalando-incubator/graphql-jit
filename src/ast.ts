@@ -52,7 +52,7 @@ export function collectFields(
   selectionSet: SelectionSetNode,
   fields: { [key: string]: JitFieldNode[] },
   // The directives on fragments along the field's path in query
-  fragmentDirectives?: Array<Array<DirectiveNode>>
+  fragmentDirectives?: DirectiveNode[][]
 ): { [key: string]: JitFieldNode[] } {
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
