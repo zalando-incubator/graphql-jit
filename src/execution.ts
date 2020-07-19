@@ -47,7 +47,6 @@ import {
 } from "./ast";
 import { GraphQLError as GraphqlJitError } from "./error";
 import createInspect from "./inspect";
-import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
 import {
   createResolveInfoThunk,
@@ -58,11 +57,12 @@ import {
   compileVariableParsing,
   failToParseVariables
 } from "./variables";
+import { options } from "benchmark";
 
 const inspect = createInspect();
 
 export interface CompilerOptions {
-  customJSONSerializer: boolean;
+  customJSONSerializer: boolean | ((executionContext: CompilationContext) => (v: any) => string);
 
   // Disable builtin scalars and enum serialization
   // which is responsible for coercion,
@@ -201,6 +201,14 @@ export function compileQuery(
   ) {
     throw new Error("resolverInfoEnricher must be a function");
   }
+
+  if (
+    partialOptions &&
+    partialOptions.customJSONSerializer === true
+  ) {
+    throw new Error("customJSONSerializer must either be false or a function that returns a custom JSON serializer");
+  }
+
   try {
     const options = {
       disablingCapturingStackErrors: false,
@@ -220,12 +228,12 @@ export function compileQuery(
     );
 
     let stringify: (v: any) => string;
-    if (options.customJSONSerializer) {
-      const jsonSchema = queryToJSONSchema(context);
-      stringify = fastJson(jsonSchema);
+    if (typeof options.customJSONSerializer === 'function') {
+      stringify = options.customJSONSerializer(context);
     } else {
       stringify = JSON.stringify;
     }
+
     const getVariables = compileVariableParsing(
       schema,
       context.operation.variableDefinitions || []
@@ -242,7 +250,7 @@ export function compileQuery(
           ? context.operation.name.value
           : undefined
       ),
-      stringify
+      stringify,
     };
     if ((options as any).debug) {
       // result of the compilation useful for debugging issues
