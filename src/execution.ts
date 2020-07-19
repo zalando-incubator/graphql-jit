@@ -1,4 +1,3 @@
-import fastJson from "fast-json-stringify";
 import {
   ASTNode,
   DocumentNode,
@@ -57,12 +56,13 @@ import {
   compileVariableParsing,
   failToParseVariables
 } from "./variables";
-import { options } from "benchmark";
 
 const inspect = createInspect();
 
 export interface CompilerOptions {
-  customJSONSerializer: boolean | ((executionContext: CompilationContext) => (v: any) => string);
+  customJSONSerializer:
+    | boolean
+    | ((executionContext: CompilationContext) => (v: any) => string);
 
   // Disable builtin scalars and enum serialization
   // which is responsible for coercion,
@@ -202,11 +202,10 @@ export function compileQuery(
     throw new Error("resolverInfoEnricher must be a function");
   }
 
-  if (
-    partialOptions &&
-    partialOptions.customJSONSerializer === true
-  ) {
-    throw new Error("customJSONSerializer must either be false or a function that returns a custom JSON serializer");
+  if (partialOptions && partialOptions.customJSONSerializer === true) {
+    throw new Error(
+      "customJSONSerializer must either be false or a function that returns a custom JSON serializer"
+    );
   }
 
   try {
@@ -228,7 +227,7 @@ export function compileQuery(
     );
 
     let stringify: (v: any) => string;
-    if (typeof options.customJSONSerializer === 'function') {
+    if (typeof options.customJSONSerializer === "function") {
       stringify = options.customJSONSerializer(context);
     } else {
       stringify = JSON.stringify;
@@ -250,7 +249,7 @@ export function compileQuery(
           ? context.operation.name.value
           : undefined
       ),
-      stringify,
+      stringify
     };
     if ((options as any).debug) {
       // result of the compilation useful for debugging issues

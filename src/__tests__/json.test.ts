@@ -10,49 +10,49 @@ import {
   GraphQLSchema,
   GraphQLString,
   parse,
-  GraphQLInt,
+  GraphQLInt
 } from "graphql";
 import { buildExecutionContext } from "graphql/execution/execute";
 import { compileQuery } from "../index";
 
 const responseSchema = {
   data: {
-    type: 'object',
-    'nullable': true,
+    type: "object",
+    nullable: true,
     additionalProperties: true
   },
   errors: {
-    type: 'array',
+    type: "array",
     items: {
-      type: 'object',
-      required: ['message'],
+      type: "object",
+      required: ["message"],
       properties: {
-        message: { type: 'string' },
+        message: { type: "string" },
         locations: {
-          type: 'array',
+          type: "array",
           items: {
-            type: 'object',
+            type: "object",
             properties: {
-              line: { type: 'integer' },
-              column: { type: 'integer' }
+              line: { type: "integer" },
+              column: { type: "integer" }
             }
           }
         },
         path: {
-          type: 'array',
-          items: { type: 'string' }
+          type: "array",
+          items: { type: "string" }
         },
         extensions: {
-          type: 'object',
+          type: "object",
           properties: {
-            code: { type: 'string' }
+            code: { type: "string" }
           },
           additionalProperties: true
         }
       }
     }
   }
-}
+};
 
 describe("json schema creator", () => {
   const BlogAuthor = new GraphQLObjectType({
@@ -180,10 +180,10 @@ describe("json schema creator", () => {
       const prepared: any = compileQuery(blogSchema, parse(query), "", {
         customJSONSerializer: () => {
           return fastJson({
-            type: 'object',
+            type: "object",
             // @ts-ignore
             properties: responseSchema
-          })
+          });
         }
       });
       const response = await prepared.query(undefined, undefined, {});
@@ -201,16 +201,18 @@ describe("json schema creator", () => {
         const prepared: any = compileQuery(blogSchema, parse(query), "", {
           customJSONSerializer: true
         });
-      }).toThrow("customJSONSerializer must either be false or a function that returns a custom JSON serializer")
-    })
+      }).toThrow(
+        "customJSONSerializer must either be false or a function that returns a custom JSON serializer"
+      );
+    });
     test("error response serialization", async () => {
       const prepared: any = compileQuery(blogSchema, parse(query), "", {
         customJSONSerializer: () => {
           return fastJson({
-            type: 'object',
+            type: "object",
             // @ts-ignore
             properties: responseSchema
-          })
+          });
         }
       });
       const response = {
