@@ -62,7 +62,7 @@ const inspect = createInspect();
 export interface CompilerOptions {
   customJSONSerializer:
     | boolean
-    | ((executionContext: CompilationContext) => (v: any) => string);
+    | ((context: CompilationContext) => (v: any) => string);
 
   // Disable builtin scalars and enum serialization
   // which is responsible for coercion,
