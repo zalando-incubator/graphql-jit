@@ -1,4 +1,12 @@
-import fastJson, { ObjectSchema, ArraySchema, StringSchema, NumberSchema, BooleanSchema, IntegerSchema, NullSchema } from "fast-json-stringify";
+import fastJson, {
+  ObjectSchema,
+  ArraySchema,
+  StringSchema,
+  NumberSchema,
+  BooleanSchema,
+  IntegerSchema,
+  NullSchema
+} from "fast-json-stringify";
 import {
   formatError,
   GraphQLBoolean,
@@ -308,7 +316,7 @@ describe("json schema creator", () => {
   describe("custom json serializer", () => {
     test("valid response serialization", async () => {
       const prepared: any = compileQuery(blogSchema, parse(query), "", {
-        customJSONSerializer: (compiledContext) => {
+        customJSONSerializer: compiledContext => {
           return fastJson(queryToJSONSchema(compiledContext));
         }
       });
@@ -333,7 +341,7 @@ describe("json schema creator", () => {
     });
     test("error response serialization", async () => {
       const prepared: any = compileQuery(blogSchema, parse(query), "", {
-        customJSONSerializer: (compiledContext) => {
+        customJSONSerializer: compiledContext => {
           return fastJson(queryToJSONSchema(compiledContext));
         }
       });
