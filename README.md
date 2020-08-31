@@ -110,7 +110,7 @@ Compiles the `document` AST, using an optional operationName and compiler option
     so this option should only be set to true if there are strong assurances that the values are valid.
   - `customSerializers` {Object as Map, default: {}} - Replace serializer functions for specific types. Can be used as a safer alternative
     for overly expensive serializers
-  - `customJSONSerializer` {boolean, default: false} - Whether to produce also a JSON serializer function using `fast-json-stringify`. The default stringifier function is `JSON.stringify`
+  - `customJSONSerializer` {function, default: undefined} - A function to be called with [`CompilationContext`](https://github.com/zalando-incubator/graphql-jit/blob/master/src/execution.ts#L87) to produce also a JSON serializer function. The default stringifier function is `JSON.stringify`
 
 #### compiledQuery.compiled(root: any, context: any, variables: Maybe<{ [key: string]: any }>)
 
@@ -118,8 +118,8 @@ the compiled function that can be called with a root value, a context and the re
 
 #### compiledQuery.stringify(value: any)
 
-the compiled function for producing a JSON string. It will be `JSON.stringify` unless `compilerOptions.customJSONSerializer` is true.
-The value argument should the return of the compiled GraphQL function.
+the compiled function for producing a JSON string. It will be `JSON.stringify` unless `compilerOptions.customJSONSerializer` is a function.
+The value argument should be the return of the compiled GraphQL function.
 
 ## LICENSE
 

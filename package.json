@@ -55,13 +55,13 @@
     "@types/benchmark": "^1.0.31",
     "@types/graphql": "^14.2.0",
     "@types/jest": "^24.0.11",
-    "@types/json-schema": "^7.0.1",
     "@types/lodash.memoize": "^4.1.6",
     "@types/lodash.merge": "^4.6.6",
     "@types/lodash.mergewith": "^4.6.6",
     "@types/node": "^10.17.26",
     "benchmark": "^2.1.4",
     "codecov": "^3.3.0",
+    "fast-json-stringify": "^2.2.3",
     "graphql": "^15.0.0",
     "graphql-tools": "^4.0.4",
     "jest": "^24.7.1",
@@ -75,9 +75,7 @@
     "typescript": "^3.9.5"
   },
   "dependencies": {
-    "fast-json-stringify": "^1.13.0",
     "generate-function": "^2.3.1",
-    "json-schema": "^0.2.3",
     "lodash.memoize": "^4.1.2",
     "lodash.merge": "4.6.2",
     "lodash.mergewith": "4.6.2"

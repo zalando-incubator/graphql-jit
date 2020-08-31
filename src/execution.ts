@@ -1,4 +1,3 @@
-import fastJson from "fast-json-stringify";
 import {
   ASTNode,
   DocumentNode,
@@ -47,7 +46,6 @@ import {
 } from "./ast";
 import { GraphQLError as GraphqlJitError } from "./error";
 import createInspect from "./inspect";
-import { queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
 import {
   createResolveInfoThunk,
@@ -62,7 +60,7 @@ import {
 const inspect = createInspect();
 
 export interface CompilerOptions {
-  customJSONSerializer: boolean;
+  customJSONSerializer?: (context: CompilationContext) => (v: any) => string;
 
   // Disable builtin scalars and enum serialization
   // which is responsible for coercion,
@@ -201,10 +199,11 @@ export function compileQuery(
   ) {
     throw new Error("resolverInfoEnricher must be a function");
   }
+
   try {
     const options = {
       disablingCapturingStackErrors: false,
-      customJSONSerializer: false,
+      customJSONSerializer: undefined,
       disableLeafSerialization: false,
       customSerializers: {},
       ...partialOptions
@@ -221,11 +220,11 @@ export function compileQuery(
 
     let stringify: (v: any) => string;
     if (options.customJSONSerializer) {
-      const jsonSchema = queryToJSONSchema(context);
-      stringify = fastJson(jsonSchema);
+      stringify = options.customJSONSerializer(context);
     } else {
       stringify = JSON.stringify;
     }
+
     const getVariables = compileVariableParsing(
       schema,
       context.operation.variableDefinitions || []
