@@ -60,9 +60,7 @@ import {
 const inspect = createInspect();
 
 export interface CompilerOptions {
-  customJSONSerializer:
-    | boolean
-    | ((context: CompilationContext) => (v: any) => string);
+  customJSONSerializer?: ((context: CompilationContext) => (v: any) => string);
 
   // Disable builtin scalars and enum serialization
   // which is responsible for coercion,
@@ -202,16 +200,10 @@ export function compileQuery(
     throw new Error("resolverInfoEnricher must be a function");
   }
 
-  if (partialOptions && partialOptions.customJSONSerializer === true) {
-    throw new Error(
-      "customJSONSerializer must either be false or a function that returns a custom JSON serializer"
-    );
-  }
-
   try {
     const options = {
       disablingCapturingStackErrors: false,
-      customJSONSerializer: false,
+      customJSONSerializer: undefined,
       disableLeafSerialization: false,
       customSerializers: {},
       ...partialOptions
@@ -227,7 +219,7 @@ export function compileQuery(
     );
 
     let stringify: (v: any) => string;
-    if (typeof options.customJSONSerializer === "function") {
+    if (options.customJSONSerializer) {
       stringify = options.customJSONSerializer(context);
     } else {
       stringify = JSON.stringify;

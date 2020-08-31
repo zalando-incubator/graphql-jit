@@ -325,19 +325,8 @@ describe("json schema creator", () => {
       expect(prepared.stringify(response)).toEqual(JSON.stringify(response));
     });
     test("valid response serialization 2", async () => {
-      const prepared: any = compileQuery(blogSchema, parse(query), "", {
-        customJSONSerializer: false
-      });
+      const prepared: any = compileQuery(blogSchema, parse(query), "");
       expect(prepared.stringify).toBe(JSON.stringify);
-    });
-    test("throws if customJSONSerializer is true", async () => {
-      expect(() => {
-        const prepared: any = compileQuery(blogSchema, parse(query), "", {
-          customJSONSerializer: true
-        });
-      }).toThrow(
-        "customJSONSerializer must either be false or a function that returns a custom JSON serializer"
-      );
     });
     test("error response serialization", async () => {
       const prepared: any = compileQuery(blogSchema, parse(query), "", {
