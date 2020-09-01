@@ -1258,4 +1258,25 @@ describe("dx", () => {
     expect(isCompiledQuery(compiledQuery)).toBe(true);
     expect(compiledQuery.query.name).toBe("mockOperationName");
   });
+
+  test("function name of the bound query (subscription)", async () => {
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "TypeZ",
+        fields: {
+          a: { type: GraphQLString }
+        }
+      }),
+      subscription: new GraphQLObjectType({
+        name: "Type",
+        fields: {
+          a: { type: GraphQLString }
+        }
+      })
+    });
+    const document = parse(`subscription mockOperationName { a }`);
+    const compiledQuery = compileQuery(schema, document) as CompiledQuery;
+    expect(isCompiledQuery(compiledQuery)).toBe(true);
+    expect(compiledQuery.subscribe!.name).toBe("mockOperationName");
+  });
 });

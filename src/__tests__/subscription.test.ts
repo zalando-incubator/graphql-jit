@@ -1,3 +1,11 @@
+/**
+ * Based on https://github.com/graphql/graphql-js/blob/master/src/subscription/subscribe.js
+ * This test suite makes an addition denoted by "*" comments:
+ * graphql-jit does not support the root resolver pattern that this test uses
+ * so the part must be rewritten to include that root resolver in `subscribe` of
+ * the GraphQLObject in the schema.
+ */
+
 import { EventEmitter } from "events";
 import {
   GraphQLObjectType,
@@ -8,7 +16,6 @@ import {
   GraphQLSchema,
   parse,
   DocumentNode,
-  createSourceEventStream,
   GraphQLError,
   SubscriptionArgs,
   ExecutionResult
@@ -16,11 +23,7 @@ import {
 import { compileQuery, isCompiledQuery } from "../execution";
 
 const deepStrictEqual = (actual: any, expected: any) => {
-  return expect(actual).toEqual(expected);
-  //if (actual.value?.errors)
-  //  actual.value.errors = actual.value.errors.map(formatError);
-  //if (actual.errors) actual.errors = actual.errors.map(formatError);
-  //return deepStrictEquall(actual, expected);
+  expect(actual).toEqual(expected);
 };
 
 const strictEqual = (actual: any, expected: any) => {
@@ -94,7 +97,6 @@ async function subscribe({
 }: SubscriptionArgs): Promise<
   AsyncIterator<ExecutionResult> | ExecutionResult
 > {
-  // Will be change in the next version
   const prepared = compileQuery(schema, document, operationName || "");
   if (!isCompiledQuery(prepared)) return prepared;
   return prepared.subscribe!(rootValue, contextValue, variableValues || {});
@@ -181,7 +183,7 @@ const defaultSubscriptionAST = parse(`
 
 async function createSubscription(
   pubsub: EventEmitter,
-  schema: GraphQLSchema = emailSchema,
+  schema?: GraphQLSchema,
   document: DocumentNode = defaultSubscriptionAST
 ) {
   const data = {
@@ -199,6 +201,13 @@ async function createSubscription(
       return eventEmitterAsyncIterator(pubsub, "importantEmail");
     }
   };
+
+  if (!schema) {
+    // *
+    schema = emailSchemaWithResolvers(() =>
+      eventEmitterAsyncIterator(pubsub, "importantEmail")
+    );
+  }
 
   function sendImportantEmail(newEmail: any) {
     data.inbox.emails.push(newEmail);
@@ -245,7 +254,8 @@ describe("Subscription Initialization Phase", () => {
     }
 
     const ai = await subscribe({
-      schema: emailSchema,
+      // *
+      schema: emailSchemaWithResolvers(emptyAsyncIterator),
       document,
       rootValue: {
         importantEmail: emptyAsyncIterator
@@ -263,8 +273,16 @@ describe("Subscription Initialization Phase", () => {
     const SubscriptionTypeMultiple = new GraphQLObjectType({
       name: "Subscription",
       fields: {
-        importantEmail: { type: EmailEventType },
-        nonImportantEmail: { type: EmailEventType }
+        // *
+        importantEmail: {
+          type: EmailEventType,
+          subscribe: () => eventEmitterAsyncIterator(pubsub, "importantEmail")
+        },
+        nonImportantEmail: {
+          type: EmailEventType,
+          subscribe: () =>
+            eventEmitterAsyncIterator(pubsub, "nonImportantEmail")
+        }
       }
     });
 
@@ -421,8 +439,7 @@ describe("Subscription Initialization Phase", () => {
     deepStrictEqual(subscription, {
       errors: [
         {
-          // NOTE: Different
-          message: 'Cannot query field "unknownField" on type "Subscription".',
+          message: 'The subscription field "unknownField" is not defined.',
           locations: [{ line: 3, column: 9 }]
         }
       ]
@@ -526,20 +543,20 @@ describe("Subscription Initialization Phase", () => {
 
     async function testReportsError(schema: GraphQLSchema) {
       // Promise<AsyncIterable<ExecutionResult> | ExecutionResult>
-      const result = await createSourceEventStream(
+      const result = await subscribe({
         schema,
-        parse(`
-          subscription {
-            importantEmail
-          }
-        `)
-      );
+        document: parse(`
+        subscription {
+          importantEmail
+        }
+      `)
+      });
 
       deepStrictEqual(result, {
         errors: [
           {
             message: "test error",
-            locations: [{ line: 3, column: 13 }],
+            locations: [{ column: 13, line: 3 }],
             path: ["importantEmail"]
           }
         ]
@@ -575,8 +592,9 @@ describe("Subscription Initialization Phase", () => {
     deepStrictEqual(result, {
       errors: [
         {
+          // Different
           message:
-            'Variable "$priority" got invalid value "meow"; Int cannot represent non-integer value: "meow"',
+            'Variable "$priority" got invalid value "meow"; Expected type Int; Int cannot represent non-integer value: "meow"',
           locations: [{ line: 2, column: 21 }]
         }
       ]
