@@ -382,17 +382,20 @@ async function executeSubscription(
   // TODO: rootValue resolver and value is not supported
   const subscriber = fieldDef.subscribe;
 
-  const eventStream =
-    subscriber &&
-    (await subscriber(
-      context.rootValue,
-      context.variables,
-      context.context,
-      resolveInfo
-    ));
+  let eventStream;
 
-  if (eventStream instanceof Error) {
-    throw locatedError(eventStream, fieldNodes, pathToArray(responsePath));
+  try {
+    eventStream =
+      subscriber &&
+      (await subscriber(
+        context.rootValue,
+        context.variables,
+        context.context,
+        resolveInfo
+      ));
+    if (eventStream instanceof Error) throw eventStream;
+  } catch (error) {
+    throw locatedError(error, fieldNodes, pathToArray(responsePath));
   }
 
   if (!isAsyncIterable(eventStream)) {
