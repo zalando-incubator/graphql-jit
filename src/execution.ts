@@ -26,8 +26,8 @@ import {
   isObjectType,
   isSpecifiedScalarType,
   Kind,
-  TypeNameMetaFieldDef,
-  locatedError
+  locatedError,
+  TypeNameMetaFieldDef
 } from "graphql";
 import {
   collectFields,
@@ -35,10 +35,11 @@ import {
   getFieldDef
 } from "graphql/execution/execute";
 import { FieldNode, OperationDefinitionNode } from "graphql/language/ast";
+import mapAsyncIterator from "graphql/subscription/mapAsyncIterator";
 import Maybe from "graphql/tsutils/Maybe";
 import { GraphQLTypeResolver } from "graphql/type/definition";
-import mapAsyncIterator from "graphql/subscription/mapAsyncIterator";
 
+import { pathToArray } from "graphql/jsutils/Path";
 import {
   addPath,
   Arguments,
@@ -62,7 +63,6 @@ import {
   compileVariableParsing,
   failToParseVariables
 } from "./variables";
-import { pathToArray } from "graphql/jsutils/Path";
 
 const inspect = createInspect();
 
@@ -390,7 +390,7 @@ async function executeSubscription(
         context.context,
         resolveInfo
       ));
-    if (eventStream instanceof Error) throw eventStream;
+    if (eventStream instanceof Error) { throw eventStream; }
   } catch (error) {
     throw locatedError(error, fieldNodes, pathToArray(responsePath));
   }
@@ -411,8 +411,9 @@ function createBoundSubscribe(
   getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
   operationName: string | undefined
 ): CompiledQuery["subscribe"] | undefined {
-  if (compilationContext.operation.operation !== "subscription")
+  if (compilationContext.operation.operation !== "subscription") {
     return undefined;
+  }
 
   const {
     resolvers,
