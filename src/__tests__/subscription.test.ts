@@ -22,14 +22,6 @@ import {
 } from "graphql";
 import { compileQuery, isCompiledQuery } from "../execution";
 
-const deepStrictEqual = (actual: any, expected: any) => {
-  expect(actual).toEqual(expected);
-};
-
-const strictEqual = (actual: any, expected: any) => {
-  return expect(actual).toBe(expected);
-};
-
 function eventEmitterAsyncIterator(
   eventEmitter: EventEmitter,
   eventName: string
@@ -417,8 +409,8 @@ describe("Subscription Initialization Phase", () => {
     // @ts-ignore
     subscription.next(); // Ask for a result, but ignore it.
 
-    strictEqual(didResolveImportantEmail, true);
-    strictEqual(didResolveNonImportantEmail, false);
+    expect(didResolveImportantEmail).toBe(true);
+    expect(didResolveNonImportantEmail).toBe(false);
 
     // Close subscription
     // @ts-ignore
@@ -436,7 +428,7 @@ describe("Subscription Initialization Phase", () => {
 
     const { subscription } = await createSubscription(pubsub, emailSchema, ast);
 
-    deepStrictEqual(subscription, {
+    expect(subscription).toEqual({
       errors: [
         {
           message: 'The subscription field "unknownField" is not defined.',
@@ -504,7 +496,7 @@ describe("Subscription Initialization Phase", () => {
         `)
       });
 
-      deepStrictEqual(result, {
+      expect(result).toEqual({
         errors: [
           {
             message: "test error",
@@ -552,7 +544,7 @@ describe("Subscription Initialization Phase", () => {
       `)
       });
 
-      deepStrictEqual(result, {
+      expect(result).toEqual({
         errors: [
           {
             message: "test error",
@@ -589,7 +581,7 @@ describe("Subscription Initialization Phase", () => {
       variableValues: { priority: "meow" }
     });
 
-    deepStrictEqual(result, {
+    expect(result).toEqual({
       errors: [
         {
           // Different
@@ -617,15 +609,14 @@ describe("Subscription Publish Phase", () => {
     // @ts-ignore
     const payload2 = second.subscription.next();
 
-    strictEqual(
+    expect(
       sendImportantEmail({
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
         unread: true
-      }),
-      true
-    );
+      })
+    ).toBe(true);
 
     const expectedPayload = {
       done: false,
@@ -645,8 +636,8 @@ describe("Subscription Publish Phase", () => {
       }
     };
 
-    deepStrictEqual(await payload1, expectedPayload);
-    deepStrictEqual(await payload2, expectedPayload);
+    expect(await payload1).toEqual(expectedPayload);
+    expect(await payload2).toEqual(expectedPayload);
   });
 
   it("produces a payload per subscription event", async () => {
@@ -660,18 +651,17 @@ describe("Subscription Publish Phase", () => {
     const payload = subscription.next();
 
     // A new email arrives!
-    strictEqual(
+    expect(
       sendImportantEmail({
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
         unread: true
-      }),
-      true
-    );
+      })
+    ).toBe(true);
 
     // The previously waited on payload now has a value.
-    deepStrictEqual(await payload, {
+    expect(await payload).toEqual({
       done: false,
       value: {
         data: {
@@ -690,19 +680,18 @@ describe("Subscription Publish Phase", () => {
     });
 
     // Another new email arrives, before subscription.next() is called.
-    strictEqual(
+    expect(
       sendImportantEmail({
         from: "hyo@graphql.org",
         subject: "Tools",
         message: "I <3 making things",
         unread: true
-      }),
-      true
-    );
+      })
+    ).toBe(true);
 
     // The next waited on payload will have a value.
     // @ts-ignore
-    deepStrictEqual(await subscription.next(), {
+    expect(await subscription.next()).toEqual({
       done: false,
       value: {
         data: {
@@ -722,25 +711,24 @@ describe("Subscription Publish Phase", () => {
 
     // The client decides to disconnect.
     // @ts-ignore
-    deepStrictEqual(await subscription.return(), {
+    expect(await subscription.return()).toEqual({
       done: true,
       value: undefined
     });
 
     // Which may result in disconnecting upstream services as well.
-    strictEqual(
+    expect(
       sendImportantEmail({
         from: "adam@graphql.org",
         subject: "Important",
         message: "Read me please",
         unread: true
-      }),
-      false
-    ); // No more listeners.
+      })
+    ).toBe(false); // No more listeners.
 
     // Awaiting a subscription after closing it results in completed results.
     // @ts-ignore
-    deepStrictEqual(await subscription.next(), {
+    expect(await subscription.next()).toEqual({
       done: true,
       value: undefined
     });
@@ -755,17 +743,16 @@ describe("Subscription Publish Phase", () => {
     let payload = subscription.next();
 
     // A new email arrives!
-    strictEqual(
+    expect(
       sendImportantEmail({
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
         unread: true
-      }),
-      true
-    );
+      })
+    ).toBe(true);
 
-    deepStrictEqual(await payload, {
+    expect(await payload).toEqual({
       done: false,
       value: {
         data: {
@@ -787,17 +774,16 @@ describe("Subscription Publish Phase", () => {
     payload = subscription.next();
 
     // A new email arrives!
-    strictEqual(
+    expect(
       sendImportantEmail({
         from: "yuzhi@graphql.org",
         subject: "Alright 2",
         message: "Tests are good 2",
         unread: true
-      }),
-      true
-    );
+      })
+    ).toBe(true);
 
-    deepStrictEqual(await payload, {
+    expect(await payload).toEqual({
       done: false,
       value: {
         data: {
@@ -825,17 +811,16 @@ describe("Subscription Publish Phase", () => {
     let payload = subscription.next();
 
     // A new email arrives!
-    strictEqual(
+    expect(
       sendImportantEmail({
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
         unread: true
-      }),
-      true
-    );
+      })
+    ).toBe(true);
 
-    deepStrictEqual(await payload, {
+    expect(await payload).toEqual({
       done: false,
       value: {
         data: {
@@ -859,17 +844,16 @@ describe("Subscription Publish Phase", () => {
     subscription.return();
 
     // A new email arrives!
-    strictEqual(
+    expect(
       sendImportantEmail({
         from: "yuzhi@graphql.org",
         subject: "Alright 2",
         message: "Tests are good 2",
         unread: true
-      }),
-      false
-    );
+      })
+    ).toBe(false);
 
-    deepStrictEqual(await payload, {
+    expect(await payload).toEqual({
       done: true,
       value: undefined
     });
@@ -884,17 +868,16 @@ describe("Subscription Publish Phase", () => {
     let payload = subscription.next();
 
     // A new email arrives!
-    strictEqual(
+    expect(
       sendImportantEmail({
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
         unread: true
-      }),
-      true
-    );
+      })
+    ).toBe(true);
 
-    deepStrictEqual(await payload, {
+    expect(await payload).toEqual({
       done: false,
       value: {
         data: {
@@ -923,20 +906,19 @@ describe("Subscription Publish Phase", () => {
     } catch (e) {
       caughtError = e;
     }
-    strictEqual(caughtError, "ouch");
+    expect(caughtError).toBe("ouch");
 
     // A new email arrives!
-    strictEqual(
+    expect(
       sendImportantEmail({
         from: "yuzhi@graphql.org",
         subject: "Alright 2",
         message: "Tests are good 2",
         unread: true
-      }),
-      false
-    );
+      })
+    ).toBe(false);
 
-    deepStrictEqual(await payload, {
+    expect(await payload).toEqual({
       done: true,
       value: undefined
     });
@@ -951,28 +933,26 @@ describe("Subscription Publish Phase", () => {
     let payload = subscription.next();
 
     // A new email arrives!
-    strictEqual(
+    expect(
       sendImportantEmail({
         from: "yuzhi@graphql.org",
         subject: "Message",
         message: "Tests are good",
         unread: true
-      }),
-      true
-    );
+      })
+    ).toBe(true);
 
     // A new email arrives!
-    strictEqual(
+    expect(
       sendImportantEmail({
         from: "yuzhi@graphql.org",
         subject: "Message 2",
         message: "Tests are good 2",
         unread: true
-      }),
-      true
-    );
+      })
+    ).toBe(true);
 
-    deepStrictEqual(await payload, {
+    expect(await payload).toEqual({
       done: false,
       value: {
         data: {
@@ -993,7 +973,7 @@ describe("Subscription Publish Phase", () => {
     // @ts-ignore
     payload = subscription.next();
 
-    deepStrictEqual(await payload, {
+    expect(await payload).toEqual({
       done: false,
       value: {
         data: {
@@ -1042,7 +1022,7 @@ describe("Subscription Publish Phase", () => {
 
     // @ts-ignore
     const payload1 = await subscription.next();
-    deepStrictEqual(payload1, {
+    expect(payload1).toEqual({
       done: false,
       value: {
         data: {
@@ -1058,7 +1038,7 @@ describe("Subscription Publish Phase", () => {
     // An error in execution is presented as such.
     // @ts-ignore
     const payload2 = await subscription.next();
-    deepStrictEqual(payload2, {
+    expect(payload2).toEqual({
       done: false,
       value: {
         errors: [
@@ -1078,7 +1058,7 @@ describe("Subscription Publish Phase", () => {
     // events are still executed.
     // @ts-ignore
     const payload3 = await subscription.next();
-    deepStrictEqual(payload3, {
+    expect(payload3).toEqual({
       done: false,
       value: {
         data: {
@@ -1116,7 +1096,7 @@ describe("Subscription Publish Phase", () => {
 
     // @ts-ignore
     const payload1 = await subscription.next();
-    deepStrictEqual(payload1, {
+    expect(payload1).toEqual({
       done: false,
       value: {
         data: {
@@ -1137,12 +1117,12 @@ describe("Subscription Publish Phase", () => {
       expectedError = error;
     }
 
-    strictEqual(expectedError instanceof Error, true);
-    strictEqual("message" in expectedError, true);
+    expect(expectedError instanceof Error).toBe(true);
+    expect("message" in expectedError).toBe(true);
 
     // @ts-ignore
     const payload2 = await subscription.next();
-    deepStrictEqual(payload2, {
+    expect(payload2).toEqual({
       done: true,
       value: undefined
     });
@@ -1172,7 +1152,7 @@ describe("Subscription Publish Phase", () => {
 
     // @ts-ignore
     const payload1 = await subscription.next();
-    deepStrictEqual(payload1, {
+    expect(payload1).toEqual({
       done: false,
       value: {
         data: {
@@ -1187,7 +1167,7 @@ describe("Subscription Publish Phase", () => {
 
     // @ts-ignore
     const payload2 = await subscription.next();
-    deepStrictEqual(payload2, {
+    expect(payload2).toEqual({
       done: false,
       value: {
         errors: [
@@ -1200,7 +1180,7 @@ describe("Subscription Publish Phase", () => {
 
     // @ts-ignore
     const payload3 = await subscription.next();
-    deepStrictEqual(payload3, {
+    expect(payload3).toEqual({
       done: true,
       value: undefined
     });
