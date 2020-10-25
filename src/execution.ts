@@ -390,7 +390,9 @@ async function executeSubscription(
         context.context,
         resolveInfo
       ));
-    if (eventStream instanceof Error) { throw eventStream; }
+    if (eventStream instanceof Error) {
+      throw eventStream;
+    }
   } catch (error) {
     throw locatedError(error, fieldNodes, pathToArray(responsePath));
   }
