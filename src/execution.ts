@@ -33,7 +33,6 @@ import {
   ExecutionContext as GraphQLContext
 } from "graphql/execution/execute";
 import { FieldNode, OperationDefinitionNode } from "graphql/language/ast";
-import Maybe from "graphql/tsutils/Maybe";
 import { GraphQLTypeResolver } from "graphql/type/definition";
 import {
   addPath,
@@ -53,6 +52,7 @@ import {
   createResolveInfoThunk,
   ResolveInfoEnricherInput
 } from "./resolve-info";
+import { Maybe } from "./types";
 import {
   CoercedVariableValues,
   compileVariableParsing,
