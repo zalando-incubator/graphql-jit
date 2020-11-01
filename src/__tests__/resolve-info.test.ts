@@ -1,5 +1,5 @@
 import { DocumentNode, GraphQLSchema, parse, validate } from "graphql";
-import { makeExecutableSchema } from "graphql-tools";
+import { makeExecutableSchema } from "@graphql-tools/schema";
 import { compileQuery, isCompiledQuery } from "../execution";
 import { fieldExpansionEnricher } from "../resolve-info";
 
