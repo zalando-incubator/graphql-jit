@@ -768,6 +768,10 @@ function compileObjectType(
     )}), null) :`;
   }
 
+  /**
+   * iife is used to optionally attach different fields
+   * based on skip/include directives.
+   */
   const iifeBody = genFn();
 
   for (const name of Object.keys(fieldMap)) {
@@ -779,11 +783,32 @@ function compileObjectType(
       continue;
     }
 
+    /**
+     * The combined condition for whether a field should be included
+     * in the object.
+     *
+     * Here, the logical operation is `||` because every fieldNode
+     * is at the same level in the tree, if at least "one of" the nodes
+     * is included, then the field is included.
+     *
+     * For example,
+     *
+     * ```graphql
+     * {
+     *   foo @skip(if: $c1)
+     *   ... { foo @skip(if: $c2) }
+     * }
+     * ```
+     *
+     * The logic for `foo` becomes -
+     *
+     * `compilationFor($c1) || compilationFor($c2)`
+     */
     iifeBody(`
       if (${fieldNodes
-        .map(it => it.skipIncludeCode)
+        .map(it => it.__internalShouldInclude)
         .filter(it => it)
-        .join(" || ") || "true"}) {
+        .join(" || ") || /* if(true) - default */ "true"}) {
     `);
 
     // Name is the field name or an alias supplied by the user
@@ -837,6 +862,7 @@ function compileObjectType(
         )
       );
     }
+    // End if
     iifeBody("}");
   }
 

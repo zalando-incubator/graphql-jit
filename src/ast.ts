@@ -37,7 +37,7 @@ import createInspect from "./inspect";
 import { Maybe } from "./types";
 
 export interface JitFieldNode extends FieldNode {
-  skipIncludeCode?: string;
+  __internalShouldInclude?: string;
 }
 
 export interface FieldsAndNodes {
@@ -71,12 +71,8 @@ export function collectFields(
 }
 
 /**
- * Given a selectionSet, adds all of the fields in that selection to
- * the passed in map of fields, and returns it at the end.
- *
- * CollectFields requires the "runtime type" of an object. For a field which
- * returns an Interface or Union type, the "runtime type" will be the actual
- * Object type returned by that field.
+ * Implementation of collectFields defined above with extra parameters
+ * used for recursion and need not be exposed publically
  */
 function collectFieldsImpl(
   compilationContext: CompilationContext,
@@ -84,7 +80,7 @@ function collectFieldsImpl(
   selectionSet: SelectionSetNode,
   fields: FieldsAndNodes,
   visitedFragmentNames: { [key: string]: boolean },
-  previousSkipIncludeCode = ""
+  previousShouldInclude = ""
 ): FieldsAndNodes {
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
@@ -95,13 +91,37 @@ function collectFieldsImpl(
         }
         const fieldNode: JitFieldNode = selection;
 
-        // carry over fragment's skip and include code by prepending
-        fieldNode.skipIncludeCode = augmentSkipIncludeCode(
-          fieldNode.skipIncludeCode ?? "",
-          previousSkipIncludeCode,
-          genSkipIncludeCode(selection)
+        /**
+         * Carry over fragment's skip and include code
+         *
+         * fieldNode.__internalShouldInclude
+         * ---------------------------------
+         * When the parent field has a skip or include, the current one
+         * should be skipped if the parent is skipped in the path.
+         *
+         * previousShouldInclude
+         * ---------------------
+         * `should include`s from fragment spread and inline fragments
+         *
+         * compileSkipInclude(selection)
+         * -----------------------------
+         * `should include`s generated for the current fieldNode
+         */
+        fieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
+          fieldNode.__internalShouldInclude ?? "",
+          previousShouldInclude,
+          compileSkipInclude(selection)
         );
+
+        /**
+         * We augment the entire subtree as the parent object's skip/include
+         * directives influence the child even if the child doesn't have
+         * skip/include on it's own.
+         *
+         * Refer the function definition for example.
+         */
         augmentFieldNodeTree(compilationContext, fieldNode);
+
         fields[name].push(fieldNode);
         break;
 
@@ -121,9 +141,11 @@ function collectFieldsImpl(
           selection.selectionSet,
           fields,
           visitedFragmentNames,
-          augmentSkipIncludeCode(
-            previousSkipIncludeCode,
-            genSkipIncludeCode(selection)
+          joinShouldIncludeCompilations(
+            // `should include`s from previous fragments
+            previousShouldInclude,
+            // current fragment's shouldInclude
+            compileSkipInclude(selection)
           )
         );
         break;
@@ -147,9 +169,11 @@ function collectFieldsImpl(
           fragment.selectionSet,
           fields,
           visitedFragmentNames,
-          augmentSkipIncludeCode(
-            previousSkipIncludeCode,
-            genSkipIncludeCode(selection)
+          joinShouldIncludeCompilations(
+            // `should include`s from previous fragments
+            previousShouldInclude,
+            // current fragment's shouldInclude
+            compileSkipInclude(selection)
           )
         );
         break;
@@ -158,6 +182,52 @@ function collectFieldsImpl(
   return fields;
 }
 
+/**
+ * Augment __internalShouldInclude code for all sub-fields in the
+ * tree with @param rootfieldNode as the root.
+ *
+ * This is required to handle cases where there are multiple paths to
+ * the same node. And each of those paths contain different skip/include
+ * values.
+ *
+ * For example,
+ *
+ * ```
+ * {
+ *   foo @skip(if: $c1) {
+ *     bar @skip(if: $c2)
+ *   }
+ *   ... {
+ *     foo @skip(if: $c3) {
+ *       bar
+ *     }
+ *   }
+ * }
+ * ```
+ *
+ * We decide shouldInclude at runtime per fieldNode. When we handle the
+ * field `foo`, the logic is straight forward - it requires one of $c1 or $c3
+ * to be false.
+ *
+ * But, when we handle the field `bar`, and we are in the context of the fieldNode,
+ * not enough information is available. This is because, if we only included $c2
+ * to decide if bar is included, consider the case -
+ *
+ * $c1: true, $c2: true, $c3: false
+ *
+ * If we considered only $c2, we would have skipped bar. But the correct implementation
+ * is to include bar, because foo($c3) { bar } is not skipped. The entire sub-tree's
+ * logic is required to handle bar.
+ *
+ * So, to handle this case, we augment the tree at each point to consider the
+ * skip/include logic from the parent as well.
+ *
+ * @param compilationContext {CompilationContext} Required for getFragment by
+ * name to handle fragment spread operation.
+ *
+ * @param rootFieldNode {JitFieldNode} The root field to traverse from for
+ * adding __internalShouldInclude to all sub field nodes.
+ */
 function augmentFieldNodeTree(
   compilationContext: CompilationContext,
   rootFieldNode: JitFieldNode
@@ -166,14 +236,22 @@ function augmentFieldNodeTree(
     handle(selection);
   }
 
+  /**
+   * Recursively traverse through sub-selection and combine `shouldInclude`s
+   * from parent and current ones.
+   */
   function handle(selection: SelectionNode) {
     switch (selection.kind) {
       case Kind.FIELD: {
         const jitFieldNode: JitFieldNode = selection;
-        jitFieldNode.skipIncludeCode = augmentSkipIncludeCode(
-          rootFieldNode.skipIncludeCode ?? "",
-          jitFieldNode.skipIncludeCode ?? ""
+        jitFieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
+          rootFieldNode.__internalShouldInclude ?? "",
+          jitFieldNode.__internalShouldInclude ?? ""
         );
+        // go further down the query tree
+        for (const selection of jitFieldNode.selectionSet?.selections ?? []) {
+          handle(selection);
+        }
         break;
       }
       case Kind.INLINE_FRAGMENT: {
@@ -192,16 +270,44 @@ function augmentFieldNodeTree(
   }
 }
 
-function augmentSkipIncludeCode(...codes: string[]) {
-  return codes.filter(it => it).join(" && ");
+/**
+ * Joins a list of shouldInclude compiled code into a single logical
+ * statement.
+ *
+ * The operation is `&&` because, it is used to join parent->child
+ * relations in the query tree. Note: parent can be either parent field
+ * or fragment.
+ *
+ * For example,
+ * {
+ *   foo @skip(if: $c1) {
+ *     ... @skip(if: $c2) {
+ *       bar @skip(if: $c3)
+ *     }
+ *   }
+ * }
+ *
+ * Only when a parent is included, the child is included. So, we use `&&`.
+ *
+ * compilationFor($c1) && compilationFor($c2) && compilationFor($c3)
+ *
+ * @param compilations
+ */
+function joinShouldIncludeCompilations(...compilations: string[]) {
+  return compilations.filter(it => it).join(" && ");
 }
 
-function genSkipIncludeCode(
-  node: FragmentSpreadNode | FieldNode | InlineFragmentNode
-): string {
+/**
+ * Compiles directives `skip` and `include` and generates the compilation
+ * code based on GraphQL specification.
+ *
+ * @param node {SelectionNode} The selection node (field/fragment/inline-fragment)
+ * for which we generate the compiled skipInclude.
+ */
+function compileSkipInclude(node: SelectionNode): string {
   const gen = genFn();
 
-  const { skipValue, includeValue } = parseSkipIncludeDirectiveValues(node);
+  const { skipValue, includeValue } = compileSkipIncludeDirectiveValues(node);
 
   /**
    * Spec: https://spec.graphql.org/June2018/#sec--include
@@ -225,9 +331,13 @@ function genSkipIncludeCode(
   return gen.toString();
 }
 
-function parseSkipIncludeDirectiveValues(
-  node: FragmentSpreadNode | FieldNode | InlineFragmentNode
-) {
+/**
+ * Compile skip or include directive values into JIT compatible
+ * runtime code.
+ *
+ * @param node {SelectionNode}
+ */
+function compileSkipIncludeDirectiveValues(node: SelectionNode) {
   const skipDirective = node.directives?.find(
     it => it.name.value === GraphQLSkipDirective.name
   );
@@ -236,13 +346,13 @@ function parseSkipIncludeDirectiveValues(
   );
 
   const skipValue = skipDirective
-    ? parseSkipIncludeDirective(skipDirective)
+    ? compileSkipIncludeDirective(skipDirective)
     : // The null here indicates the absense of the directive
       // which is later used to determine if both skip and include
       // are present
       null;
   const includeValue = includeDirective
-    ? parseSkipIncludeDirective(includeDirective)
+    ? compileSkipIncludeDirective(includeDirective)
     : // The null here indicates the absense of the directive
       // which is later used to determine if both skip and include
       // are present
@@ -251,7 +361,13 @@ function parseSkipIncludeDirectiveValues(
   return { skipValue, includeValue };
 }
 
-function parseSkipIncludeDirective(directive: DirectiveNode) {
+/**
+ * Compile the skip/include directive node. Resolve variables to it's
+ * path from context, resolve scalars to their respective values.
+ *
+ * @param directive {DirectiveNode}
+ */
+function compileSkipIncludeDirective(directive: DirectiveNode) {
   const ifNode = directive.arguments?.find(it => it.name.value === "if");
   if (ifNode == null) {
     // TODO(boopathi): replace with Compilation Error
@@ -269,18 +385,6 @@ function parseSkipIncludeDirective(directive: DirectiveNode) {
         "impossible. protected by GraphQL internal schema for skip(if) and include(if)"
       );
   }
-}
-
-function getSkipIncludeDirectives(
-  node: FragmentSpreadNode | FieldNode | InlineFragmentNode
-): DirectiveNode[] {
-  return (
-    node.directives?.filter(
-      it =>
-        it.name.value === GraphQLSkipDirective.name ||
-        it.name.value === GraphQLIncludeDirective.name
-    ) ?? []
-  );
 }
 
 /**
