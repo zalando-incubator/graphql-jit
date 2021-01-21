@@ -2,40 +2,44 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/directives-test.js
  */
 
-import {
-  GraphQLObjectType,
-  GraphQLSchema,
-  GraphQLString,
-  parse
-} from "graphql";
+import { parse } from "graphql";
 import { compileQuery } from "../index";
+import { makeExecutableSchema } from "@graphql-tools/schema";
+import { isCompiledQuery } from "../execution";
 
-const schema = new GraphQLSchema({
-  query: new GraphQLObjectType({
-    name: "TestType",
-    fields: {
-      a: {
-        type: GraphQLString,
-        resolve() {
-          return "a";
-        }
-      },
-      b: {
-        type: GraphQLString,
-        resolve() {
-          return "b";
-        }
-      }
+const testSchema = makeExecutableSchema({
+  typeDefs: `
+    schema {
+      query: TestType
     }
-  })
+    type TestType {
+      a: String
+      b: String
+    }
+  `,
+  resolvers: {
+    TestType: {
+      a: () => "a",
+      b: () => "b"
+    }
+  }
 });
 
 const data = {};
 
-function executeTestQuery(query: string) {
+function executeTestQuery(query: string, variables = {}, schema = testSchema) {
   const ast = parse(query);
-  const compiled: any = compileQuery(schema, ast, "");
-  return compiled.query(data, undefined, {});
+  const compiled: any = compileQuery(schema, ast, "", { debug: true } as any);
+  if (!isCompiledQuery(compiled)) {
+    console.error(compiled);
+    throw new Error("compilation failed");
+  }
+  // console.log(
+  //   require("prettier").format(
+  //     compiled.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation
+  //   )
+  // );
+  return compiled.query(data, undefined, variables);
 }
 
 // tslint:disable-next-line
@@ -257,6 +261,7 @@ describe("Execute: handles directives", () => {
         data: { a: "a", b: "b" }
       });
     });
+
     test("unless true includes anonymous inline fragment", () => {
       const result = executeTestQuery(`
         query {
@@ -310,6 +315,270 @@ describe("Execute: handles directives", () => {
 
       expect(result).toEqual({
         data: { a: "a" }
+      });
+    });
+  });
+
+  describe("skip include directives", () => {
+    const schema = makeExecutableSchema({
+      typeDefs: `
+        type Query {
+          foo: Foo
+        }
+        type Foo {
+          a: String
+          b: Int
+          bar: Bar
+        }
+        type Bar {
+          c: String
+          d: String
+        }
+      `,
+      resolvers: {
+        Query: {
+          foo: () => ({
+            b: 42
+          })
+        },
+        Foo: {
+          bar() {
+            return {
+              c: "ccc",
+              d: "ddd"
+            };
+          },
+          a() {
+            return "aa";
+          }
+        }
+      }
+    });
+
+    test("skip on field", async () => {
+      const query = `
+        query ($skip: Boolean!) {
+          foo @skip(if: $skip) {
+            a
+          }
+        }
+      `;
+      const result = await executeTestQuery(query, { skip: true }, schema);
+      expect(result).toEqual({
+        data: {}
+      });
+    });
+
+    test("include on field", async () => {
+      const query = `
+        query ($include: Boolean!) {
+          foo @include(if: $include) {
+            a
+          }
+        }
+      `;
+      const result = await executeTestQuery(query, { include: false }, schema);
+      expect(result).toEqual({
+        data: {}
+      });
+    });
+
+    test("skip on field nested", async () => {
+      const query = `
+        query ($skipFoo: Boolean!, $skipA: Boolean!) {
+          foo @skip(if: $skipFoo) {
+            a @skip(if: $skipA)
+          }
+        }
+      `;
+      const result = await executeTestQuery(
+        query,
+        { skipFoo: false, skipA: true },
+        schema
+      );
+      expect(result).toEqual({
+        data: { foo: {} }
+      });
+    });
+
+    describe("skip vs include on field", () => {
+      const query = `
+        query ($skip: Boolean!, $include: Boolean!) {
+          foo @skip(if: $skip) @include(if: $include) {
+            a
+          }
+        }
+      `;
+      function exec(skip: boolean, include: boolean) {
+        return executeTestQuery(query, { skip, include }, schema);
+      }
+      test("skip=false, include=false", async () => {
+        const result = await exec(false, false);
+        expect(result).toEqual({
+          data: {}
+        });
+      });
+      test("skip=false, include=true", async () => {
+        const result = await exec(false, true);
+        expect(result).toEqual({
+          data: { foo: { a: "aa" } }
+        });
+      });
+      test("skip=true, include=false", async () => {
+        const result = await exec(true, false);
+        expect(result).toEqual({
+          data: {}
+        });
+      });
+      test("skip=true, include=true", async () => {
+        const result = await exec(true, true);
+        expect(result).toEqual({
+          data: {}
+        });
+      });
+    });
+
+    describe("fragments", () => {
+      test("inline fragments", async () => {
+        const query = `
+          query ($skip: Boolean!) {
+            ... @skip(if: $skip) {
+              foo {
+                a
+              }
+            }
+          }
+        `;
+        const result = await executeTestQuery(query, { skip: true }, schema);
+        expect(result).toEqual({
+          data: {}
+        });
+      });
+
+      test("named fragment", async () => {
+        const query = `
+          query ($skip: Boolean!) {
+            ...x @skip(if: $skip)
+          }
+          fragment x on Query {
+            foo {
+              a
+            }
+          }
+        `;
+        const result = await executeTestQuery(query, { skip: true }, schema);
+        expect(result).toEqual({
+          data: {}
+        });
+      });
+    });
+
+    describe("nested fragments", () => {
+      const query = `
+        query ($skip1: Boolean!, $skip2: Boolean!, $include1: Boolean!, $include2: Boolean) {
+          ...x @skip(if: $skip1)
+          ... @include(if: $include1) {
+            foo {
+              a
+            }
+          }
+        }
+        fragment x on Query {
+          ... @skip(if: $skip2) {
+            foo {
+              a @include(if: $include2)
+            }
+          }
+        }
+      `;
+      function exec(
+        skip1: boolean,
+        skip2: boolean,
+        include1: boolean,
+        include2: boolean
+      ) {
+        return executeTestQuery(
+          query,
+          { skip1, skip2, include1, include2 },
+          schema
+        );
+      }
+
+      test("all skipped", async () => {
+        const result = await exec(true, true, false, false);
+        expect(result).toEqual({ data: {} });
+      });
+
+      test("at least one include resolves field", async () => {
+        const result = await exec(true, true, true, false);
+        expect(result).toEqual({ data: { foo: { a: "aa" } } });
+      });
+
+      test("correct skip and include are applied", async () => {
+        const result = await exec(false, false, false, false);
+        expect(result).toEqual({ data: { foo: {} } });
+      });
+
+      test("correct skip and include are applied - 2", async () => {
+        const result = await exec(false, false, false, true);
+        expect(result).toEqual({ data: { foo: { a: "aa" } } });
+      });
+
+      test("skip follows the tree top down", async () => {
+        const result = await exec(true, false, false, false);
+        expect(result).toEqual({ data: {} });
+      });
+
+      test("skip follows the tree top down (include true)", async () => {
+        const result = await exec(true, false, true, false);
+        expect(result).toEqual({ data: { foo: { a: "aa" } } });
+      });
+    });
+
+    describe("nested - non top-level fields", () => {
+      const query = `
+        query ($skip1: Boolean!, $skip2: Boolean!, $include1: Boolean!, $include2: Boolean) {
+          foo {
+            ...aFragment @skip(if: $skip1)
+            ... @skip(if: $skip2) {
+              b
+            }
+            ...barFragment
+          }
+        }
+        fragment aFragment on Foo {
+          a
+        }
+        fragment barFragment on Foo {
+          ... @include(if: $include1) {
+            bar {
+              d
+              ...cFragment
+            }
+          }
+        }
+        fragment cFragment on Bar {
+          ... @include(if: $include2) {
+            c
+          }
+        }
+      `;
+      function exec(
+        skip1: boolean,
+        skip2: boolean,
+        include1: boolean,
+        include2: boolean
+      ) {
+        return executeTestQuery(
+          query,
+          { skip1, skip2, include1, include2 },
+          schema
+        );
+      }
+
+      test("all skipped", async () => {
+        const result = await exec(true, true, false, false);
+        expect(result).toEqual({ data: { foo: {} } });
       });
     });
   });

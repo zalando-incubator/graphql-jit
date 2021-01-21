@@ -65,7 +65,7 @@
     "@graphql-tools/schema": "^6.0.10",
     "jest": "^24.7.1",
     "lint-staged": "^8.1.5",
-    "prettier": "^1.16.4",
+    "prettier": "^1.19.1",
     "ts-jest": "^24.0.2",
     "ts-node": "^8.0.3",
     "tslint": "^5.15.0",

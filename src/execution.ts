@@ -1,4 +1,5 @@
 import fastJson from "fast-json-stringify";
+import genFn from "generate-function";
 import {
   ASTNode,
   DocumentNode,
@@ -28,19 +29,19 @@ import {
   Kind,
   TypeNameMetaFieldDef
 } from "graphql";
-import {
-  collectFields,
-  ExecutionContext as GraphQLContext
-} from "graphql/execution/execute";
+import { ExecutionContext as GraphQLContext } from "graphql/execution/execute";
 import { FieldNode, OperationDefinitionNode } from "graphql/language/ast";
 import { GraphQLTypeResolver } from "graphql/type/definition";
 import {
   addPath,
   Arguments,
+  collectFields,
   collectSubfields,
   computeLocations,
+  FieldsAndNodes,
   flattenPath,
   getArgumentDefs,
+  JitFieldNode,
   ObjectPath,
   resolveFieldDef
 } from "./ast";
@@ -84,7 +85,7 @@ export interface CompilerOptions {
  *
  * It stores deferred nodes to be processed later as well as the function arguments to be bounded at top level
  */
-interface CompilationContext extends GraphQLContext {
+export interface CompilationContext extends GraphQLContext {
   resolvers: { [key: string]: GraphQLFieldResolver<any, any, any> };
   serializers: {
     [key: string]: (
@@ -105,11 +106,12 @@ interface CompilationContext extends GraphQLContext {
 
 // prefix for the variable used ot cache validation results
 const SAFETY_CHECK_PREFIX = "__validNode";
+const IS_INCLUDED_PREFIX = "__isIncluded";
 const GLOBAL_DATA_NAME = "__context.data";
 const GLOBAL_ERRORS_NAME = "__context.errors";
 const GLOBAL_NULL_ERRORS_NAME = "__context.nullErrors";
 const GLOBAL_ROOT_NAME = "__context.rootValue";
-const GLOBAL_VARIABLES_NAME = "__context.variables";
+export const GLOBAL_VARIABLES_NAME = "__context.variables";
 const GLOBAL_CONTEXT_NAME = "__context.context";
 const GLOBAL_EXECUTION_CONTEXT = "__context";
 const GLOBAL_PROMISE_COUNTER = "__context.promiseCounter";
@@ -119,6 +121,7 @@ const GRAPHQL_ERROR = "__context.GraphQLError";
 const GLOBAL_RESOLVE = "__context.resolve";
 const GLOBAL_PARENT_NAME = "__parent";
 const LOCAL_JS_FIELD_NAME_PREFIX = "__field";
+const LOCAL_OBJECT_VAR_NAME = "__object";
 
 interface ExecutionContext {
   promiseCounter: number;
@@ -449,7 +452,7 @@ function compileDeferredFields(context: CompilationContext): string {
   let body = "";
   context.deferred.forEach((deferredField, index) => {
     body += `
-      if (${SAFETY_CHECK_PREFIX}${index}) {
+      if (${SAFETY_CHECK_PREFIX}${index} && ${IS_INCLUDED_PREFIX}${index}) {
         ${compileDeferredField(context, deferredField)}
       }`;
   });
@@ -547,13 +550,13 @@ function compileDeferredField(
       }
     }`;
   context.hoistedFunctions.push(`
-       function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${jsFieldName}, ${parentIndexes}) {
-          ${generateUniqueDeclarations(subContext)}
-          ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};
-          ${compileDeferredFields(subContext)}
-          ${appendix ? appendix : ""}
-        }
-      `);
+    function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${jsFieldName}, ${parentIndexes}) {
+      ${generateUniqueDeclarations(subContext)}
+      ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};
+      ${compileDeferredFields(subContext)}
+      ${appendix ? appendix : ""}
+    }
+  `);
   return body;
 }
 
@@ -740,12 +743,12 @@ function compileLeafType(
 function compileObjectType(
   context: CompilationContext,
   type: GraphQLObjectType,
-  fieldNodes: FieldNode[],
+  fieldNodes: JitFieldNode[],
   originPaths: string[],
   destinationPaths: string[],
   responsePath: ObjectPath | undefined,
   errorDestination: string,
-  fieldMap: { [key: string]: FieldNode[] },
+  fieldMap: FieldsAndNodes,
   alwaysDefer: boolean
 ): string {
   let body = "(";
@@ -764,7 +767,9 @@ function compileObjectType(
       }" but got: $\{${GLOBAL_INSPECT_NAME}(${originPaths.join(".")})}.\``
     )}), null) :`;
   }
-  body += "{";
+
+  const iifeBody = genFn();
+
   for (const name of Object.keys(fieldMap)) {
     const fieldNodes = fieldMap[name];
     const field = resolveFieldDef(context, type, fieldNodes);
@@ -773,13 +778,21 @@ function compileObjectType(
       // but the error is swallowed for compatibility reasons.
       continue;
     }
+
+    iifeBody(`
+      if (${fieldNodes
+        .map(it => it.skipIncludeCode)
+        .filter(it => it)
+        .join(" || ") || "true"}) {
+    `);
+
     // Name is the field name or an alias supplied by the user
-    body += `${name}: `;
+    iifeBody(`${LOCAL_OBJECT_VAR_NAME}["${name}"] = `);
 
     // Inline __typename
     // No need to call a resolver for typename
     if (field === TypeNameMetaFieldDef) {
-      body += `"${type.name}",`;
+      iifeBody(`"${type.name}"; }`);
       continue;
     }
 
@@ -802,22 +815,40 @@ function compileObjectType(
         args: getArgumentDefs(field, fieldNodes[0])
       });
       context.resolvers[getResolverName(type.name, field.name)] = resolver;
-      body += `(${SAFETY_CHECK_PREFIX}${context.deferred.length -
-        1} = true, null)`;
+      iifeBody(
+        `
+          (
+            ${SAFETY_CHECK_PREFIX}${context.deferred.length - 1} = true,
+            ${IS_INCLUDED_PREFIX}${context.deferred.length - 1} = true,
+            null
+          )
+        `
+      );
     } else {
-      body += compileType(
-        context,
-        type,
-        field.type,
-        fieldNodes,
-        originPaths.concat(field.name),
-        destinationPaths.concat(name),
-        addPath(responsePath, name)
+      iifeBody(
+        compileType(
+          context,
+          type,
+          field.type,
+          fieldNodes,
+          originPaths.concat(field.name),
+          destinationPaths.concat(name),
+          addPath(responsePath, name)
+        )
       );
     }
-    body += ",";
+    iifeBody("}");
   }
-  body += "})";
+
+  body += `
+    (() => {
+      const ${LOCAL_OBJECT_VAR_NAME} = {};
+      ${iifeBody.toString()}
+      return ${LOCAL_OBJECT_VAR_NAME};
+    })()
+  `;
+
+  body += ")";
   return body;
 }
 
@@ -861,9 +892,7 @@ function compileAbstractType(
     })
     .join("\n");
   const finalTypeName = "finalType";
-  const nullTypeError = `"Runtime Object type is not a possible type for \\"${
-    type.name
-  }\\"."`;
+  const nullTypeError = `"Runtime Object type is not a possible type for \\"${type.name}\\"."`;
   // tslint:disable:max-line-length
   const notPossibleTypeError =
     '`Runtime Object type "${nodeType}" is not a possible type for "' +
@@ -1238,7 +1267,12 @@ function generateUniqueDeclarations(
   defaultValue: boolean = false
 ) {
   return context.deferred
-    .map((_, idx) => `var ${SAFETY_CHECK_PREFIX}${idx} = ${defaultValue};`)
+    .map(
+      (_, idx) => `
+        let ${SAFETY_CHECK_PREFIX}${idx} = ${defaultValue};
+        let ${IS_INCLUDED_PREFIX}${idx} = false;
+      `
+    )
     .join("\n");
 }
 

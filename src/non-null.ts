@@ -8,10 +8,10 @@ import {
   isNonNullType,
   isObjectType
 } from "graphql";
-import { ExecutionContext } from "graphql/execution/execute";
 import { isAbstractType } from "graphql/type";
 import merge from "lodash.merge";
 import { collectFields, collectSubfields, resolveFieldDef } from "./ast";
+import { CompilationContext } from "./execution";
 
 interface QueryMetadata {
   isNullable: boolean;
@@ -22,11 +22,13 @@ export type NullTrimmer = (data: any, errors: GraphQLError[]) => any;
 
 /**
  *
- * @param {ExecutionContext} exeContext
+ * @param {CompilationContext} compilationContext
  * @returns {(data: any, errors: GraphQLError[]) => {data: any; errors: GraphQLError[]}}
  */
-export function createNullTrimmer(exeContext: ExecutionContext): NullTrimmer {
-  return trimData(parseQueryNullables(exeContext));
+export function createNullTrimmer(
+  compilationContext: CompilationContext
+): NullTrimmer {
+  return trimData(parseQueryNullables(compilationContext));
 }
 
 /**
@@ -127,28 +129,37 @@ function findNullableAncestor(
  * interesting for removing branches of the response tree.
  *
  * The structure is recursive like the query.
- * @param {ExecutionContext} exeContext Execution content
+ * @param {CompilationContext} compilationContext Execution content
  * @returns {QueryMetadata} description of the query
  */
-function parseQueryNullables(exeContext: ExecutionContext): QueryMetadata {
-  const type = getOperationRootType(exeContext.schema, exeContext.operation);
+function parseQueryNullables(
+  compilationContext: CompilationContext
+): QueryMetadata {
+  const type = getOperationRootType(
+    compilationContext.schema,
+    compilationContext.operation
+  );
   const fields = collectFields(
-    exeContext,
+    compilationContext,
     type,
-    exeContext.operation.selectionSet,
+    compilationContext.operation.selectionSet,
     Object.create(null),
     Object.create(null)
   );
   const properties = Object.create(null);
   for (const responseName of Object.keys(fields)) {
-    const fieldType = resolveFieldDef(exeContext, type, fields[responseName]);
+    const fieldType = resolveFieldDef(
+      compilationContext,
+      type,
+      fields[responseName]
+    );
     if (!fieldType) {
       // if field does not exist, it should be ignored for compatibility concerns.
       // Usually, validation would stop it before getting here but this could be an old query
       continue;
     }
     const property = transformNode(
-      exeContext,
+      compilationContext,
       fields[responseName],
       fieldType.type
     );
@@ -166,18 +177,18 @@ function parseQueryNullables(exeContext: ExecutionContext): QueryMetadata {
  * Processes a single node to produce a description of itself and its children.
  *
  * Leaf nodes are ignore and removed from the description
- * @param {ExecutionContext} exeContext
+ * @param {CompilationContext} compilationContext
  * @param {FieldNode[]} fieldNodes list of fields
  * @param {GraphQLType} type Current type being processed.
  * @returns {QueryMetadata | null} null if node is a leaf, otherwise a desciption of the node and its children.
  */
 function transformNode(
-  exeContext: ExecutionContext,
+  compilationContext: CompilationContext,
   fieldNodes: FieldNode[],
   type: GraphQLType
 ): QueryMetadata | null {
   if (isNonNullType(type)) {
-    const nullable = transformNode(exeContext, fieldNodes, type.ofType);
+    const nullable = transformNode(compilationContext, fieldNodes, type.ofType);
     if (nullable != null) {
       nullable.isNullable = false;
       return nullable;
@@ -185,11 +196,11 @@ function transformNode(
     return null;
   }
   if (isObjectType(type)) {
-    const subfields = collectSubfields(exeContext, type, fieldNodes);
+    const subfields = collectSubfields(compilationContext, type, fieldNodes);
     const properties = Object.create(null);
     for (const responseName of Object.keys(subfields)) {
       const fieldType = resolveFieldDef(
-        exeContext,
+        compilationContext,
         type,
         subfields[responseName]
       );
@@ -199,7 +210,7 @@ function transformNode(
         continue;
       }
       const property = transformNode(
-        exeContext,
+        compilationContext,
         subfields[responseName],
         fieldType.type
       );
@@ -213,7 +224,7 @@ function transformNode(
     };
   }
   if (isListType(type)) {
-    const child = transformNode(exeContext, fieldNodes, type.ofType);
+    const child = transformNode(compilationContext, fieldNodes, type.ofType);
     if (child != null) {
       return {
         isNullable: true,
@@ -227,9 +238,9 @@ function transformNode(
     };
   }
   if (isAbstractType(type)) {
-    return exeContext.schema.getPossibleTypes(type).reduce(
+    return compilationContext.schema.getPossibleTypes(type).reduce(
       (res, t) => {
-        const property = transformNode(exeContext, fieldNodes, t);
+        const property = transformNode(compilationContext, fieldNodes, t);
         if (property != null) {
           // We do a deep merge because children can have subset of properties
           // TODO: Possible bug: two object with different nullability on objects.
