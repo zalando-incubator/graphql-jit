@@ -199,10 +199,6 @@ function augmentSkipIncludeCode(...codes: string[]) {
 function genSkipIncludeCode(
   node: FragmentSpreadNode | FieldNode | InlineFragmentNode
 ): string {
-  const skipIncludeDirectives = getSkipIncludeDirectives(node);
-
-  if (skipIncludeDirectives.length < 1) { return ""; }
-
   const gen = genFn();
 
   const { skipValue, includeValue } = parseSkipIncludeDirectiveValues(node);
@@ -285,34 +281,6 @@ function getSkipIncludeDirectives(
         it.name.value === GraphQLIncludeDirective.name
     ) ?? []
   );
-}
-
-/**
- * Determines if a field should be included based on the @include and @skip
- * directives, where @skip has higher precedence than @include.
- */
-function shouldIncludeNode(
-  compilationContext: CompilationContext,
-  node: FragmentSpreadNode | FieldNode | InlineFragmentNode
-): boolean {
-  const skip = getDirectiveValues(
-    GraphQLSkipDirective,
-    node,
-    compilationContext.variableValues
-  );
-  if (skip && skip.if === true) {
-    return false;
-  }
-
-  const include = getDirectiveValues(
-    GraphQLIncludeDirective,
-    node,
-    compilationContext.variableValues
-  );
-  if (include && include.if === false) {
-    return false;
-  }
-  return true;
 }
 
 /**
