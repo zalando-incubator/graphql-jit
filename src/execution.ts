@@ -121,7 +121,6 @@ const GRAPHQL_ERROR = "__context.GraphQLError";
 const GLOBAL_RESOLVE = "__context.resolve";
 const GLOBAL_PARENT_NAME = "__parent";
 const LOCAL_JS_FIELD_NAME_PREFIX = "__field";
-const LOCAL_OBJECT_VAR_NAME = "__object";
 
 interface ExecutionContext {
   promiseCounter: number;
@@ -751,28 +750,30 @@ function compileObjectType(
   fieldMap: FieldsAndNodes,
   alwaysDefer: boolean
 ): string {
-  let body = "(";
+  const body = genFn();
+
+  // Begin object compilation paren
+  body("(");
   if (typeof type.isTypeOf === "function" && !alwaysDefer) {
     context.isTypeOfs[type.name + "IsTypeOf"] = type.isTypeOf;
-    body += `!${GLOBAL_EXECUTION_CONTEXT}.isTypeOfs["${
-      type.name
-    }IsTypeOf"](${originPaths.join(
-      "."
-    )}) ? (${errorDestination}.push(${createErrorObject(
-      context,
-      fieldNodes,
-      responsePath as any,
-      `\`Expected value of type "${
+    body(
+      `!${GLOBAL_EXECUTION_CONTEXT}.isTypeOfs["${
         type.name
-      }" but got: $\{${GLOBAL_INSPECT_NAME}(${originPaths.join(".")})}.\``
-    )}), null) :`;
+      }IsTypeOf"](${originPaths.join(
+        "."
+      )}) ? (${errorDestination}.push(${createErrorObject(
+        context,
+        fieldNodes,
+        responsePath as any,
+        `\`Expected value of type "${
+          type.name
+        }" but got: $\{${GLOBAL_INSPECT_NAME}(${originPaths.join(".")})}.\``
+      )}), null) :`
+    );
   }
 
-  /**
-   * iife is used to optionally attach different fields
-   * based on skip/include directives.
-   */
-  const iifeBody = genFn();
+  // object start
+  body("{");
 
   for (const name of Object.keys(fieldMap)) {
     const fieldNodes = fieldMap[name];
@@ -783,7 +784,13 @@ function compileObjectType(
       continue;
     }
 
+    // Key of the object
+    // `name` is the field name or an alias supplied by the user
+    body(`"${name}": `);
+
     /**
+     * Value of the object
+     *
      * The combined condition for whether a field should be included
      * in the object.
      *
@@ -804,20 +811,21 @@ function compileObjectType(
      *
      * `compilationFor($c1) || compilationFor($c2)`
      */
-    iifeBody(`
-      if (${fieldNodes
-        .map(it => it.__internalShouldInclude)
-        .filter(it => it)
-        .join(" || ") || /* if(true) - default */ "true"}) {
+    body(`
+      (
+        ${fieldNodes
+          .map(it => it.__internalShouldInclude)
+          .filter(it => it)
+          .join(" || ") || /* if(true) - default */ "true"}
+      )
     `);
-
-    // Name is the field name or an alias supplied by the user
-    iifeBody(`${LOCAL_OBJECT_VAR_NAME}["${name}"] = `);
 
     // Inline __typename
     // No need to call a resolver for typename
     if (field === TypeNameMetaFieldDef) {
-      iifeBody(`"${type.name}"; }`);
+      // type.name if field is included else undefined - to remove from object
+      // during serialization
+      body(`? "${type.name}" : undefined,`);
       continue;
     }
 
@@ -840,17 +848,20 @@ function compileObjectType(
         args: getArgumentDefs(field, fieldNodes[0])
       });
       context.resolvers[getResolverName(type.name, field.name)] = resolver;
-      iifeBody(
+      body(
         `
-          (
-            ${SAFETY_CHECK_PREFIX}${context.deferred.length - 1} = true,
-            ${IS_INCLUDED_PREFIX}${context.deferred.length - 1} = true,
-            null
-          )
+          ? (
+              ${SAFETY_CHECK_PREFIX}${context.deferred.length - 1} = true,
+              ${IS_INCLUDED_PREFIX}${context.deferred.length - 1} = true,
+              null
+            )
+          : undefined
         `
       );
     } else {
-      iifeBody(
+      // if included
+      body("?");
+      body(
         compileType(
           context,
           type,
@@ -861,21 +872,19 @@ function compileObjectType(
           addPath(responsePath, name)
         )
       );
+      // if not included
+      body(": undefined");
     }
-    // End if
-    iifeBody("}");
+    // End object property
+    body(",");
   }
 
-  body += `
-    (() => {
-      const ${LOCAL_OBJECT_VAR_NAME} = {};
-      ${iifeBody.toString()}
-      return ${LOCAL_OBJECT_VAR_NAME};
-    })()
-  `;
+  // End object
+  body("}");
+  // End object compilation paren
+  body(")");
 
-  body += ")";
-  return body;
+  return body.toString();
 }
 
 function compileAbstractType(

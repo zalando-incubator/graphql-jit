@@ -31,14 +31,8 @@ function executeTestQuery(query: string, variables = {}, schema = testSchema) {
   const ast = parse(query);
   const compiled: any = compileQuery(schema, ast, "", { debug: true } as any);
   if (!isCompiledQuery(compiled)) {
-    console.error(compiled);
-    throw new Error("compilation failed");
+    return compiled;
   }
-  // console.log(
-  //   require("prettier").format(
-  //     compiled.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation
-  //   )
-  // );
   return compiled.query(data, undefined, variables);
 }
 
@@ -475,7 +469,7 @@ describe("Execute: handles directives", () => {
 
     describe("nested fragments", () => {
       const query = `
-        query ($skip1: Boolean!, $skip2: Boolean!, $include1: Boolean!, $include2: Boolean) {
+        query ($skip1: Boolean!, $skip2: Boolean!, $include1: Boolean!, $include2: Boolean!) {
           ...x @skip(if: $skip1)
           ... @include(if: $include1) {
             foo {
@@ -537,7 +531,7 @@ describe("Execute: handles directives", () => {
 
     describe("nested - non top-level fields", () => {
       const query = `
-        query ($skip1: Boolean!, $skip2: Boolean!, $include1: Boolean!, $include2: Boolean) {
+        query ($skip1: Boolean!, $skip2: Boolean!, $include1: Boolean!, $include2: Boolean!) {
           foo {
             ...aFragment @skip(if: $skip1)
             ... @skip(if: $skip2) {
@@ -579,6 +573,100 @@ describe("Execute: handles directives", () => {
       test("all skipped", async () => {
         const result = await exec(true, true, false, false);
         expect(result).toEqual({ data: { foo: {} } });
+      });
+    });
+
+    describe("nested fragments - skip/include propagation", () => {
+      const query = `
+        query ($foo: Boolean!, $d: Boolean!) {
+          foo @skip(if: $foo) {
+            bar {
+              d
+            }
+          }
+          ... {
+            foo {
+              bar {
+                d @skip(if: $d)
+              }
+            }
+          }
+        }
+      `;
+
+      test("skip foo = true, skip d = true", async () => {
+        const result = await executeTestQuery(
+          query,
+          { foo: true, d: true },
+          schema
+        );
+        expect(result).toEqual({ data: { foo: { bar: {} } } });
+      });
+
+      test("skip foo = false, skip d = true", async () => {
+        const result = await executeTestQuery(
+          query,
+          { foo: false, d: true },
+          schema
+        );
+        expect(result).toEqual({ data: { foo: { bar: { d: "ddd" } } } });
+      });
+    });
+
+    describe("error scenarios", () => {
+      test("missing if", async () => {
+        const query = `
+          query ($skip: Boolean!) {
+            foo @skip {
+              a
+            }
+          }
+        `;
+        const result = await executeTestQuery(query, { skip: true }, schema);
+        expect(result).toEqual({
+          errors: [
+            expect.objectContaining({
+              message: "Directive 'skip' is missing required arguments: 'if'"
+            })
+          ]
+        });
+      });
+
+      test("invalid type for if", async () => {
+        const query = `
+          query {
+            foo @skip(if: 0) {
+              a
+            }
+          }
+        `;
+        const result = await executeTestQuery(query, { skip: 0 }, schema);
+        expect(result).toEqual({
+          errors: [
+            expect.objectContaining({
+              message:
+                "Argument 'if' on Directive 'skip' has an invalid value (0). Expected type 'Boolean!'"
+            })
+          ]
+        });
+      });
+
+      test("invalid type for if - variable", async () => {
+        const query = `
+          query ($skip: Int!) {
+            foo @skip(if: $skip) {
+              a
+            }
+          }
+        `;
+        const result = await executeTestQuery(query, { skip: 0 }, schema);
+        expect(result).toEqual({
+          errors: [
+            expect.objectContaining({
+              message: `Variable 'skip' of type 'Int!' used in position expecting type 'Boolean!'`
+            })
+          ]
+        });
       });
     });
   });

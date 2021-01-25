@@ -5,8 +5,6 @@ import {
   DirectiveNode,
   FieldNode,
   FragmentDefinitionNode,
-  FragmentSpreadNode,
-  getDirectiveValues,
   getLocation,
   GraphQLArgument,
   GraphQLDirective,
@@ -27,10 +25,11 @@ import {
   SourceLocation,
   typeFromAST,
   ValueNode,
-  VariableNode
+  VariableNode,
+  valueFromASTUntyped
 } from "graphql";
 import { getFieldDef } from "graphql/execution/execute";
-import { Kind, SelectionNode } from "graphql/language";
+import { Kind, SelectionNode, TypeNode } from "graphql/language";
 import { isAbstractType } from "graphql/type";
 import { CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution";
 import createInspect from "./inspect";
@@ -110,7 +109,7 @@ function collectFieldsImpl(
         fieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
           fieldNode.__internalShouldInclude ?? "",
           previousShouldInclude,
-          compileSkipInclude(selection)
+          compileSkipInclude(compilationContext, selection)
         );
 
         /**
@@ -145,7 +144,7 @@ function collectFieldsImpl(
             // `should include`s from previous fragments
             previousShouldInclude,
             // current fragment's shouldInclude
-            compileSkipInclude(selection)
+            compileSkipInclude(compilationContext, selection)
           )
         );
         break;
@@ -173,7 +172,7 @@ function collectFieldsImpl(
             // `should include`s from previous fragments
             previousShouldInclude,
             // current fragment's shouldInclude
-            compileSkipInclude(selection)
+            compileSkipInclude(compilationContext, selection)
           )
         );
         break;
@@ -233,37 +232,37 @@ function augmentFieldNodeTree(
   rootFieldNode: JitFieldNode
 ) {
   for (const selection of rootFieldNode.selectionSet?.selections ?? []) {
-    handle(selection);
+    handle(rootFieldNode, selection);
   }
 
   /**
    * Recursively traverse through sub-selection and combine `shouldInclude`s
    * from parent and current ones.
    */
-  function handle(selection: SelectionNode) {
+  function handle(parentFieldNode: JitFieldNode, selection: SelectionNode) {
     switch (selection.kind) {
       case Kind.FIELD: {
         const jitFieldNode: JitFieldNode = selection;
         jitFieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
-          rootFieldNode.__internalShouldInclude ?? "",
+          parentFieldNode.__internalShouldInclude ?? "",
           jitFieldNode.__internalShouldInclude ?? ""
         );
         // go further down the query tree
         for (const selection of jitFieldNode.selectionSet?.selections ?? []) {
-          handle(selection);
+          handle(jitFieldNode, selection);
         }
         break;
       }
       case Kind.INLINE_FRAGMENT: {
         for (const subSelection of selection.selectionSet.selections) {
-          handle(subSelection);
+          handle(parentFieldNode, subSelection);
         }
         break;
       }
       case Kind.FRAGMENT_SPREAD: {
         const fragment = compilationContext.fragments[selection.name.value];
         for (const subSelection of fragment.selectionSet.selections) {
-          handle(subSelection);
+          handle(parentFieldNode, subSelection);
         }
       }
     }
@@ -294,7 +293,35 @@ function augmentFieldNodeTree(
  * @param compilations
  */
 function joinShouldIncludeCompilations(...compilations: string[]) {
-  return compilations.filter(it => it).join(" && ");
+  // remove empty strings
+  let filteredCompilations = compilations.filter(it => it);
+
+  // FIXME(boopathi): Maybe, find a better fix?
+  //
+  // remove "true" since we are joining with '&&' as `true && X` = `X`
+  // This prevents an explosion of `&& true` which could break
+  // V8's internal size limit for string.
+  //
+  // Note: the `true` appears if a field does not have a skip/include directive
+  // So, the more nested the query is, the more of unnecessary `&& true`
+  // we get.
+  //
+  // Failing to do this results in [RangeError: invalid array length]
+  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Invalid_array_length
+  filteredCompilations = filteredCompilations.filter(
+    it => it.trim() !== "true"
+  );
+
+  /**
+   * If we have filtered out everything in the list, it means, we
+   * called this with a join(true, true, etc...) - returning empty string
+   * is wrong, so we return a single true
+   */
+  if (filteredCompilations.length < 1) {
+    return "true";
+  }
+
+  return filteredCompilations.join(" && ");
 }
 
 /**
@@ -304,10 +331,16 @@ function joinShouldIncludeCompilations(...compilations: string[]) {
  * @param node {SelectionNode} The selection node (field/fragment/inline-fragment)
  * for which we generate the compiled skipInclude.
  */
-function compileSkipInclude(node: SelectionNode): string {
+function compileSkipInclude(
+  compilationContext: CompilationContext,
+  node: SelectionNode
+): string {
   const gen = genFn();
 
-  const { skipValue, includeValue } = compileSkipIncludeDirectiveValues(node);
+  const { skipValue, includeValue } = compileSkipIncludeDirectiveValues(
+    compilationContext,
+    node
+  );
 
   /**
    * Spec: https://spec.graphql.org/June2018/#sec--include
@@ -326,6 +359,8 @@ function compileSkipInclude(node: SelectionNode): string {
     gen(`(${skipValue} === false)`);
   } else if (includeValue != null) {
     gen(`(${includeValue} === true)`);
+  } else {
+    gen(`true`);
   }
 
   return gen.toString();
@@ -337,7 +372,10 @@ function compileSkipInclude(node: SelectionNode): string {
  *
  * @param node {SelectionNode}
  */
-function compileSkipIncludeDirectiveValues(node: SelectionNode) {
+function compileSkipIncludeDirectiveValues(
+  compilationContext: CompilationContext,
+  node: SelectionNode
+) {
   const skipDirective = node.directives?.find(
     it => it.name.value === GraphQLSkipDirective.name
   );
@@ -346,13 +384,13 @@ function compileSkipIncludeDirectiveValues(node: SelectionNode) {
   );
 
   const skipValue = skipDirective
-    ? compileSkipIncludeDirective(skipDirective)
+    ? compileSkipIncludeDirective(compilationContext, skipDirective)
     : // The null here indicates the absense of the directive
       // which is later used to determine if both skip and include
       // are present
       null;
   const includeValue = includeDirective
-    ? compileSkipIncludeDirective(includeDirective)
+    ? compileSkipIncludeDirective(compilationContext, includeDirective)
     : // The null here indicates the absense of the directive
       // which is later used to determine if both skip and include
       // are present
@@ -367,23 +405,87 @@ function compileSkipIncludeDirectiveValues(node: SelectionNode) {
  *
  * @param directive {DirectiveNode}
  */
-function compileSkipIncludeDirective(directive: DirectiveNode) {
+function compileSkipIncludeDirective(
+  compilationContext: CompilationContext,
+  directive: DirectiveNode
+) {
   const ifNode = directive.arguments?.find(it => it.name.value === "if");
   if (ifNode == null) {
-    // TODO(boopathi): replace with Compilation Error
-    throw new Error(`@${directive.name.value} must contain argument 'if'`);
+    throw new GraphQLError(
+      `Directive '${directive.name.value}' is missing required arguments: 'if'`,
+      [directive]
+    );
   }
 
   switch (ifNode.value.kind) {
     case Kind.VARIABLE:
+      validateSkipIncludeVariableType(compilationContext, ifNode.value);
       return `${GLOBAL_VARIABLES_NAME}["${ifNode.value.name.value}"]`;
     case Kind.BOOLEAN:
       return `${ifNode.value.value.toString()}`;
     default:
-      // TODO(boopathi)
-      throw new Error(
-        "impossible. protected by GraphQL internal schema for skip(if) and include(if)"
+      throw new GraphQLError(
+        `Argument 'if' on Directive '${
+          directive.name.value
+        }' has an invalid value (${valueFromASTUntyped(
+          ifNode.value
+        )}). Expected type 'Boolean!'`,
+        [ifNode]
       );
+  }
+}
+
+/**
+ * Validate the skip and include directive's argument values at compile time.
+ *
+ * This validation step is required as these directives are part of an
+ * implicit schema in GraphQL.
+ *
+ * @param compilationContext {CompilationContext}
+ * @param variable {VariableNode} the variable used in 'if' argument of the skip/include directive
+ */
+function validateSkipIncludeVariableType(
+  compilationContext: CompilationContext,
+  variable: VariableNode
+) {
+  const variableDefinition = compilationContext.operation.variableDefinitions?.find(
+    it => it.variable.name.value === variable.name.value
+  );
+  if (variableDefinition == null) {
+    throw new GraphQLError(`Variable '${variable.name.value}' is not defined`, [
+      variable
+    ]);
+  }
+
+  if (
+    !(
+      variableDefinition.type.kind === Kind.NON_NULL_TYPE &&
+      variableDefinition.type.type.kind === Kind.NAMED_TYPE &&
+      variableDefinition.type.type.name.value === "Boolean"
+    )
+  ) {
+    throw new GraphQLError(
+      `Variable '${variable.name.value}' of type '${typeNodeToString(
+        variableDefinition.type
+      )}' used in position expecting type 'Boolean!'`,
+      [variableDefinition]
+    );
+  }
+}
+
+/**
+ * Print the string representation of the TypeNode for error messages
+ *
+ * @param type {TypeNode} type node to be converted to string representation
+ */
+function typeNodeToString(type: TypeNode): string {
+  switch (type.kind) {
+    case Kind.NAMED_TYPE:
+      return type.name.value;
+    case Kind.NON_NULL_TYPE:
+      return `${typeNodeToString(type.type)}!`;
+    case Kind.LIST_TYPE:
+      return `[${typeNodeToString(type.type)}]`;
   }
 }
 
