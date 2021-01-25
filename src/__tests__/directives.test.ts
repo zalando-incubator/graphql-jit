@@ -738,7 +738,7 @@ describe("Execute: handles directives", () => {
       expect(mockResolver).not.toHaveBeenCalled();
     });
 
-    test("resolver should not be called if not skipped", async () => {
+    test("resolver should be called if not skipped", async () => {
       const mockResolver = jest.fn(() => "mock-resolver-called");
       const result = executeTestQuery(
         query,
