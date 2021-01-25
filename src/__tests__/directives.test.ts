@@ -651,6 +651,24 @@ describe("Execute: handles directives", () => {
         });
       });
 
+      test("invalid variable for if - variable not defined", async () => {
+        const query = `
+          query {
+            foo @skip(if: $skip) {
+              a
+            }
+          }
+        `;
+        const result = await executeTestQuery(query, { skip: 0 }, schema);
+        expect(result).toEqual({
+          errors: [
+            expect.objectContaining({
+              message: `Variable 'skip' is not defined`
+            })
+          ]
+        });
+      });
+
       test("invalid type for if - variable", async () => {
         const query = `
           query ($skip: Int!) {
@@ -664,6 +682,24 @@ describe("Execute: handles directives", () => {
           errors: [
             expect.objectContaining({
               message: `Variable 'skip' of type 'Int!' used in position expecting type 'Boolean!'`
+            })
+          ]
+        });
+      });
+
+      test("invalid type for if - variable - 2", async () => {
+        const query = `
+          query ($skip: [Int!]!) {
+            foo @skip(if: $skip) {
+              a
+            }
+          }
+        `;
+        const result = await executeTestQuery(query, { skip: [0] }, schema);
+        expect(result).toEqual({
+          errors: [
+            expect.objectContaining({
+              message: `Variable 'skip' of type '[Int!]!' used in position expecting type 'Boolean!'`
             })
           ]
         });
