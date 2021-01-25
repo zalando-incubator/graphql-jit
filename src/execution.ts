@@ -106,7 +106,6 @@ export interface CompilationContext extends GraphQLContext {
 
 // prefix for the variable used ot cache validation results
 const SAFETY_CHECK_PREFIX = "__validNode";
-const IS_INCLUDED_PREFIX = "__isIncluded";
 const GLOBAL_DATA_NAME = "__context.data";
 const GLOBAL_ERRORS_NAME = "__context.errors";
 const GLOBAL_NULL_ERRORS_NAME = "__context.nullErrors";
@@ -451,7 +450,7 @@ function compileDeferredFields(context: CompilationContext): string {
   let body = "";
   context.deferred.forEach((deferredField, index) => {
     body += `
-      if (${SAFETY_CHECK_PREFIX}${index} && ${IS_INCLUDED_PREFIX}${index}) {
+      if (${SAFETY_CHECK_PREFIX}${index}) {
         ${compileDeferredField(context, deferredField)}
       }`;
   });
@@ -852,10 +851,12 @@ function compileObjectType(
         `
           ? (
               ${SAFETY_CHECK_PREFIX}${context.deferred.length - 1} = true,
-              ${IS_INCLUDED_PREFIX}${context.deferred.length - 1} = true,
               null
             )
-          : undefined
+          : (
+              ${SAFETY_CHECK_PREFIX}${context.deferred.length - 1} = false,
+              undefined
+            )
         `
       );
     } else {
@@ -1305,7 +1306,6 @@ function generateUniqueDeclarations(
     .map(
       (_, idx) => `
         let ${SAFETY_CHECK_PREFIX}${idx} = ${defaultValue};
-        let ${IS_INCLUDED_PREFIX}${idx} = false;
       `
     )
     .join("\n");
