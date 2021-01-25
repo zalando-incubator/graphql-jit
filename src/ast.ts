@@ -24,9 +24,9 @@ import {
   SelectionSetNode,
   SourceLocation,
   typeFromAST,
+  valueFromASTUntyped,
   ValueNode,
-  VariableNode,
-  valueFromASTUntyped
+  VariableNode
 } from "graphql";
 import { getFieldDef } from "graphql/execution/execute";
 import { Kind, SelectionNode, TypeNode } from "graphql/language";

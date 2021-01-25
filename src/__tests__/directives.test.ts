@@ -706,4 +706,47 @@ describe("Execute: handles directives", () => {
       });
     });
   });
+
+  describe("resolver invoking", () => {
+    const getSchema = (mockResolver: jest.Mock<string, any[]>) =>
+      makeExecutableSchema({
+        typeDefs: `
+        type Query {
+          foo: String
+        }
+      `,
+        resolvers: {
+          Query: {
+            foo: mockResolver
+          }
+        }
+      });
+    const query = `
+      query ($skip: Boolean!) {
+        foo @skip(if: $skip)
+      }
+    `;
+
+    test("resolver should not be called if skipped", async () => {
+      const mockResolver = jest.fn(() => "mock-resolver-not-called");
+      const result = executeTestQuery(
+        query,
+        { skip: true },
+        getSchema(mockResolver)
+      );
+      expect(result.data.foo).toBeUndefined();
+      expect(mockResolver).not.toHaveBeenCalled();
+    });
+
+    test("resolver should not be called if not skipped", async () => {
+      const mockResolver = jest.fn(() => "mock-resolver-called");
+      const result = executeTestQuery(
+        query,
+        { skip: false },
+        getSchema(mockResolver)
+      );
+      expect(result.data.foo).toBe("mock-resolver-called");
+      expect(mockResolver).toHaveBeenCalled();
+    });
+  });
 });
