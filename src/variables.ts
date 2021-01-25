@@ -277,7 +277,9 @@ function generateInput(
           } catch (error) {
             errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
               inspect(${currentInput}) + "; " +
-              'Expected type ${varType.name}.', ${errorLocation})
+              'Expected type ${
+                varType.name
+              }.', ${errorLocation}, undefined, error)
             );
           }
         `);
