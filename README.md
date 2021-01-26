@@ -11,7 +11,7 @@ code which yields much better performance. `graphql-jit` leverages this behaviou
 #### Benchmarks
 
 ```bash
-$ NODE_ENV=production ts-node -T ./src/__benchmarks__/benchmarks.ts skip-json
+$ yarn benchmark skip-json
 Starting introspection
 graphql-js x 1,155 ops/sec ±1.55% (215 runs sampled)
 graphql-jit x 5,961 ops/sec ±5.34% (216 runs sampled)

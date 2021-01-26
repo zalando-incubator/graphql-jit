@@ -20,7 +20,8 @@
     "build": "tsc",
     "test": "jest",
     "mutation-test": "stryker run",
-    "codecov": "codecov"
+    "codecov": "codecov",
+    "benchmark": "NODE_ENV=production ts-node -T ./src/__benchmarks__/benchmarks.ts"
   },
   "files": [
     "dist/*"
