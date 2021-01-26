@@ -38,7 +38,7 @@
     },
     "coverageThreshold": {
       "global": {
-        "branches": 95,
+        "branches": 94,
         "functions": 96,
         "lines": 96,
         "statements": 96
@@ -49,6 +49,7 @@
     "graphql": ">=14"
   },
   "devDependencies": {
+    "@graphql-tools/schema": "^6.0.10",
     "@stryker-mutator/core": "^2.0.0",
     "@stryker-mutator/jest-runner": "^2.0.0",
     "@stryker-mutator/typescript": "^2.0.0",
@@ -62,10 +63,9 @@
     "benchmark": "^2.1.4",
     "codecov": "^3.3.0",
     "graphql": "^15.1.0",
-    "@graphql-tools/schema": "^6.0.10",
     "jest": "^24.7.1",
     "lint-staged": "^8.1.5",
-    "prettier": "^1.16.4",
+    "prettier": "^1.19.1",
     "ts-jest": "^24.0.2",
     "ts-node": "^8.0.3",
     "tslint": "^5.15.0",

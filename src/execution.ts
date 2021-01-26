@@ -1,4 +1,5 @@
 import fastJson from "fast-json-stringify";
+import genFn from "generate-function";
 import {
   ASTNode,
   DocumentNode,
@@ -28,19 +29,19 @@ import {
   Kind,
   TypeNameMetaFieldDef
 } from "graphql";
-import {
-  collectFields,
-  ExecutionContext as GraphQLContext
-} from "graphql/execution/execute";
+import { ExecutionContext as GraphQLContext } from "graphql/execution/execute";
 import { FieldNode, OperationDefinitionNode } from "graphql/language/ast";
 import { GraphQLTypeResolver } from "graphql/type/definition";
 import {
   addPath,
   Arguments,
+  collectFields,
   collectSubfields,
   computeLocations,
+  FieldsAndNodes,
   flattenPath,
   getArgumentDefs,
+  JitFieldNode,
   ObjectPath,
   resolveFieldDef
 } from "./ast";
@@ -84,7 +85,7 @@ export interface CompilerOptions {
  *
  * It stores deferred nodes to be processed later as well as the function arguments to be bounded at top level
  */
-interface CompilationContext extends GraphQLContext {
+export interface CompilationContext extends GraphQLContext {
   resolvers: { [key: string]: GraphQLFieldResolver<any, any, any> };
   serializers: {
     [key: string]: (
@@ -109,7 +110,7 @@ const GLOBAL_DATA_NAME = "__context.data";
 const GLOBAL_ERRORS_NAME = "__context.errors";
 const GLOBAL_NULL_ERRORS_NAME = "__context.nullErrors";
 const GLOBAL_ROOT_NAME = "__context.rootValue";
-const GLOBAL_VARIABLES_NAME = "__context.variables";
+export const GLOBAL_VARIABLES_NAME = "__context.variables";
 const GLOBAL_CONTEXT_NAME = "__context.context";
 const GLOBAL_EXECUTION_CONTEXT = "__context";
 const GLOBAL_PROMISE_COUNTER = "__context.promiseCounter";
@@ -547,13 +548,13 @@ function compileDeferredField(
       }
     }`;
   context.hoistedFunctions.push(`
-       function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${jsFieldName}, ${parentIndexes}) {
-          ${generateUniqueDeclarations(subContext)}
-          ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};
-          ${compileDeferredFields(subContext)}
-          ${appendix ? appendix : ""}
-        }
-      `);
+    function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${jsFieldName}, ${parentIndexes}) {
+      ${generateUniqueDeclarations(subContext)}
+      ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};
+      ${compileDeferredFields(subContext)}
+      ${appendix ? appendix : ""}
+    }
+  `);
   return body;
 }
 
@@ -740,31 +741,39 @@ function compileLeafType(
 function compileObjectType(
   context: CompilationContext,
   type: GraphQLObjectType,
-  fieldNodes: FieldNode[],
+  fieldNodes: JitFieldNode[],
   originPaths: string[],
   destinationPaths: string[],
   responsePath: ObjectPath | undefined,
   errorDestination: string,
-  fieldMap: { [key: string]: FieldNode[] },
+  fieldMap: FieldsAndNodes,
   alwaysDefer: boolean
 ): string {
-  let body = "(";
+  const body = genFn();
+
+  // Begin object compilation paren
+  body("(");
   if (typeof type.isTypeOf === "function" && !alwaysDefer) {
     context.isTypeOfs[type.name + "IsTypeOf"] = type.isTypeOf;
-    body += `!${GLOBAL_EXECUTION_CONTEXT}.isTypeOfs["${
-      type.name
-    }IsTypeOf"](${originPaths.join(
-      "."
-    )}) ? (${errorDestination}.push(${createErrorObject(
-      context,
-      fieldNodes,
-      responsePath as any,
-      `\`Expected value of type "${
+    body(
+      `!${GLOBAL_EXECUTION_CONTEXT}.isTypeOfs["${
         type.name
-      }" but got: $\{${GLOBAL_INSPECT_NAME}(${originPaths.join(".")})}.\``
-    )}), null) :`;
+      }IsTypeOf"](${originPaths.join(
+        "."
+      )}) ? (${errorDestination}.push(${createErrorObject(
+        context,
+        fieldNodes,
+        responsePath as any,
+        `\`Expected value of type "${
+          type.name
+        }" but got: $\{${GLOBAL_INSPECT_NAME}(${originPaths.join(".")})}.\``
+      )}), null) :`
+    );
   }
-  body += "{";
+
+  // object start
+  body("{");
+
   for (const name of Object.keys(fieldMap)) {
     const fieldNodes = fieldMap[name];
     const field = resolveFieldDef(context, type, fieldNodes);
@@ -773,13 +782,49 @@ function compileObjectType(
       // but the error is swallowed for compatibility reasons.
       continue;
     }
-    // Name is the field name or an alias supplied by the user
-    body += `${name}: `;
+
+    // Key of the object
+    // `name` is the field name or an alias supplied by the user
+    body(`"${name}": `);
+
+    /**
+     * Value of the object
+     *
+     * The combined condition for whether a field should be included
+     * in the object.
+     *
+     * Here, the logical operation is `||` because every fieldNode
+     * is at the same level in the tree, if at least "one of" the nodes
+     * is included, then the field is included.
+     *
+     * For example,
+     *
+     * ```graphql
+     * {
+     *   foo @skip(if: $c1)
+     *   ... { foo @skip(if: $c2) }
+     * }
+     * ```
+     *
+     * The logic for `foo` becomes -
+     *
+     * `compilationFor($c1) || compilationFor($c2)`
+     */
+    body(`
+      (
+        ${fieldNodes
+          .map(it => it.__internalShouldInclude)
+          .filter(it => it)
+          .join(" || ") || /* if(true) - default */ "true"}
+      )
+    `);
 
     // Inline __typename
     // No need to call a resolver for typename
     if (field === TypeNameMetaFieldDef) {
-      body += `"${type.name}",`;
+      // type.name if field is included else undefined - to remove from object
+      // during serialization
+      body(`? "${type.name}" : undefined,`);
       continue;
     }
 
@@ -802,23 +847,45 @@ function compileObjectType(
         args: getArgumentDefs(field, fieldNodes[0])
       });
       context.resolvers[getResolverName(type.name, field.name)] = resolver;
-      body += `(${SAFETY_CHECK_PREFIX}${context.deferred.length -
-        1} = true, null)`;
-    } else {
-      body += compileType(
-        context,
-        type,
-        field.type,
-        fieldNodes,
-        originPaths.concat(field.name),
-        destinationPaths.concat(name),
-        addPath(responsePath, name)
+      body(
+        `
+          ? (
+              ${SAFETY_CHECK_PREFIX}${context.deferred.length - 1} = true,
+              null
+            )
+          : (
+              ${SAFETY_CHECK_PREFIX}${context.deferred.length - 1} = false,
+              undefined
+            )
+        `
       );
+    } else {
+      // if included
+      body("?");
+      body(
+        compileType(
+          context,
+          type,
+          field.type,
+          fieldNodes,
+          originPaths.concat(field.name),
+          destinationPaths.concat(name),
+          addPath(responsePath, name)
+        )
+      );
+      // if not included
+      body(": undefined");
     }
-    body += ",";
+    // End object property
+    body(",");
   }
-  body += "})";
-  return body;
+
+  // End object
+  body("}");
+  // End object compilation paren
+  body(")");
+
+  return body.toString();
 }
 
 function compileAbstractType(
@@ -861,9 +928,7 @@ function compileAbstractType(
     })
     .join("\n");
   const finalTypeName = "finalType";
-  const nullTypeError = `"Runtime Object type is not a possible type for \\"${
-    type.name
-  }\\"."`;
+  const nullTypeError = `"Runtime Object type is not a possible type for \\"${type.name}\\"."`;
   // tslint:disable:max-line-length
   const notPossibleTypeError =
     '`Runtime Object type "${nodeType}" is not a possible type for "' +
@@ -1238,7 +1303,11 @@ function generateUniqueDeclarations(
   defaultValue: boolean = false
 ) {
   return context.deferred
-    .map((_, idx) => `var ${SAFETY_CHECK_PREFIX}${idx} = ${defaultValue};`)
+    .map(
+      (_, idx) => `
+        let ${SAFETY_CHECK_PREFIX}${idx} = ${defaultValue};
+      `
+    )
     .join("\n");
 }
 

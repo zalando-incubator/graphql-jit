@@ -17,6 +17,7 @@ import {
 import { collectFields, ExecutionContext } from "graphql/execution/execute";
 import { JSONSchema6, JSONSchema6TypeName } from "json-schema";
 import { collectSubfields, resolveFieldDef } from "./ast";
+import { CompilationContext } from "./execution";
 
 const PRIMITIVES: { [key: string]: JSONSchema6TypeName } = {
   Int: "integer",
@@ -29,28 +30,37 @@ const PRIMITIVES: { [key: string]: JSONSchema6TypeName } = {
 /**
  * GQL -> JSON Schema transform
  *
- * @param exeContext
+ * @param compilationContext
  * @return     {object}  A plain JavaScript object which conforms to JSON Schema
  */
-export function queryToJSONSchema(exeContext: ExecutionContext): JSONSchema6 {
-  const type = getOperationRootType(exeContext.schema, exeContext.operation);
+export function queryToJSONSchema(
+  compilationContext: CompilationContext
+): JSONSchema6 {
+  const type = getOperationRootType(
+    compilationContext.schema,
+    compilationContext.operation
+  );
   const fields = collectFields(
-    exeContext,
+    compilationContext,
     type,
-    exeContext.operation.selectionSet,
+    compilationContext.operation.selectionSet,
     Object.create(null),
     Object.create(null)
   );
   const fieldProperties = Object.create(null);
   for (const responseName of Object.keys(fields)) {
-    const fieldType = resolveFieldDef(exeContext, type, fields[responseName]);
+    const fieldType = resolveFieldDef(
+      compilationContext,
+      type,
+      fields[responseName]
+    );
     if (!fieldType) {
       // if field does not exist, it should be ignored for compatibility concerns.
       // Usually, validation would stop it before getting here but this could be an old query
       continue;
     }
     fieldProperties[responseName] = transformNode(
-      exeContext,
+      compilationContext,
       fields[responseName],
       fieldType.type
     );
@@ -99,16 +109,16 @@ export function queryToJSONSchema(exeContext: ExecutionContext): JSONSchema6 {
 }
 
 function transformNode(
-  exeContext: ExecutionContext,
+  compilationContext: CompilationContext,
   fieldNodes: FieldNode[],
   type: GraphQLType
 ): JSONSchema6 {
   if (isObjectType(type)) {
-    const subfields = collectSubfields(exeContext, type, fieldNodes);
+    const subfields = collectSubfields(compilationContext, type, fieldNodes);
     const properties = Object.create(null);
     for (const responseName of Object.keys(subfields)) {
       const fieldType = resolveFieldDef(
-        exeContext,
+        compilationContext,
         type,
         subfields[responseName]
       );
@@ -118,7 +128,7 @@ function transformNode(
         continue;
       }
       properties[responseName] = transformNode(
-        exeContext,
+        compilationContext,
         subfields[responseName],
         fieldType.type
       );
@@ -131,11 +141,11 @@ function transformNode(
   if (isListType(type)) {
     return {
       type: ["array", "null"],
-      items: transformNode(exeContext, fieldNodes, type.ofType)
+      items: transformNode(compilationContext, fieldNodes, type.ofType)
     };
   }
   if (isNonNullType(type)) {
-    const nullable = transformNode(exeContext, fieldNodes, type.ofType);
+    const nullable = transformNode(compilationContext, fieldNodes, type.ofType);
     if (nullable.type && Array.isArray(nullable.type)) {
       const nonNullable = nullable.type.filter(x => x !== "null");
       return {
@@ -160,9 +170,9 @@ function transformNode(
     };
   }
   if (isAbstractType(type)) {
-    return exeContext.schema.getPossibleTypes(type).reduce(
+    return compilationContext.schema.getPossibleTypes(type).reduce(
       (res, t) => {
-        const jsonSchema = transformNode(exeContext, fieldNodes, t);
+        const jsonSchema = transformNode(compilationContext, fieldNodes, t);
         res.properties = { ...res.properties, ...jsonSchema.properties };
         return res;
       },

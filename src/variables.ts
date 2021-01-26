@@ -155,12 +155,8 @@ function generateInput(
     let omittedMessage;
     if (context.errorMessage) {
       const objectPath = printObjectPath(context.responsePath);
-      nonNullMessage = `${
-        context.errorMessage
-      } + \`Expected non-nullable type ${varType} not to be null at ${objectPath}.\``;
-      omittedMessage = `${
-        context.errorMessage
-      } + \`Field ${objectPath} of required type ${varType} was not provided.\``;
+      nonNullMessage = `${context.errorMessage} + \`Expected non-nullable type ${varType} not to be null at ${objectPath}.\``;
+      omittedMessage = `${context.errorMessage} + \`Field ${objectPath} of required type ${varType} was not provided.\``;
     } else {
       nonNullMessage = `'Variable "$${varName}" of non-null type "${varType}" must not be null.'`;
       omittedMessage = `'Variable "$${varName}" of required type "${varType}" was not provided.'`;
@@ -229,9 +225,7 @@ function generateInput(
             errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
             inspect(${currentInput}) + "; " +
             'Expected type ${varType.name}; ' +
-            '${
-              varType.name
-            } cannot represent non 32-bit signed integer value: ' +
+            '${varType.name} cannot represent non 32-bit signed integer value: ' +
             inspect(${currentInput}), ${errorLocation}));
           } else {
             ${currentOutput} = ${currentInput};
@@ -277,9 +271,7 @@ function generateInput(
           } catch (error) {
             errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
               inspect(${currentInput}) + "; " +
-              'Expected type ${
-                varType.name
-              }.', ${errorLocation}, undefined, error)
+              'Expected type ${varType.name}.', ${errorLocation}, undefined, error)
             );
           }
         `);
