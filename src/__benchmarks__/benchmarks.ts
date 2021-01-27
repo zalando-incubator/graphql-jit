@@ -19,6 +19,8 @@ import {
   query as nestedArrayQuery,
   schema as nestedArraySchema
 } from "./schema-nested-array";
+import { parse as parseJs } from "acorn";
+import { generate } from "escodegen";
 
 interface BenchmarkMaterial {
   query: DocumentNode;
@@ -65,8 +67,21 @@ async function runBenchmarks() {
         // tslint:disable-next-line:no-console
         console.log(
           `size of function for ${bench}: ${
-            (compiledQuery as any)
-              .__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation.length
+            generate(
+              parseJs(
+                (compiledQuery as any)
+                  .__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation,
+                {
+                  ecmaVersion: "latest"
+                }
+              ),
+              {
+                format: {
+                  // print without unnecessary white-space
+                  compact: true
+                }
+              }
+            ).length
           }`
         );
         const graphqlJsResult = await execute(
