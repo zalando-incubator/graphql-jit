@@ -16,7 +16,7 @@ import {
   parse
 } from "graphql";
 import { CompiledQuery, compileQuery, isCompiledQuery } from "../execution";
-import { makeExecutableSchema } from "graphql-tools";
+import { makeExecutableSchema } from "@graphql-tools/schema";
 
 function executeArgs(args: any) {
   const {

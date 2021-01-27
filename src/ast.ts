@@ -1,11 +1,10 @@
+import genFn from "generate-function";
 import {
   ArgumentNode,
   ASTNode,
   DirectiveNode,
   FieldNode,
   FragmentDefinitionNode,
-  FragmentSpreadNode,
-  getDirectiveValues,
   getLocation,
   GraphQLArgument,
   GraphQLDirective,
@@ -25,16 +24,27 @@ import {
   SelectionSetNode,
   SourceLocation,
   typeFromAST,
+  valueFromASTUntyped,
   ValueNode,
   VariableNode
 } from "graphql";
-import { ExecutionContext, getFieldDef } from "graphql/execution/execute";
-import { Kind } from "graphql/language";
-import Maybe from "graphql/tsutils/Maybe";
+import { getFieldDef } from "graphql/execution/execute";
+import { Kind, SelectionNode, TypeNode } from "graphql/language";
 import { isAbstractType } from "graphql/type";
+import { CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution";
 import createInspect from "./inspect";
+import { Maybe } from "./types";
+
+export interface JitFieldNode extends FieldNode {
+  __internalShouldInclude?: string;
+}
+
+export interface FieldsAndNodes {
+  [key: string]: JitFieldNode[];
+}
 
 const inspect = createInspect();
+
 /**
  * Given a selectionSet, adds all of the fields in that selection to
  * the passed in map of fields, and returns it at the end.
@@ -44,61 +54,126 @@ const inspect = createInspect();
  * Object type returned by that field.
  */
 export function collectFields(
-  exeContext: ExecutionContext,
+  compilationContext: CompilationContext,
   runtimeType: GraphQLObjectType,
   selectionSet: SelectionSetNode,
-  fields: { [key: string]: FieldNode[] },
+  fields: FieldsAndNodes,
   visitedFragmentNames: { [key: string]: boolean }
-): { [key: string]: FieldNode[] } {
+): FieldsAndNodes {
+  return collectFieldsImpl(
+    compilationContext,
+    runtimeType,
+    selectionSet,
+    fields,
+    visitedFragmentNames
+  );
+}
+
+/**
+ * Implementation of collectFields defined above with extra parameters
+ * used for recursion and need not be exposed publically
+ */
+function collectFieldsImpl(
+  compilationContext: CompilationContext,
+  runtimeType: GraphQLObjectType,
+  selectionSet: SelectionSetNode,
+  fields: FieldsAndNodes,
+  visitedFragmentNames: { [key: string]: boolean },
+  previousShouldInclude = ""
+): FieldsAndNodes {
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
       case Kind.FIELD:
-        if (!shouldIncludeNode(exeContext, selection)) {
-          continue;
-        }
         const name = getFieldEntryKey(selection);
         if (!fields[name]) {
           fields[name] = [];
         }
-        fields[name].push(selection);
+        const fieldNode: JitFieldNode = selection;
+
+        /**
+         * Carry over fragment's skip and include code
+         *
+         * fieldNode.__internalShouldInclude
+         * ---------------------------------
+         * When the parent field has a skip or include, the current one
+         * should be skipped if the parent is skipped in the path.
+         *
+         * previousShouldInclude
+         * ---------------------
+         * `should include`s from fragment spread and inline fragments
+         *
+         * compileSkipInclude(selection)
+         * -----------------------------
+         * `should include`s generated for the current fieldNode
+         */
+        fieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
+          fieldNode.__internalShouldInclude ?? "",
+          previousShouldInclude,
+          compileSkipInclude(compilationContext, selection)
+        );
+
+        /**
+         * We augment the entire subtree as the parent object's skip/include
+         * directives influence the child even if the child doesn't have
+         * skip/include on it's own.
+         *
+         * Refer the function definition for example.
+         */
+        augmentFieldNodeTree(compilationContext, fieldNode);
+
+        fields[name].push(fieldNode);
         break;
+
       case Kind.INLINE_FRAGMENT:
         if (
-          !shouldIncludeNode(exeContext, selection) ||
-          !doesFragmentConditionMatch(exeContext, selection, runtimeType)
+          !doesFragmentConditionMatch(
+            compilationContext,
+            selection,
+            runtimeType
+          )
         ) {
           continue;
         }
-        collectFields(
-          exeContext,
+        collectFieldsImpl(
+          compilationContext,
           runtimeType,
           selection.selectionSet,
           fields,
-          visitedFragmentNames
+          visitedFragmentNames,
+          joinShouldIncludeCompilations(
+            // `should include`s from previous fragments
+            previousShouldInclude,
+            // current fragment's shouldInclude
+            compileSkipInclude(compilationContext, selection)
+          )
         );
         break;
+
       case Kind.FRAGMENT_SPREAD:
         const fragName = selection.name.value;
-        if (
-          visitedFragmentNames[fragName] ||
-          !shouldIncludeNode(exeContext, selection)
-        ) {
+        if (visitedFragmentNames[fragName]) {
           continue;
         }
         visitedFragmentNames[fragName] = true;
-        const fragment = exeContext.fragments[fragName];
+        const fragment = compilationContext.fragments[fragName];
         if (
           !fragment ||
-          !doesFragmentConditionMatch(exeContext, fragment, runtimeType)
+          !doesFragmentConditionMatch(compilationContext, fragment, runtimeType)
         ) {
           continue;
         }
-        collectFields(
-          exeContext,
+        collectFieldsImpl(
+          compilationContext,
           runtimeType,
           fragment.selectionSet,
           fields,
-          visitedFragmentNames
+          visitedFragmentNames,
+          joinShouldIncludeCompilations(
+            // `should include`s from previous fragments
+            previousShouldInclude,
+            // current fragment's shouldInclude
+            compileSkipInclude(compilationContext, selection)
+          )
         );
         break;
     }
@@ -107,38 +182,318 @@ export function collectFields(
 }
 
 /**
- * Determines if a field should be included based on the @include and @skip
- * directives, where @skip has higher precedence than @include.
+ * Augment __internalShouldInclude code for all sub-fields in the
+ * tree with @param rootfieldNode as the root.
+ *
+ * This is required to handle cases where there are multiple paths to
+ * the same node. And each of those paths contain different skip/include
+ * values.
+ *
+ * For example,
+ *
+ * ```
+ * {
+ *   foo @skip(if: $c1) {
+ *     bar @skip(if: $c2)
+ *   }
+ *   ... {
+ *     foo @skip(if: $c3) {
+ *       bar
+ *     }
+ *   }
+ * }
+ * ```
+ *
+ * We decide shouldInclude at runtime per fieldNode. When we handle the
+ * field `foo`, the logic is straight forward - it requires one of $c1 or $c3
+ * to be false.
+ *
+ * But, when we handle the field `bar`, and we are in the context of the fieldNode,
+ * not enough information is available. This is because, if we only included $c2
+ * to decide if bar is included, consider the case -
+ *
+ * $c1: true, $c2: true, $c3: false
+ *
+ * If we considered only $c2, we would have skipped bar. But the correct implementation
+ * is to include bar, because foo($c3) { bar } is not skipped. The entire sub-tree's
+ * logic is required to handle bar.
+ *
+ * So, to handle this case, we augment the tree at each point to consider the
+ * skip/include logic from the parent as well.
+ *
+ * @param compilationContext {CompilationContext} Required for getFragment by
+ * name to handle fragment spread operation.
+ *
+ * @param rootFieldNode {JitFieldNode} The root field to traverse from for
+ * adding __internalShouldInclude to all sub field nodes.
  */
-function shouldIncludeNode(
-  exeContext: ExecutionContext,
-  node: FragmentSpreadNode | FieldNode | InlineFragmentNode
-): boolean {
-  const skip = getDirectiveValues(
-    GraphQLSkipDirective,
-    node,
-    exeContext.variableValues
-  );
-  if (skip && skip.if === true) {
-    return false;
+function augmentFieldNodeTree(
+  compilationContext: CompilationContext,
+  rootFieldNode: JitFieldNode
+) {
+  for (const selection of rootFieldNode.selectionSet?.selections ?? []) {
+    handle(rootFieldNode, selection);
   }
 
-  const include = getDirectiveValues(
-    GraphQLIncludeDirective,
-    node,
-    exeContext.variableValues
-  );
-  if (include && include.if === false) {
-    return false;
+  /**
+   * Recursively traverse through sub-selection and combine `shouldInclude`s
+   * from parent and current ones.
+   */
+  function handle(parentFieldNode: JitFieldNode, selection: SelectionNode) {
+    switch (selection.kind) {
+      case Kind.FIELD: {
+        const jitFieldNode: JitFieldNode = selection;
+        jitFieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
+          parentFieldNode.__internalShouldInclude ?? "",
+          jitFieldNode.__internalShouldInclude ?? ""
+        );
+        // go further down the query tree
+        for (const selection of jitFieldNode.selectionSet?.selections ?? []) {
+          handle(jitFieldNode, selection);
+        }
+        break;
+      }
+      case Kind.INLINE_FRAGMENT: {
+        for (const subSelection of selection.selectionSet.selections) {
+          handle(parentFieldNode, subSelection);
+        }
+        break;
+      }
+      case Kind.FRAGMENT_SPREAD: {
+        const fragment = compilationContext.fragments[selection.name.value];
+        for (const subSelection of fragment.selectionSet.selections) {
+          handle(parentFieldNode, subSelection);
+        }
+      }
+    }
   }
-  return true;
+}
+
+/**
+ * Joins a list of shouldInclude compiled code into a single logical
+ * statement.
+ *
+ * The operation is `&&` because, it is used to join parent->child
+ * relations in the query tree. Note: parent can be either parent field
+ * or fragment.
+ *
+ * For example,
+ * {
+ *   foo @skip(if: $c1) {
+ *     ... @skip(if: $c2) {
+ *       bar @skip(if: $c3)
+ *     }
+ *   }
+ * }
+ *
+ * Only when a parent is included, the child is included. So, we use `&&`.
+ *
+ * compilationFor($c1) && compilationFor($c2) && compilationFor($c3)
+ *
+ * @param compilations
+ */
+function joinShouldIncludeCompilations(...compilations: string[]) {
+  // remove empty strings
+  let filteredCompilations = compilations.filter(it => it);
+
+  // FIXME(boopathi): Maybe, find a better fix?
+  //
+  // remove "true" since we are joining with '&&' as `true && X` = `X`
+  // This prevents an explosion of `&& true` which could break
+  // V8's internal size limit for string.
+  //
+  // Note: the `true` appears if a field does not have a skip/include directive
+  // So, the more nested the query is, the more of unnecessary `&& true`
+  // we get.
+  //
+  // Failing to do this results in [RangeError: invalid array length]
+  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Invalid_array_length
+  filteredCompilations = filteredCompilations.filter(
+    it => it.trim() !== "true"
+  );
+
+  /**
+   * If we have filtered out everything in the list, it means, we
+   * called this with a join(true, true, etc...) - returning empty string
+   * is wrong, so we return a single true
+   */
+  if (filteredCompilations.length < 1) {
+    return "true";
+  }
+
+  return filteredCompilations.join(" && ");
+}
+
+/**
+ * Compiles directives `skip` and `include` and generates the compilation
+ * code based on GraphQL specification.
+ *
+ * @param node {SelectionNode} The selection node (field/fragment/inline-fragment)
+ * for which we generate the compiled skipInclude.
+ */
+function compileSkipInclude(
+  compilationContext: CompilationContext,
+  node: SelectionNode
+): string {
+  const gen = genFn();
+
+  const { skipValue, includeValue } = compileSkipIncludeDirectiveValues(
+    compilationContext,
+    node
+  );
+
+  /**
+   * Spec: https://spec.graphql.org/June2018/#sec--include
+   *
+   * Neither @skip nor @include has precedence over the other.
+   * In the case that both the @skip and @include directives
+   * are provided in on the same the field or fragment, it must
+   * be queried only if the @skip condition is false and the
+   * @include condition is true. Stated conversely, the field
+   * or fragment must not be queried if either the @skip
+   * condition is true or the @include condition is false.
+   */
+  if (skipValue != null && includeValue != null) {
+    gen(`${skipValue} === false && ${includeValue} === true`);
+  } else if (skipValue != null) {
+    gen(`(${skipValue} === false)`);
+  } else if (includeValue != null) {
+    gen(`(${includeValue} === true)`);
+  } else {
+    gen(`true`);
+  }
+
+  return gen.toString();
+}
+
+/**
+ * Compile skip or include directive values into JIT compatible
+ * runtime code.
+ *
+ * @param node {SelectionNode}
+ */
+function compileSkipIncludeDirectiveValues(
+  compilationContext: CompilationContext,
+  node: SelectionNode
+) {
+  const skipDirective = node.directives?.find(
+    it => it.name.value === GraphQLSkipDirective.name
+  );
+  const includeDirective = node.directives?.find(
+    it => it.name.value === GraphQLIncludeDirective.name
+  );
+
+  const skipValue = skipDirective
+    ? compileSkipIncludeDirective(compilationContext, skipDirective)
+    : // The null here indicates the absense of the directive
+      // which is later used to determine if both skip and include
+      // are present
+      null;
+  const includeValue = includeDirective
+    ? compileSkipIncludeDirective(compilationContext, includeDirective)
+    : // The null here indicates the absense of the directive
+      // which is later used to determine if both skip and include
+      // are present
+      null;
+
+  return { skipValue, includeValue };
+}
+
+/**
+ * Compile the skip/include directive node. Resolve variables to it's
+ * path from context, resolve scalars to their respective values.
+ *
+ * @param directive {DirectiveNode}
+ */
+function compileSkipIncludeDirective(
+  compilationContext: CompilationContext,
+  directive: DirectiveNode
+) {
+  const ifNode = directive.arguments?.find(it => it.name.value === "if");
+  if (ifNode == null) {
+    throw new GraphQLError(
+      `Directive '${directive.name.value}' is missing required arguments: 'if'`,
+      [directive]
+    );
+  }
+
+  switch (ifNode.value.kind) {
+    case Kind.VARIABLE:
+      validateSkipIncludeVariableType(compilationContext, ifNode.value);
+      return `${GLOBAL_VARIABLES_NAME}["${ifNode.value.name.value}"]`;
+    case Kind.BOOLEAN:
+      return `${ifNode.value.value.toString()}`;
+    default:
+      throw new GraphQLError(
+        `Argument 'if' on Directive '${
+          directive.name.value
+        }' has an invalid value (${valueFromASTUntyped(
+          ifNode.value
+        )}). Expected type 'Boolean!'`,
+        [ifNode]
+      );
+  }
+}
+
+/**
+ * Validate the skip and include directive's argument values at compile time.
+ *
+ * This validation step is required as these directives are part of an
+ * implicit schema in GraphQL.
+ *
+ * @param compilationContext {CompilationContext}
+ * @param variable {VariableNode} the variable used in 'if' argument of the skip/include directive
+ */
+function validateSkipIncludeVariableType(
+  compilationContext: CompilationContext,
+  variable: VariableNode
+) {
+  const variableDefinition = compilationContext.operation.variableDefinitions?.find(
+    it => it.variable.name.value === variable.name.value
+  );
+  if (variableDefinition == null) {
+    throw new GraphQLError(`Variable '${variable.name.value}' is not defined`, [
+      variable
+    ]);
+  }
+
+  if (
+    !(
+      variableDefinition.type.kind === Kind.NON_NULL_TYPE &&
+      variableDefinition.type.type.kind === Kind.NAMED_TYPE &&
+      variableDefinition.type.type.name.value === "Boolean"
+    )
+  ) {
+    throw new GraphQLError(
+      `Variable '${variable.name.value}' of type '${typeNodeToString(
+        variableDefinition.type
+      )}' used in position expecting type 'Boolean!'`,
+      [variableDefinition]
+    );
+  }
+}
+
+/**
+ * Print the string representation of the TypeNode for error messages
+ *
+ * @param type {TypeNode} type node to be converted to string representation
+ */
+function typeNodeToString(type: TypeNode): string {
+  switch (type.kind) {
+    case Kind.NAMED_TYPE:
+      return type.name.value;
+    case Kind.NON_NULL_TYPE:
+      return `${typeNodeToString(type.type)}!`;
+    case Kind.LIST_TYPE:
+      return `[${typeNodeToString(type.type)}]`;
+  }
 }
 
 /**
  * Determines if a fragment is applicable to the given type.
  */
 function doesFragmentConditionMatch(
-  exeContext: ExecutionContext,
+  compilationContext: CompilationContext,
   fragment: FragmentDefinitionNode | InlineFragmentNode,
   type: GraphQLObjectType
 ): boolean {
@@ -146,7 +501,10 @@ function doesFragmentConditionMatch(
   if (!typeConditionNode) {
     return true;
   }
-  const conditionalType = typeFromAST(exeContext.schema, typeConditionNode);
+  const conditionalType = typeFromAST(
+    compilationContext.schema,
+    typeConditionNode
+  );
   if (conditionalType === type) {
     return true;
   }
@@ -154,7 +512,7 @@ function doesFragmentConditionMatch(
     return false;
   }
   if (isAbstractType(conditionalType)) {
-    return exeContext.schema.isPossibleType(conditionalType, type);
+    return compilationContext.schema.isPossibleType(conditionalType, type);
   }
   return false;
 }
@@ -173,14 +531,14 @@ function getFieldEntryKey(node: FieldNode): string {
  * the sub-selection-set for objects.
  */
 export function resolveFieldDef(
-  exeContext: ExecutionContext,
+  compilationContext: CompilationContext,
   parentType: GraphQLObjectType,
   fieldNodes: FieldNode[]
 ): Maybe<GraphQLField<any, any>> {
   const fieldNode = fieldNodes[0];
   const fieldName = fieldNode.name.value;
 
-  return getFieldDef(exeContext.schema, parentType, fieldName);
+  return getFieldDef(compilationContext.schema, parentType, fieldName);
 }
 
 /**
@@ -191,7 +549,7 @@ export function resolveFieldDef(
 export const collectSubfields = memoize3(_collectSubfields);
 
 function _collectSubfields(
-  exeContext: ExecutionContext,
+  compilationContext: CompilationContext,
   returnType: GraphQLObjectType,
   fieldNodes: FieldNode[]
 ): { [key: string]: FieldNode[] } {
@@ -201,7 +559,7 @@ function _collectSubfields(
     const selectionSet = fieldNode.selectionSet;
     if (selectionSet) {
       subFieldNodes = collectFields(
-        exeContext,
+        compilationContext,
         returnType,
         selectionSet,
         subFieldNodes,
@@ -214,12 +572,12 @@ function _collectSubfields(
 
 function memoize3(
   fn: (
-    exeContext: ExecutionContext,
+    compilationContext: CompilationContext,
     returnType: GraphQLObjectType,
     fieldNodes: FieldNode[]
   ) => { [key: string]: FieldNode[] }
 ): (
-  exeContext: ExecutionContext,
+  compilationContext: CompilationContext,
   returnType: GraphQLObjectType,
   fieldNodes: FieldNode[]
 ) => { [key: string]: FieldNode[] } {
@@ -528,15 +886,12 @@ function keyMap<T>(
 }
 
 export function computeLocations(nodes: ASTNode[]): SourceLocation[] {
-  return nodes.reduce(
-    (list, node) => {
-      if (node.loc) {
-        list.push(getLocation(node.loc.source, node.loc.start));
-      }
-      return list;
-    },
-    [] as SourceLocation[]
-  );
+  return nodes.reduce((list, node) => {
+    if (node.loc) {
+      list.push(getLocation(node.loc.source, node.loc.start));
+    }
+    return list;
+  }, [] as SourceLocation[]);
 }
 
 export interface ObjectPath {
