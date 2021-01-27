@@ -1,4 +1,4 @@
-name: Build and Publish
+name: Build
 
 on:
   push:
@@ -53,9 +53,3 @@ jobs:
 
       - name: Build
         run: yarn build
-
-      - name: Publish to NPM
-        if: github.ref == 'refs/heads/master' && matrix.node-version == 14
-        uses: JS-DevTools/npm-publish@v1
-        with:
-          token: ${{ secrets.NPM_TOKEN }}
