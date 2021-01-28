@@ -8,9 +8,12 @@ const schema = makeExecutableSchema({
   typeDefs: readFileSync(path.join(__dirname, "../schema.gql"), "utf-8"),
   resolvers
 });
+
+const customExecute = executor(schema);
+
 const apollo = new ApolloServer({
   schema,
-  executor: executor(schema)
+  executor: customExecute
 });
 
 apollo.listen({ port: 3000 }).then(() => {
