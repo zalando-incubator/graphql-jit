@@ -486,7 +486,6 @@ describe("Subscription Initialization Phase", () => {
     await testReportsError(subscriptionRejectingErrorSchema);
 
     async function testReportsError(schema: GraphQLSchema) {
-      // Promise<AsyncIterable<ExecutionResult> | ExecutionResult>
       const result = await subscribe({
         schema,
         document: parse(`
@@ -539,12 +538,12 @@ describe("Subscription Initialization Phase", () => {
         schema,
         document: parse(`
         subscription {
-          importantEmail
+            importantEmail
         }
       `)
       });
 
-      expect(result).toMatchObject({
+      expect(result).toEqual({
         errors: [
           {
             message: "test error",
