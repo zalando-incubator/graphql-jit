@@ -31,11 +31,10 @@ import {
   TypeNameMetaFieldDef
 } from "graphql";
 import { ExecutionContext as GraphQLContext } from "graphql/execution/execute";
+import { pathToArray } from "graphql/jsutils/Path";
 import { FieldNode, OperationDefinitionNode } from "graphql/language/ast";
 import mapAsyncIterator from "graphql/subscription/mapAsyncIterator";
 import { GraphQLTypeResolver } from "graphql/type/definition";
-
-import { pathToArray } from "graphql/jsutils/Path";
 import {
   addPath,
   Arguments,
@@ -191,7 +190,6 @@ interface InternalCompiledQuery extends CompiledQuery {
  * @param partialOptions compilation options to tune the compiler features
  * @returns {CompiledQuery} the cacheable result
  */
-
 export function compileQuery(
   schema: GraphQLSchema,
   document: DocumentNode,
@@ -212,7 +210,6 @@ export function compileQuery(
   ) {
     throw new Error("resolverInfoEnricher must be a function");
   }
-
   try {
     const options = {
       disablingCapturingStackErrors: false,
@@ -238,14 +235,12 @@ export function compileQuery(
     } else {
       stringify = JSON.stringify;
     }
-
     const getVariables = compileVariableParsing(
       schema,
       context.operation.variableDefinitions || []
     );
 
     const functionBody = compileOperation(context);
-
     const compiledQuery: InternalCompiledQuery = {
       query: createBoundQuery(
         context,
@@ -405,7 +400,6 @@ function compileOperation(context: CompilationContext) {
     Object.create(null),
     Object.create(null)
   );
-
   const topLevel = compileObjectType(
     context,
     type,
@@ -417,7 +411,6 @@ function compileOperation(context: CompilationContext) {
     fieldMap,
     true
   );
-
   let body = `function query (${GLOBAL_EXECUTION_CONTEXT}) {
   "use strict";
 `;

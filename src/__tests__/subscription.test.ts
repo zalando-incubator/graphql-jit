@@ -1,5 +1,5 @@
 /**
- * Based on https://github.com/graphql/graphql-js/blob/master/src/subscription/subscribe.js
+ * Based on https://github.com/graphql/graphql-js/blob/main/src/subscription/__tests__/subscribe-test.js
  * This test suite makes an addition denoted by "*" comments:
  * graphql-jit does not support the root resolver pattern that this test uses
  * so the part must be rewritten to include that root resolver in `subscribe` of
@@ -544,7 +544,7 @@ describe("Subscription Initialization Phase", () => {
       `)
       });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             message: "test error",
