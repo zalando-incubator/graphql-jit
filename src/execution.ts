@@ -30,10 +30,7 @@ import {
   locatedError,
   TypeNameMetaFieldDef
 } from "graphql";
-import {
-  ExecutionContext as GraphQLContext,
-  getFieldDef
-} from "graphql/execution/execute";
+import { ExecutionContext as GraphQLContext } from "graphql/execution/execute";
 import { FieldNode, OperationDefinitionNode } from "graphql/language/ast";
 import mapAsyncIterator from "graphql/subscription/mapAsyncIterator";
 import { GraphQLTypeResolver } from "graphql/type/definition";
@@ -249,14 +246,15 @@ export function compileQuery(
 
     const functionBody = compileOperation(context);
 
-    // Subscription
     const compiledQuery: InternalCompiledQuery = {
       query: createBoundQuery(
         context,
         document,
         new Function("return " + functionBody)(),
         getVariables,
-        context.operation.name != null ? context.operation.name.value : undefined
+        context.operation.name != null
+          ? context.operation.name.value
+          : undefined
       ),
       stringify
     };
@@ -291,216 +289,6 @@ export function isCompiledQuery<
   E extends ExecutionResult
 >(query: C | E): query is C {
   return "query" in query && typeof query.query === "function";
-}
-
-/**
- * Subscription
- * Implements the "CreateSourceEventStream" algorithm described in the
- * GraphQL specification, resolving the subscription source event stream.
- *
- * Returns a Promise which resolves to either an AsyncIterable (if successful)
- * or an ExecutionResult (error). The promise will be rejected if the schema or
- * other arguments to this function are invalid, or if the resolved event stream
- * is not an async iterable.
- *
- * If the client-provided arguments to this function do not result in a
- * compliant subscription, a GraphQL Response (ExecutionResult) with
- * descriptive errors and no data will be returned.
- *
- * If the the source stream could not be created due to faulty subscription
- * resolver logic or underlying systems, the promise will resolve to a single
- * ExecutionResult containing `errors` and no `data`.
- *
- * If the operation succeeded, the promise resolves to the AsyncIterable for the
- * event stream returned by the resolver.
- *
- * A Source Event Stream represents a sequence of events, each of which triggers
- * a GraphQL execution for that event.
- *
- * This may be useful when hosting the stateful subscription service in a
- * different process or machine than the stateless GraphQL execution engine,
- * or otherwise separating these two steps. For more on this, see the
- * "Supporting Subscriptions at Scale" information in the GraphQL specification.
- *
- * Since createSourceEventStream only builds execution context and reports errors
- * in doing so, which we did, we simply call directly the later called
- * executeSubscription.
- */
-
-function isAsyncIterable<T = unknown>(
-  val: unknown
-): val is AsyncIterableIterator<T> {
-  return typeof Object(val)[Symbol.asyncIterator] === "function";
-}
-
-async function executeSubscription(
-  context: ExecutionContext,
-  compileContext: CompilationContext
-): Promise<AsyncIterableIterator<any>> {
-  // TODO: We are doing the same thing in compileOperation, so we
-  // should find a way to reuse those results
-  const type = getOperationRootType(
-    compileContext.schema,
-    compileContext.operation
-  );
-
-  const fields = collectFields(
-    compileContext,
-    type,
-    compileContext.operation.selectionSet,
-    Object.create(null),
-    Object.create(null)
-  );
-
-  const responseNames = Object.keys(fields);
-  const responseName = responseNames[0];
-  const fieldNodes = fields[responseName];
-  const fieldNode = fieldNodes[0];
-  const fieldName = fieldNode.name.value;
-  const fieldDef = getFieldDef(compileContext.schema, type, fieldName);
-
-  if (!fieldDef) {
-    throw new GraphQLError(
-      `The subscription field "${fieldName}" is not defined.`,
-      fieldNodes
-    );
-  }
-
-  const responsePath = addPath(undefined, fieldName);
-
-  const resolveInfo = createResolveInfoThunk({
-    schema: compileContext.schema,
-    fragments: compileContext.fragments,
-    operation: compileContext.operation,
-    parentType: type,
-    fieldName,
-    fieldType: fieldDef.type,
-    fieldNodes
-  })(context.rootValue, context.variables, serializeResponsePath(responsePath));
-
-  // Call the `subscribe()` resolver or the default resolver to produce an
-  // AsyncIterable yielding raw payloads.
-
-  // TODO: rootValue resolver and value is not supported
-  const subscriber = fieldDef.subscribe;
-
-  let eventStream;
-
-  try {
-    eventStream =
-      subscriber &&
-      (await subscriber(
-        context.rootValue,
-        context.variables,
-        context.context,
-        resolveInfo
-      ));
-    if (eventStream instanceof Error) {
-      throw eventStream;
-    }
-  } catch (error) {
-    throw locatedError(error, fieldNodes, pathToArray(responsePath));
-  }
-
-  if (!isAsyncIterable(eventStream)) {
-    throw new Error(
-      "Subscription field must return Async Iterable. " +
-        `Received: ${inspect(eventStream)}.`
-    );
-  }
-  return eventStream;
-}
-
-function createBoundSubscribe(
-  compilationContext: CompilationContext,
-  document: DocumentNode,
-  queryFn: CompiledQuery["query"],
-  getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
-  operationName: string | undefined
-): CompiledQuery["subscribe"] {
-  const {
-    resolvers,
-    typeResolvers,
-    isTypeOfs,
-    serializers,
-    resolveInfos
-  } = compilationContext;
-  const trimmer = createNullTrimmer(compilationContext);
-  const fnName = operationName ? operationName : "subscribe";
-
-  const ret = {
-    async [fnName](
-      rootValue: any,
-      context: any,
-      variables: Maybe<{ [key: string]: any }>
-    ): Promise<AsyncIterableIterator<ExecutionResult> | ExecutionResult> {
-      // this can be shared across in a batch request
-      const parsedVariables = getVariableValues(variables || {});
-
-      // Return early errors if variable coercing failed.
-      if (failToParseVariables(parsedVariables)) {
-        return { errors: parsedVariables.errors };
-      }
-
-      const executionContext: ExecutionContext = {
-        rootValue,
-        context,
-        variables: parsedVariables.coerced,
-        safeMap,
-        inspect,
-        GraphQLError: GraphqlJitError,
-        resolvers,
-        typeResolvers,
-        isTypeOfs,
-        serializers,
-        resolveInfos,
-        trimmer,
-        promiseCounter: 0,
-        nullErrors: [],
-        errors: [],
-        data: {}
-      };
-
-      function reportGraphQLError(error: any): ExecutionResult {
-        if (error instanceof GraphQLError) {
-          return {
-            errors: [error]
-          };
-        }
-        throw error;
-      }
-
-      let resultOrStream: AsyncIterableIterator<any>;
-
-      try {
-        resultOrStream = await executeSubscription(
-          executionContext,
-          compilationContext
-        );
-      } catch (e) {
-        return reportGraphQLError(e);
-      }
-
-      // For each payload yielded from a subscription, map it over the normal
-      // GraphQL `execute` function, with `payload` as the rootValue.
-      // This implements the "MapSourceToResponseEvent" algorithm described in
-      // the GraphQL specification. The `execute` function provides the
-      // "ExecuteSubscriptionEvent" algorithm, as it is nearly identical to the
-      // "ExecuteQuery" algorithm, for which `execute` is also used.
-      // We use our `query` function in place of `execute`
-
-      const mapSourceToResponse = (payload: any) =>
-        queryFn(payload, context, variables);
-
-      return mapAsyncIterator(
-        resultOrStream,
-        mapSourceToResponse,
-        reportGraphQLError
-      );
-    }
-  };
-
-  return ret[fnName];
 }
 
 // Exported only for an error test
@@ -617,6 +405,7 @@ function compileOperation(context: CompilationContext) {
     Object.create(null),
     Object.create(null)
   );
+
   const topLevel = compileObjectType(
     context,
     type,
@@ -1875,4 +1664,208 @@ function getParentArgIndexes(context: CompilationContext) {
 
 function getJsFieldName(fieldName: string) {
   return `${LOCAL_JS_FIELD_NAME_PREFIX}${fieldName}`;
+}
+
+/**
+ * Subscription
+ * Implements the "CreateSourceEventStream" algorithm described in the
+ * GraphQL specification, resolving the subscription source event stream.
+ *
+ * Returns a Promise which resolves to either an AsyncIterable (if successful)
+ * or an ExecutionResult (error). The promise will be rejected if the schema or
+ * other arguments to this function are invalid, or if the resolved event stream
+ * is not an async iterable.
+ *
+ * If the client-provided arguments to this function do not result in a
+ * compliant subscription, a GraphQL Response (ExecutionResult) with
+ * descriptive errors and no data will be returned.
+ *
+ * If the the source stream could not be created due to faulty subscription
+ * resolver logic or underlying systems, the promise will resolve to a single
+ * ExecutionResult containing `errors` and no `data`.
+ *
+ * If the operation succeeded, the promise resolves to the AsyncIterable for the
+ * event stream returned by the resolver.
+ *
+ * A Source Event Stream represents a sequence of events, each of which triggers
+ * a GraphQL execution for that event.
+ *
+ * This may be useful when hosting the stateful subscription service in a
+ * different process or machine than the stateless GraphQL execution engine,
+ * or otherwise separating these two steps. For more on this, see the
+ * "Supporting Subscriptions at Scale" information in the GraphQL specification.
+ *
+ * Since createSourceEventStream only builds execution context and reports errors
+ * in doing so, which we did, we simply call directly the later called
+ * executeSubscription.
+ */
+
+function isAsyncIterable<T = unknown>(
+  val: unknown
+): val is AsyncIterableIterator<T> {
+  return typeof Object(val)[Symbol.asyncIterator] === "function";
+}
+
+async function executeSubscription(
+  context: ExecutionContext,
+  compileContext: CompilationContext
+): Promise<AsyncIterableIterator<any>> {
+  // TODO: We are doing the same thing in compileOperation, so we
+  // should find a way to reuse those results
+  const type = getOperationRootType(
+    compileContext.schema,
+    compileContext.operation
+  );
+
+  const fieldMap = collectFields(
+    compileContext,
+    type,
+    compileContext.operation.selectionSet,
+    Object.create(null),
+    Object.create(null)
+  );
+
+  const fieldNodes = Object.values(fieldMap)[0];
+  const fieldNode = fieldNodes[0];
+  const fieldName = fieldNode.name.value;
+
+  const field = resolveFieldDef(compileContext, type, fieldNodes);
+
+  if (!field) {
+    throw new GraphQLError(
+      `The subscription field "${fieldName}" is not defined.`,
+      fieldNodes
+    );
+  }
+
+  const responsePath = addPath(undefined, fieldName);
+
+  const resolveInfoName = createResolveInfoName(responsePath);
+  const resolveInfo = context.resolveInfos[resolveInfoName](
+    context.rootValue,
+    context.variables,
+    responsePath
+  );
+
+  // Call the `subscribe()` resolver or the default resolver to produce an
+  // AsyncIterable yielding raw payloads.
+  const subscriber = field.subscribe;
+
+  let eventStream;
+
+  try {
+    eventStream =
+      subscriber &&
+      (await subscriber(
+        context.rootValue,
+        context.variables,
+        context.context,
+        resolveInfo
+      ));
+    if (eventStream instanceof Error) {
+      throw eventStream;
+    }
+  } catch (error) {
+    throw locatedError(error, fieldNodes, pathToArray(responsePath));
+  }
+
+  if (!isAsyncIterable(eventStream)) {
+    throw new Error(
+      "Subscription field must return Async Iterable. " +
+        `Received: ${inspect(eventStream)}.`
+    );
+  }
+  return eventStream;
+}
+
+function createBoundSubscribe(
+  compilationContext: CompilationContext,
+  document: DocumentNode,
+  queryFn: CompiledQuery["query"],
+  getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
+  operationName: string | undefined
+): CompiledQuery["subscribe"] {
+  const {
+    resolvers,
+    typeResolvers,
+    isTypeOfs,
+    serializers,
+    resolveInfos
+  } = compilationContext;
+  const trimmer = createNullTrimmer(compilationContext);
+  const fnName = operationName ? operationName : "subscribe";
+
+  const ret = {
+    async [fnName](
+      rootValue: any,
+      context: any,
+      variables: Maybe<{ [key: string]: any }>
+    ): Promise<AsyncIterableIterator<ExecutionResult> | ExecutionResult> {
+      // this can be shared across in a batch request
+      const parsedVariables = getVariableValues(variables || {});
+
+      // Return early errors if variable coercing failed.
+      if (failToParseVariables(parsedVariables)) {
+        return { errors: parsedVariables.errors };
+      }
+
+      const executionContext: ExecutionContext = {
+        rootValue,
+        context,
+        variables: parsedVariables.coerced,
+        safeMap,
+        inspect,
+        GraphQLError: GraphqlJitError,
+        resolvers,
+        typeResolvers,
+        isTypeOfs,
+        serializers,
+        resolveInfos,
+        trimmer,
+        promiseCounter: 0,
+        nullErrors: [],
+        errors: [],
+        data: {}
+      };
+
+      function reportGraphQLError(error: any): ExecutionResult {
+        if (error instanceof GraphQLError) {
+          return {
+            errors: [error]
+          };
+        }
+        throw error;
+      }
+
+      let resultOrStream: AsyncIterableIterator<any>;
+
+      try {
+        resultOrStream = await executeSubscription(
+          executionContext,
+          compilationContext
+        );
+      } catch (e) {
+        return reportGraphQLError(e);
+      }
+
+      // For each payload yielded from a subscription, map it over the normal
+      // GraphQL `execute` function, with `payload` as the rootValue.
+      // This implements the "MapSourceToResponseEvent" algorithm described in
+      // the GraphQL specification. The `execute` function provides the
+      // "ExecuteSubscriptionEvent" algorithm, as it is nearly identical to the
+      // "ExecuteQuery" algorithm, for which `execute` is also used.
+      // We use our `query` function in place of `execute`
+
+      const mapSourceToResponse = (payload: any) =>
+        queryFn(payload, context, variables);
+
+      return mapAsyncIterator(
+        resultOrStream,
+        mapSourceToResponse,
+        reportGraphQLError
+      );
+    }
+  };
+
+  return ret[fnName];
 }
