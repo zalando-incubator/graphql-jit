@@ -20,7 +20,7 @@ import {
   SubscriptionArgs,
   ExecutionResult
 } from "graphql";
-import { compileQuery, isCompiledQuery } from "../execution";
+import { CompiledQuery, compileQuery, isCompiledQuery } from "../execution";
 
 function eventEmitterAsyncIterator(
   eventEmitter: EventEmitter,
@@ -1184,5 +1184,35 @@ describe("Subscription Publish Phase", () => {
       done: true,
       value: undefined
     });
+  });
+});
+
+describe("dx", () => {
+  test("function name of the bound query", async () => {
+    const schema = new GraphQLSchema({
+      subscription: new GraphQLObjectType({
+        name: "Type",
+        fields: {
+          a: { type: GraphQLString }
+        }
+      })
+    });
+    const document = parse(`subscription mockOperationName { a }`);
+    const compiledQuery = compileQuery(schema, document) as CompiledQuery;
+    expect(isCompiledQuery(compiledQuery)).toBe(true);
+    expect(compiledQuery.subscribe!.name).toBe("mockOperationName");
+  });
+  test("sets subscribe property only if operation is a subscription", () => {
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "TypeZ",
+        fields: {
+          a: { type: GraphQLString }
+        }
+      })
+    });
+    const document = parse(`query mockOperationName { a }`);
+    const compiledQuery = compileQuery(schema, document) as CompiledQuery;
+    expect(compiledQuery).not.toHaveProperty("subscribe");
   });
 });

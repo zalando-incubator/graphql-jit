@@ -249,28 +249,30 @@ export function compileQuery(
 
     const functionBody = compileOperation(context);
 
-    const query = createBoundQuery(
-      context,
-      document,
-      new Function("return " + functionBody)(),
-      getVariables,
-      context.operation.name != null ? context.operation.name.value : undefined
-    );
-
     // Subscription
     const compiledQuery: InternalCompiledQuery = {
-      query,
-      subscribe: createBoundSubscribe(
+      query: createBoundQuery(
         context,
         document,
-        query,
+        new Function("return " + functionBody)(),
+        getVariables,
+        context.operation.name != null ? context.operation.name.value : undefined
+      ),
+      stringify
+    };
+
+    if (context.operation.operation === "subscription") {
+      compiledQuery.subscribe = createBoundSubscribe(
+        context,
+        document,
+        compiledQuery.query,
         getVariables,
         context.operation.name != null
           ? context.operation.name.value
           : undefined
-      ),
-      stringify
-    };
+      );
+    }
+
     if ((options as any).debug) {
       // result of the compilation useful for debugging issues
       // and visualization tools like try-jit.
@@ -335,8 +337,8 @@ async function executeSubscription(
   context: ExecutionContext,
   compileContext: CompilationContext
 ): Promise<AsyncIterableIterator<any>> {
-  // TODO: We are doing the same thing in compileOperation, but since
-  // it does not expose any of its sideeffect, we have to do it again
+  // TODO: We are doing the same thing in compileOperation, so we
+  // should find a way to reuse those results
   const type = getOperationRootType(
     compileContext.schema,
     compileContext.operation
@@ -415,11 +417,7 @@ function createBoundSubscribe(
   queryFn: CompiledQuery["query"],
   getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
   operationName: string | undefined
-): CompiledQuery["subscribe"] | undefined {
-  if (compilationContext.operation.operation !== "subscription") {
-    return undefined;
-  }
-
+): CompiledQuery["subscribe"] {
   const {
     resolvers,
     typeResolvers,
