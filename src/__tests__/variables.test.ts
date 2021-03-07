@@ -47,6 +47,19 @@ const TestComplexScalar = new GraphQLScalarType({
   }
 });
 
+const TestComplexThrowingScalar = new GraphQLScalarType({
+  name: "ComplexThrowingScalar",
+  serialize() {
+    throw new Error("complex-scalar-error");
+  },
+  parseValue() {
+    throw new Error("complex-scalar-error");
+  },
+  parseLiteral() {
+    return null;
+  }
+});
+
 const TestInputObject = new GraphQLInputObjectType({
   name: "TestInputObject",
   fields: {
@@ -55,6 +68,13 @@ const TestInputObject = new GraphQLInputObjectType({
     c: { type: new GraphQLNonNull(GraphQLString) },
     d: { type: TestComplexScalar },
     e: { type: new GraphQLList(GraphQLString) }
+  }
+});
+
+const TestThrowingInputObject = new GraphQLInputObjectType({
+  name: "TestThrowingInputObject",
+  fields: {
+    a: { type: TestComplexThrowingScalar }
   }
 });
 
@@ -100,6 +120,9 @@ const TestType = new GraphQLObjectType({
       type: new GraphQLNonNull(TestEnum)
     }),
     fieldWithObjectInput: fieldWithInputArg({ type: TestInputObject }),
+    fieldWithObjectThrowingInput: fieldWithInputArg({
+      type: TestThrowingInputObject
+    }),
     fieldWithNullableStringInput: fieldWithInputArg({ type: GraphQLString }),
     fieldWithNullableIDInput: fieldWithInputArg({ type: GraphQLID }),
     fieldWithNullableIntInput: fieldWithInputArg({ type: GraphQLInt }),
@@ -153,7 +176,7 @@ const schema = new GraphQLSchema({ query: TestType });
 
 function executeQuery(query: string, variableValues?: any, s = schema) {
   const document = parse(query);
-  const prepared = compileQuery(s, document, "");
+  const prepared: any = compileQuery(s, document, "");
   if (!isCompiledQuery(prepared)) {
     return prepared;
   }
@@ -486,6 +509,31 @@ describe("Execute: Handles inputs", () => {
             fieldWithObjectInput: '{ c: "foo", d: "DeserializedValue" }'
           }
         });
+      });
+
+      test("preserves originalError when custom scalar throws", async () => {
+        const params = { input: { a: "SerializedValue" } };
+        const result = await executeQuery(
+          `
+        query ($input: TestThrowingInputObject) {
+          fieldWithObjectThrowingInput(input: $input)
+        }
+      `,
+          params
+        );
+
+        expect(result).toEqual({
+          errors: [
+            {
+              message:
+                'Variable "$a" got invalid value "SerializedValue"; Expected type ComplexThrowingScalar.',
+              locations: [{ line: 2, column: 16 }]
+            }
+          ]
+        });
+        expect(result.errors[0].originalError.message).toBe(
+          "complex-scalar-error"
+        );
       });
 
       test("errors on null for nested non-null", async () => {

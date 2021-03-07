@@ -1,6 +1,6 @@
 {
   "name": "graphql-jit",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "GraphQL JIT Compiler to JS",
   "main": "dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,7 +20,8 @@
     "build": "tsc",
     "test": "jest",
     "mutation-test": "stryker run",
-    "codecov": "codecov"
+    "codecov": "codecov",
+    "benchmark": "NODE_ENV=production ts-node -T ./src/__benchmarks__/benchmarks.ts"
   },
   "files": [
     "dist/*"
@@ -38,7 +39,7 @@
     },
     "coverageThreshold": {
       "global": {
-        "branches": 95,
+        "branches": 94,
         "functions": 96,
         "lines": 96,
         "statements": 96
@@ -46,14 +47,14 @@
     }
   },
   "peerDependencies": {
-    "graphql": ">=14"
+    "graphql": ">=15"
   },
   "devDependencies": {
+    "@graphql-tools/schema": "^6.0.10",
     "@stryker-mutator/core": "^2.0.0",
     "@stryker-mutator/jest-runner": "^2.0.0",
     "@stryker-mutator/typescript": "^2.0.0",
     "@types/benchmark": "^1.0.31",
-    "@types/graphql": "^14.2.0",
     "@types/jest": "^24.0.11",
     "@types/lodash.memoize": "^4.1.6",
     "@types/lodash.merge": "^4.6.6",
@@ -62,11 +63,10 @@
     "benchmark": "^2.1.4",
     "codecov": "^3.3.0",
     "fast-json-stringify": "^2.2.3",
-    "graphql": "^15.0.0",
-    "graphql-tools": "^4.0.4",
+    "graphql": "^15.1.0",
     "jest": "^24.7.1",
     "lint-staged": "^8.1.5",
-    "prettier": "^1.16.4",
+    "prettier": "^1.19.1",
     "ts-jest": "^24.0.2",
     "ts-node": "^8.0.3",
     "tslint": "^5.15.0",

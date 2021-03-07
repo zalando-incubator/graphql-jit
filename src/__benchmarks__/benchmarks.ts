@@ -54,13 +54,21 @@ async function runBenchmarks() {
   const benchs = await Promise.all(
     Object.entries(benchmarks).map(
       async ([bench, { query, schema, variables }]) => {
-        const compiledQuery = compileQuery(schema, query, undefined);
+        const compiledQuery = compileQuery(schema, query, undefined, {
+          debug: true
+        } as any);
         if (!isCompiledQuery(compiledQuery)) {
-          // tslint:disable-next-line
+          // tslint:disable-next-line:no-console
           console.error(`${bench} failed to compile`);
           return null;
         }
-
+        // tslint:disable-next-line:no-console
+        console.log(
+          `size of function for ${bench}: ${
+            (compiledQuery as any)
+              .__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation.length
+          }`
+        );
         const graphqlJsResult = await execute(
           schema,
           query,
@@ -76,7 +84,7 @@ async function runBenchmarks() {
         if (
           JSON.stringify(graphqlJitResult) !== JSON.stringify(graphqlJsResult)
         ) {
-          // tslint:disable-next-line
+          // tslint:disable-next-line:no-console
           console.error(
             JSON.stringify(graphqlJitResult),
             "is different of",
@@ -132,11 +140,11 @@ async function runBenchmarks() {
           })
           // add listeners
           .on("cycle", (event: any) => {
-            // tslint:disable-next-line
+            // tslint:disable-next-line:no-console
             console.log(String(event.target));
           })
           .on("start", () => {
-            // tslint:disable-next-line
+            // tslint:disable-next-line:no-console
             console.log("Starting", bench);
           });
         return suite;
