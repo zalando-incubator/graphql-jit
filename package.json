@@ -20,7 +20,8 @@
     "build": "tsc",
     "test": "jest",
     "mutation-test": "stryker run",
-    "codecov": "codecov"
+    "codecov": "codecov",
+    "benchmark": "NODE_ENV=production ts-node -T ./src/__benchmarks__/benchmarks.ts"
   },
   "files": [
     "dist/*"
@@ -46,7 +47,7 @@
     }
   },
   "peerDependencies": {
-    "graphql": ">=14"
+    "graphql": ">=15"
   },
   "devDependencies": {
     "@graphql-tools/schema": "^6.0.10",
