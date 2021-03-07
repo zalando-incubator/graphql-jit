@@ -1,4 +1,3 @@
-/* tslint:disable:no-big-function */
 import {
   DocumentNode,
   GraphQLBoolean,
@@ -10,7 +9,7 @@ import {
   GraphQLSchema,
   GraphQLString,
   NameNode,
-  parse
+  parse,
 } from "graphql";
 import { compileQuery } from "../index";
 
@@ -28,8 +27,8 @@ const BlogAuthor = new GraphQLObjectType({
   name: "Author",
   fields: () => ({
     id: { type: GraphQLString },
-    name: { type: GraphQLString, resolve: ({ name }) => name }
-  })
+    name: { type: GraphQLString, resolve: ({ name }) => name },
+  }),
 });
 
 const BlogArticle: GraphQLObjectType = new GraphQLObjectType({
@@ -39,8 +38,8 @@ const BlogArticle: GraphQLObjectType = new GraphQLObjectType({
     isPublished: { type: GraphQLBoolean },
     author: { type: BlogAuthor },
     title: { type: GraphQLString },
-    body: { type: GraphQLString }
-  }
+    body: { type: GraphQLString },
+  },
 });
 
 const BlogQuery = new GraphQLObjectType({
@@ -49,7 +48,7 @@ const BlogQuery = new GraphQLObjectType({
     article: {
       type: BlogArticle,
       args: { id: { type: GraphQLID } },
-      resolve: (_, { id }) => article(id)
+      resolve: (_, { id }) => article(id),
     },
     feed: {
       type: new GraphQLList(BlogArticle),
@@ -63,14 +62,14 @@ const BlogQuery = new GraphQLObjectType({
         article(7),
         article(8),
         article(9),
-        article(10)
-      ]
-    }
-  }
+        article(10),
+      ],
+    },
+  },
 });
 
 const BlogSchema = new GraphQLSchema({
-  query: BlogQuery
+  query: BlogQuery,
 });
 
 function article(id: number): any {
@@ -79,11 +78,11 @@ function article(id: number): any {
     isPublished: true,
     author: {
       id: 123,
-      name: "John Smith"
+      name: "John Smith",
     },
     title: "My Article " + id,
     body: "This is a post",
-    hidden: "This data is not exposed in the schema"
+    hidden: "This data is not exposed in the schema",
   };
 }
 
@@ -125,7 +124,7 @@ describe("Execute: Handles execution with a complex schema completely aliased", 
           { myId: "7", myTitle: "My Article 7" },
           { myId: "8", myTitle: "My Article 8" },
           { myId: "9", myTitle: "My Article 9" },
-          { myId: "10", myTitle: "My Article 10" }
+          { myId: "10", myTitle: "My Article 10" },
         ],
         myArticle: {
           myId: "1",
@@ -134,10 +133,10 @@ describe("Execute: Handles execution with a complex schema completely aliased", 
           myBody: "This is a post",
           myAuthor: {
             myId: "123",
-            myName: "John Smith"
-          }
-        }
-      }
+            myName: "John Smith",
+          },
+        },
+      },
     });
   });
 });
@@ -156,10 +155,10 @@ describe("alias resolveinfo", () => {
             type: GraphQLString,
             resolve(_: any, _1: any, _2: any, inf: GraphQLResolveInfo) {
               infos.push(inf);
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     const rootValue = { root: "val" };
@@ -167,13 +166,13 @@ describe("alias resolveinfo", () => {
     await executeQuery(schema, ast, rootValue, { var: 123 });
     // we don't rely on the order of execution
     expect(
-      infos.find(info => info.fieldNodes[0].alias.value === "a")
+      infos.find((info) => info.fieldNodes[0].alias.value === "a")
     ).toBeDefined();
     expect(
-      infos.find(info => info.fieldNodes[0].alias.value === "b")
+      infos.find((info) => info.fieldNodes[0].alias.value === "b")
     ).toBeDefined();
     expect(
-      infos.find(info => info.fieldNodes[0].alias.value === "c")
+      infos.find((info) => info.fieldNodes[0].alias.value === "c")
     ).toBeDefined();
   });
 
@@ -210,20 +209,20 @@ describe("alias resolveinfo", () => {
                   ) {
                     fields.push({
                       parent: parent.name,
-                      current: (inf.fieldNodes[0].alias as NameNode).value
+                      current: (inf.fieldNodes[0].alias as NameNode).value,
                     });
-                  }
-                }
-              }
+                  },
+                },
+              },
             }),
             resolve(_: any, _1: any, _2: any, inf: GraphQLResolveInfo) {
               return {
-                name: (inf.fieldNodes[0].alias as NameNode).value
+                name: (inf.fieldNodes[0].alias as NameNode).value,
               };
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     const rootValue = { root: "val" };

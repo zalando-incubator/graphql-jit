@@ -5,7 +5,7 @@ import {
   CompiledQuery,
   compileQuery,
   CompilerOptions,
-  isCompiledQuery
+  isCompiledQuery,
 } from "../../../";
 
 export const executor = (
@@ -19,7 +19,12 @@ export const executor = (
     const cacheKey = `${prefix}-${queryHash}`;
     let compiledQuery = cache.get(cacheKey);
     if (!compiledQuery) {
-      const compilationResult = compileQuery(schema, document, operationName || undefined, compilerOpts);
+      const compilationResult = compileQuery(
+        schema,
+        document,
+        operationName || undefined,
+        compilerOpts
+      );
       if (isCompiledQuery(compilationResult)) {
         compiledQuery = compilationResult;
         cache.set(cacheKey, compiledQuery);

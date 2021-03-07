@@ -10,9 +10,8 @@ import {
   GraphQLSchema,
   GraphQLString,
   GraphQLUnionType,
-  parse
+  parse,
 } from "graphql";
-
 import { compileQuery } from "../index";
 
 class Dog {
@@ -44,8 +43,8 @@ function execute(
 const NamedType = new GraphQLInterfaceType({
   name: "Named",
   fields: {
-    name: { type: GraphQLString }
-  }
+    name: { type: GraphQLString },
+  },
 });
 
 const DogType = new GraphQLObjectType({
@@ -53,9 +52,9 @@ const DogType = new GraphQLObjectType({
   interfaces: [NamedType],
   fields: {
     name: { type: GraphQLString },
-    barks: { type: GraphQLBoolean }
+    barks: { type: GraphQLBoolean },
   },
-  isTypeOf: value => value instanceof Dog
+  isTypeOf: (value) => value instanceof Dog,
 });
 
 const CatType = new GraphQLObjectType({
@@ -63,9 +62,9 @@ const CatType = new GraphQLObjectType({
   interfaces: [NamedType],
   fields: {
     name: { type: GraphQLString },
-    meows: { type: GraphQLBoolean }
+    meows: { type: GraphQLBoolean },
   },
-  isTypeOf: value => value instanceof Cat
+  isTypeOf: (value) => value instanceof Cat,
 });
 
 const PetType = new GraphQLUnionType({
@@ -79,7 +78,7 @@ const PetType = new GraphQLUnionType({
       return CatType;
     }
     return null;
-  }
+  },
 });
 
 const PersonType = new GraphQLObjectType({
@@ -88,14 +87,14 @@ const PersonType = new GraphQLObjectType({
   fields: {
     name: { type: GraphQLString },
     pets: { type: new GraphQLList(PetType) },
-    friends: { type: new GraphQLList(NamedType) }
+    friends: { type: new GraphQLList(NamedType) },
   },
-  isTypeOf: value => value instanceof Person
+  isTypeOf: (value) => value instanceof Person,
 });
 
 const schema = new GraphQLSchema({
   query: PersonType,
-  types: [PetType]
+  types: [PetType],
 });
 
 const garfield = new Cat("Garfield", false);
@@ -103,7 +102,6 @@ const odie = new Dog("Odie", true);
 const liz = new Person("Liz");
 const john = new Person("John", [garfield, odie], [liz, odie]);
 
-// tslint:disable-next-line
 describe("Execute: Union and intersection types", () => {
   test("can introspect on union and intersection types", () => {
     const ast = parse(`
@@ -138,7 +136,7 @@ describe("Execute: Union and intersection types", () => {
           interfaces: [],
           possibleTypes: [{ name: "Dog" }, { name: "Cat" }, { name: "Person" }],
           enumValues: null,
-          inputFields: null
+          inputFields: null,
         },
         Pet: {
           kind: "UNION",
@@ -147,9 +145,9 @@ describe("Execute: Union and intersection types", () => {
           interfaces: null,
           possibleTypes: [{ name: "Dog" }, { name: "Cat" }],
           enumValues: null,
-          inputFields: null
-        }
-      }
+          inputFields: null,
+        },
+      },
     });
   });
 
@@ -179,9 +177,9 @@ describe("Execute: Union and intersection types", () => {
         name: "John",
         pets: [
           { __typename: "Cat", name: "Garfield", meows: false },
-          { __typename: "Dog", name: "Odie", barks: true }
-        ]
-      }
+          { __typename: "Dog", name: "Odie", barks: true },
+        ],
+      },
     });
   });
 
@@ -210,9 +208,9 @@ describe("Execute: Union and intersection types", () => {
         name: "John",
         friends: [
           { __typename: "Person", name: "Liz" },
-          { __typename: "Dog", name: "Odie", barks: true }
-        ]
-      }
+          { __typename: "Dog", name: "Odie", barks: true },
+        ],
+      },
     });
   });
 
@@ -255,13 +253,13 @@ describe("Execute: Union and intersection types", () => {
         name: "John",
         pets: [
           { __typename: "Cat", name: "Garfield", meows: false },
-          { __typename: "Dog", name: "Odie", barks: true }
+          { __typename: "Dog", name: "Odie", barks: true },
         ],
         friends: [
           { __typename: "Person", name: "Liz" },
-          { __typename: "Dog", name: "Odie", barks: true }
-        ]
-      }
+          { __typename: "Dog", name: "Odie", barks: true },
+        ],
+      },
     });
   });
 
@@ -273,14 +271,14 @@ describe("Execute: Union and intersection types", () => {
     const NamedType2 = new GraphQLInterfaceType({
       name: "Named",
       fields: {
-        name: { type: GraphQLString }
+        name: { type: GraphQLString },
       },
       resolveType(_, context, { schema: receivedSchema, rootValue }) {
         encounteredContext = context;
         encounteredSchema = receivedSchema;
         encounteredRootValue = rootValue;
         return PersonType2;
-      }
+      },
     });
 
     const PersonType2: GraphQLObjectType = new GraphQLObjectType({
@@ -288,12 +286,12 @@ describe("Execute: Union and intersection types", () => {
       interfaces: [NamedType2],
       fields: {
         name: { type: GraphQLString },
-        friends: { type: new GraphQLList(NamedType2) }
-      }
+        friends: { type: new GraphQLList(NamedType2) },
+      },
     });
 
     const schema2 = new GraphQLSchema({
-      query: PersonType2
+      query: PersonType2,
     });
 
     const john2 = new Person("John", [], [liz]);
@@ -303,7 +301,7 @@ describe("Execute: Union and intersection types", () => {
     const ast = parse("{ name, friends { name } }");
 
     expect(execute(schema2, ast, john2, context)).toEqual({
-      data: { name: "John", friends: [{ name: "Liz" }] }
+      data: { name: "John", friends: [{ name: "Liz" }] },
     });
 
     expect(encounteredContext).toEqual(context);

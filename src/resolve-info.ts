@@ -15,7 +15,7 @@ import {
   isNonNullType,
   isObjectType,
   isUnionType,
-  SelectionSetNode
+  SelectionSetNode,
 } from "graphql";
 import memoize from "lodash.memoize";
 import mergeWith from "lodash.mergewith";
@@ -59,7 +59,7 @@ export interface LeafField {
 function createLeafField<T extends object>(props: T): T & LeafField {
   return {
     [LeafFieldSymbol]: true,
-    ...props
+    ...props,
   };
 }
 
@@ -82,7 +82,7 @@ export function createResolveInfoThunk<T>(
     parentType,
     fieldName,
     fieldType,
-    fieldNodes
+    fieldNodes,
   }: {
     schema: GraphQLResolveInfo["schema"];
     fragments: GraphQLResolveInfo["fragments"];
@@ -104,7 +104,7 @@ export function createResolveInfoThunk<T>(
         parentType,
         schema,
         fragments,
-        operation
+        operation,
       }) || {};
     if (typeof enrichedInfo !== "object" || Array.isArray(enrichedInfo)) {
       enrichedInfo = {};
@@ -123,7 +123,7 @@ export function createResolveInfoThunk<T>(
           rootValue,
           operation,
           variableValues,`);
-  Object.keys(enrichedInfo).forEach(key => {
+  Object.keys(enrichedInfo).forEach((key) => {
     gen(`${key}: enrichedInfo["${key}"],\n`);
   });
   gen(`};};`);
@@ -162,7 +162,7 @@ export function fieldExpansionEnricher(input: ResolveInfoEnricherInput) {
   }
 
   return {
-    fieldExpansion
+    fieldExpansion,
   };
 }
 
@@ -334,7 +334,7 @@ function deepMerge<TObject, TSource>(obj: TObject, src: TSource) {
       if (isLeafField(srcValue)) {
         return {
           ...objValue,
-          ...srcValue
+          ...srcValue,
         };
       }
 

@@ -7,7 +7,7 @@ import {
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
-  parse
+  parse,
 } from "graphql";
 
 export function schema() {
@@ -16,8 +16,8 @@ export function schema() {
     fields: {
       url: { type: GraphQLString },
       width: { type: GraphQLInt },
-      height: { type: GraphQLInt }
-    }
+      height: { type: GraphQLInt },
+    },
   });
 
   const BlogAuthor = new GraphQLObjectType({
@@ -28,10 +28,10 @@ export function schema() {
       pic: {
         args: { width: { type: GraphQLInt }, height: { type: GraphQLInt } },
         type: BlogImage,
-        resolve: (obj, { width, height }) => obj.pic(width, height)
+        resolve: (obj, { width, height }) => obj.pic(width, height),
       },
-      recentArticle: { type: BlogArticle }
-    })
+      recentArticle: { type: BlogArticle },
+    }),
   });
 
   const BlogArticle: GraphQLObjectType = new GraphQLObjectType({
@@ -42,8 +42,8 @@ export function schema() {
       author: { type: BlogAuthor },
       title: { type: GraphQLString },
       body: { type: GraphQLString },
-      keywords: { type: new GraphQLList(GraphQLString) }
-    }
+      keywords: { type: new GraphQLList(GraphQLString) },
+    },
   });
 
   const BlogQuery = new GraphQLObjectType({
@@ -52,7 +52,7 @@ export function schema() {
       article: {
         type: BlogArticle,
         args: { id: { type: GraphQLID } },
-        resolve: (_, { id }) => article(id)
+        resolve: (_, { id }) => article(id),
       },
       feed: {
         type: new GraphQLList(BlogArticle),
@@ -67,17 +67,17 @@ export function schema() {
             article(7),
             article(8),
             article(9),
-            article(10)
-          ])
-      }
-    }
+            article(10),
+          ]),
+      },
+    },
   });
 
   const johnSmith = {
     id: 123,
     name: "John Smith",
     pic: (width: number, height: number) => getPic(123, width, height),
-    recentArticle: null
+    recentArticle: null,
   };
   johnSmith.recentArticle = article(1);
 
@@ -89,19 +89,19 @@ export function schema() {
       title: "My Article " + id,
       body: "This is a post",
       hidden: "This data is not exposed in the schema",
-      keywords: ["foo", "bar", 1, true, null]
+      keywords: ["foo", "bar", 1, true, null],
     };
   }
   function getPic(uid: number, width: number, height: number) {
     return {
       url: `cdn://${uid}`,
       width: `${width}`,
-      height: `${height}`
+      height: `${height}`,
     };
   }
 
   return new GraphQLSchema({
-    query: BlogQuery
+    query: BlogQuery,
   });
 }
 

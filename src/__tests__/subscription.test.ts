@@ -18,7 +18,7 @@ import {
   GraphQLSchema,
   GraphQLString,
   parse,
-  SubscriptionArgs
+  SubscriptionArgs,
 } from "graphql";
 import { CompiledQuery, compileQuery, isCompiledQuery } from "../execution";
 
@@ -40,7 +40,7 @@ function eventEmitterAsyncIterator(
   }
 
   function pullValue() {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       if (pushQueue.length !== 0) {
         resolve({ value: pushQueue.shift(), done: false });
       } else {
@@ -75,7 +75,7 @@ function eventEmitterAsyncIterator(
     },
     [Symbol.asyncIterator]() {
       return this;
-    }
+    },
   } as any;
 }
 
@@ -85,7 +85,7 @@ async function subscribe({
   operationName,
   rootValue,
   contextValue,
-  variableValues
+  variableValues,
 }: SubscriptionArgs): Promise<
   AsyncIterableIterator<ExecutionResult> | ExecutionResult
 > {
@@ -100,8 +100,8 @@ const EmailType = new GraphQLObjectType({
     from: { type: GraphQLString },
     subject: { type: GraphQLString },
     message: { type: GraphQLString },
-    unread: { type: GraphQLBoolean }
-  }
+    unread: { type: GraphQLBoolean },
+  },
 });
 
 const InboxType = new GraphQLObjectType({
@@ -109,29 +109,30 @@ const InboxType = new GraphQLObjectType({
   fields: {
     total: {
       type: GraphQLInt,
-      resolve: inbox => inbox.emails.length
+      resolve: (inbox) => inbox.emails.length,
     },
     unread: {
       type: GraphQLInt,
-      resolve: inbox => inbox.emails.filter((email: any) => email.unread).length
+      resolve: (inbox) =>
+        inbox.emails.filter((email: any) => email.unread).length,
     },
-    emails: { type: new GraphQLList(EmailType) }
-  }
+    emails: { type: new GraphQLList(EmailType) },
+  },
 });
 
 const QueryType = new GraphQLObjectType({
   name: "Query",
   fields: {
-    inbox: { type: InboxType }
-  }
+    inbox: { type: InboxType },
+  },
 });
 
 const EmailEventType = new GraphQLObjectType({
   name: "EmailEvent",
   fields: {
     email: { type: EmailType },
-    inbox: { type: InboxType }
-  }
+    inbox: { type: InboxType },
+  },
 });
 
 const emailSchema = emailSchemaWithResolvers();
@@ -150,11 +151,11 @@ function emailSchemaWithResolvers<T>(
           resolve: resolveFn,
           subscribe: subscribeFn,
           args: {
-            priority: { type: GraphQLInt }
-          }
-        }
-      }
-    })
+            priority: { type: GraphQLInt },
+          },
+        },
+      },
+    }),
   });
 }
 
@@ -185,13 +186,13 @@ async function createSubscription(
           from: "joe@graphql.org",
           subject: "Hello",
           message: "Hello World",
-          unread: false
-        }
-      ]
+          unread: false,
+        },
+      ],
     },
     importantEmail() {
       return eventEmitterAsyncIterator(pubsub, "importantEmail");
-    }
+    },
   };
 
   if (!schema) {
@@ -207,15 +208,15 @@ async function createSubscription(
     return pubsub.emit("importantEmail", {
       importantEmail: {
         email: newEmail,
-        inbox: data.inbox
-      }
+        inbox: data.inbox,
+      },
     });
   }
 
   // `subscribe` returns Promise<AsyncIterator | ExecutionResult>
   return {
     sendImportantEmail,
-    subscription: await subscribe({ schema, document, rootValue: data })
+    subscription: await subscribe({ schema, document, rootValue: data }),
   };
 }
 
@@ -250,8 +251,8 @@ describe("Subscription Initialization Phase", () => {
       schema: emailSchemaWithResolvers(emptyAsyncIterator),
       document,
       rootValue: {
-        importantEmail: emptyAsyncIterator
-      }
+        importantEmail: emptyAsyncIterator,
+      },
     });
 
     // @ts-ignore
@@ -268,19 +269,19 @@ describe("Subscription Initialization Phase", () => {
         // *
         importantEmail: {
           type: EmailEventType,
-          subscribe: () => eventEmitterAsyncIterator(pubsub, "importantEmail")
+          subscribe: () => eventEmitterAsyncIterator(pubsub, "importantEmail"),
         },
         nonImportantEmail: {
           type: EmailEventType,
           subscribe: () =>
-            eventEmitterAsyncIterator(pubsub, "nonImportantEmail")
-        }
-      }
+            eventEmitterAsyncIterator(pubsub, "nonImportantEmail"),
+        },
+      },
     });
 
     const testSchema = new GraphQLSchema({
       query: QueryType,
-      subscription: SubscriptionTypeMultiple
+      subscription: SubscriptionTypeMultiple,
     });
 
     const { subscription, sendImportantEmail } = await createSubscription(
@@ -292,7 +293,7 @@ describe("Subscription Initialization Phase", () => {
       from: "yuzhi@graphql.org",
       subject: "Alright",
       message: "Tests are good",
-      unread: true
+      unread: true,
     });
 
     // @ts-ignore
@@ -308,10 +309,11 @@ describe("Subscription Initialization Phase", () => {
         fields: {
           importantEmail: {
             type: GraphQLString,
-            subscribe: () => eventEmitterAsyncIterator(pubsub, "importantEmail")
-          }
-        }
-      })
+            subscribe: () =>
+              eventEmitterAsyncIterator(pubsub, "importantEmail"),
+          },
+        },
+      }),
     });
 
     const subscription = await subscribe({
@@ -320,11 +322,11 @@ describe("Subscription Initialization Phase", () => {
         subscription {
           importantEmail
         }
-      `)
+      `),
     });
 
     pubsub.emit("importantEmail", {
-      importantEmail: {}
+      importantEmail: {},
     });
 
     // @ts-ignore
@@ -343,10 +345,10 @@ describe("Subscription Initialization Phase", () => {
             subscribe: async () => {
               await new Promise(setImmediate);
               return eventEmitterAsyncIterator(pubsub, "importantEmail");
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     const subscription = await subscribe({
@@ -355,11 +357,11 @@ describe("Subscription Initialization Phase", () => {
         subscription {
           importantEmail
         }
-      `)
+      `),
     });
 
     pubsub.emit("importantEmail", {
-      importantEmail: {}
+      importantEmail: {},
     });
 
     // @ts-ignore
@@ -378,7 +380,7 @@ describe("Subscription Initialization Phase", () => {
           subscribe() {
             didResolveImportantEmail = true;
             return eventEmitterAsyncIterator(new EventEmitter(), "event");
-          }
+          },
         },
         nonImportantEmail: {
           type: EmailEventType,
@@ -386,14 +388,14 @@ describe("Subscription Initialization Phase", () => {
           subscribe() {
             didResolveNonImportantEmail = true;
             return eventEmitterAsyncIterator(new EventEmitter(), "event");
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
     const schema = new GraphQLSchema({
       query: QueryType,
-      subscription: SubscriptionTypeMultiple
+      subscription: SubscriptionTypeMultiple,
     });
 
     const subscription = await subscribe({
@@ -403,7 +405,7 @@ describe("Subscription Initialization Phase", () => {
           importantEmail
           nonImportantEmail
         }
-      `)
+      `),
     });
 
     // @ts-ignore
@@ -432,9 +434,9 @@ describe("Subscription Initialization Phase", () => {
       errors: [
         {
           message: 'The subscription field "unknownField" is not defined.',
-          locations: [{ line: 3, column: 9 }]
-        }
-      ]
+          locations: [{ line: 3, column: 9 }],
+        },
+      ],
     });
   });
 
@@ -446,10 +448,10 @@ describe("Subscription Initialization Phase", () => {
         fields: {
           importantEmail: {
             type: GraphQLString,
-            subscribe: () => "test"
-          }
-        }
-      })
+            subscribe: () => "test",
+          },
+        },
+      }),
     });
 
     const pubsub = new EventEmitter();
@@ -492,7 +494,7 @@ describe("Subscription Initialization Phase", () => {
           subscription {
             importantEmail
           }
-        `)
+        `),
       });
 
       expect(result).toEqual({
@@ -500,9 +502,9 @@ describe("Subscription Initialization Phase", () => {
           {
             message: "test error",
             locations: [{ line: 3, column: 13 }],
-            path: ["importantEmail"]
-          }
-        ]
+            path: ["importantEmail"],
+          },
+        ],
       });
     }
   });
@@ -540,7 +542,7 @@ describe("Subscription Initialization Phase", () => {
         subscription {
             importantEmail
         }
-      `)
+      `),
       });
 
       expect(result).toEqual({
@@ -548,9 +550,9 @@ describe("Subscription Initialization Phase", () => {
           {
             message: "test error",
             locations: [{ column: 13, line: 3 }],
-            path: ["importantEmail"]
-          }
-        ]
+            path: ["importantEmail"],
+          },
+        ],
       });
     }
   });
@@ -577,7 +579,7 @@ describe("Subscription Initialization Phase", () => {
     const result = await subscribe({
       schema: emailSchema,
       document: ast,
-      variableValues: { priority: "meow" }
+      variableValues: { priority: "meow" },
     });
 
     expect(result).toEqual({
@@ -586,9 +588,9 @@ describe("Subscription Initialization Phase", () => {
           // Different
           message:
             'Variable "$priority" got invalid value "meow"; Expected type Int; Int cannot represent non-integer value: "meow"',
-          locations: [{ line: 2, column: 21 }]
-        }
-      ]
+          locations: [{ line: 2, column: 21 }],
+        },
+      ],
     });
   });
 });
@@ -613,7 +615,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
-        unread: true
+        unread: true,
       })
     ).toBe(true);
 
@@ -624,15 +626,15 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Alright"
+              subject: "Alright",
             },
             inbox: {
               unread: 1,
-              total: 2
-            }
-          }
-        }
-      }
+              total: 2,
+            },
+          },
+        },
+      },
     };
 
     expect(await payload1).toEqual(expectedPayload);
@@ -655,7 +657,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
-        unread: true
+        unread: true,
       })
     ).toBe(true);
 
@@ -667,15 +669,15 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Alright"
+              subject: "Alright",
             },
             inbox: {
               unread: 1,
-              total: 2
-            }
-          }
-        }
-      }
+              total: 2,
+            },
+          },
+        },
+      },
     });
 
     // Another new email arrives, before subscription.next() is called.
@@ -684,7 +686,7 @@ describe("Subscription Publish Phase", () => {
         from: "hyo@graphql.org",
         subject: "Tools",
         message: "I <3 making things",
-        unread: true
+        unread: true,
       })
     ).toBe(true);
 
@@ -697,22 +699,22 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "hyo@graphql.org",
-              subject: "Tools"
+              subject: "Tools",
             },
             inbox: {
               unread: 2,
-              total: 3
-            }
-          }
-        }
-      }
+              total: 3,
+            },
+          },
+        },
+      },
     });
 
     // The client decides to disconnect.
     // @ts-ignore
     expect(await subscription.return()).toEqual({
       done: true,
-      value: undefined
+      value: undefined,
     });
 
     // Which may result in disconnecting upstream services as well.
@@ -721,7 +723,7 @@ describe("Subscription Publish Phase", () => {
         from: "adam@graphql.org",
         subject: "Important",
         message: "Read me please",
-        unread: true
+        unread: true,
       })
     ).toBe(false); // No more listeners.
 
@@ -729,7 +731,7 @@ describe("Subscription Publish Phase", () => {
     // @ts-ignore
     expect(await subscription.next()).toEqual({
       done: true,
-      value: undefined
+      value: undefined,
     });
   });
 
@@ -747,7 +749,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
-        unread: true
+        unread: true,
       })
     ).toBe(true);
 
@@ -758,15 +760,15 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Alright"
+              subject: "Alright",
             },
             inbox: {
               unread: 1,
-              total: 2
-            }
-          }
-        }
-      }
+              total: 2,
+            },
+          },
+        },
+      },
     });
 
     // @ts-ignore
@@ -778,7 +780,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright 2",
         message: "Tests are good 2",
-        unread: true
+        unread: true,
       })
     ).toBe(true);
 
@@ -789,15 +791,15 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Alright 2"
+              subject: "Alright 2",
             },
             inbox: {
               unread: 2,
-              total: 3
-            }
-          }
-        }
-      }
+              total: 3,
+            },
+          },
+        },
+      },
     });
   });
 
@@ -815,7 +817,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
-        unread: true
+        unread: true,
       })
     ).toBe(true);
 
@@ -826,15 +828,15 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Alright"
+              subject: "Alright",
             },
             inbox: {
               unread: 1,
-              total: 2
-            }
-          }
-        }
-      }
+              total: 2,
+            },
+          },
+        },
+      },
     });
 
     // @ts-ignore
@@ -848,13 +850,13 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright 2",
         message: "Tests are good 2",
-        unread: true
+        unread: true,
       })
     ).toBe(false);
 
     expect(await payload).toEqual({
       done: true,
-      value: undefined
+      value: undefined,
     });
   });
 
@@ -872,7 +874,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
-        unread: true
+        unread: true,
       })
     ).toBe(true);
 
@@ -883,15 +885,15 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Alright"
+              subject: "Alright",
             },
             inbox: {
               unread: 1,
-              total: 2
-            }
-          }
-        }
-      }
+              total: 2,
+            },
+          },
+        },
+      },
     });
 
     // @ts-ignore
@@ -913,13 +915,13 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright 2",
         message: "Tests are good 2",
-        unread: true
+        unread: true,
       })
     ).toBe(false);
 
     expect(await payload).toEqual({
       done: true,
-      value: undefined
+      value: undefined,
     });
   });
 
@@ -937,7 +939,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Message",
         message: "Tests are good",
-        unread: true
+        unread: true,
       })
     ).toBe(true);
 
@@ -947,7 +949,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Message 2",
         message: "Tests are good 2",
-        unread: true
+        unread: true,
       })
     ).toBe(true);
 
@@ -958,15 +960,15 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Message"
+              subject: "Message",
             },
             inbox: {
               unread: 2,
-              total: 3
-            }
-          }
-        }
-      }
+              total: 3,
+            },
+          },
+        },
+      },
     });
 
     // @ts-ignore
@@ -979,26 +981,26 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Message 2"
+              subject: "Message 2",
             },
             inbox: {
               unread: 2,
-              total: 3
-            }
-          }
-        }
-      }
+              total: 3,
+            },
+          },
+        },
+      },
     });
   });
 
   it("should handle error during execution of source event", async () => {
     const erroringEmailSchema = emailSchemaWithResolvers(
-      async function*() {
+      async function* () {
         yield { email: { subject: "Hello" } };
         yield { email: { subject: "Goodbye" } };
         yield { email: { subject: "Bonjour" } };
       },
-      event => {
+      (event) => {
         if ((event as any).email.subject === "Goodbye") {
           throw new Error("Never leave.");
         }
@@ -1016,7 +1018,7 @@ describe("Subscription Publish Phase", () => {
             }
           }
         }
-      `)
+      `),
     });
 
     // @ts-ignore
@@ -1027,11 +1029,11 @@ describe("Subscription Publish Phase", () => {
         data: {
           importantEmail: {
             email: {
-              subject: "Hello"
-            }
-          }
-        }
-      }
+              subject: "Hello",
+            },
+          },
+        },
+      },
     });
 
     // An error in execution is presented as such.
@@ -1044,13 +1046,13 @@ describe("Subscription Publish Phase", () => {
           {
             message: "Never leave.",
             locations: [{ line: 3, column: 11 }],
-            path: ["importantEmail"]
-          }
+            path: ["importantEmail"],
+          },
         ],
         data: {
-          importantEmail: null
-        }
-      }
+          importantEmail: null,
+        },
+      },
     });
 
     // However that does not close the response event stream. Subsequent
@@ -1063,21 +1065,21 @@ describe("Subscription Publish Phase", () => {
         data: {
           importantEmail: {
             email: {
-              subject: "Bonjour"
-            }
-          }
-        }
-      }
+              subject: "Bonjour",
+            },
+          },
+        },
+      },
     });
   });
 
   it("should pass through error thrown in source event stream", async () => {
     const erroringEmailSchema = emailSchemaWithResolvers(
-      async function*() {
+      async function* () {
         yield { email: { subject: "Hello" } };
         throw new Error("test error");
       },
-      email => email
+      (email) => email
     );
 
     const subscription = await subscribe({
@@ -1090,7 +1092,7 @@ describe("Subscription Publish Phase", () => {
             }
           }
         }
-      `)
+      `),
     });
 
     // @ts-ignore
@@ -1101,11 +1103,11 @@ describe("Subscription Publish Phase", () => {
         data: {
           importantEmail: {
             email: {
-              subject: "Hello"
-            }
-          }
-        }
-      }
+              subject: "Hello",
+            },
+          },
+        },
+      },
     });
 
     let expectedError;
@@ -1123,17 +1125,17 @@ describe("Subscription Publish Phase", () => {
     const payload2 = await subscription.next();
     expect(payload2).toEqual({
       done: true,
-      value: undefined
+      value: undefined,
     });
   });
 
   it("should resolve GraphQL error from source event stream", async () => {
     const erroringEmailSchema = emailSchemaWithResolvers(
-      async function*() {
+      async function* () {
         yield { email: { subject: "Hello" } };
         throw new GraphQLError("test error");
       },
-      email => email
+      (email) => email
     );
 
     const subscription = await subscribe({
@@ -1146,7 +1148,7 @@ describe("Subscription Publish Phase", () => {
             }
           }
         }
-      `)
+      `),
     });
 
     // @ts-ignore
@@ -1157,11 +1159,11 @@ describe("Subscription Publish Phase", () => {
         data: {
           importantEmail: {
             email: {
-              subject: "Hello"
-            }
-          }
-        }
-      }
+              subject: "Hello",
+            },
+          },
+        },
+      },
     });
 
     // @ts-ignore
@@ -1171,17 +1173,17 @@ describe("Subscription Publish Phase", () => {
       value: {
         errors: [
           {
-            message: "test error"
-          }
-        ]
-      }
+            message: "test error",
+          },
+        ],
+      },
     });
 
     // @ts-ignore
     const payload3 = await subscription.next();
     expect(payload3).toEqual({
       done: true,
-      value: undefined
+      value: undefined,
     });
   });
 });
@@ -1192,9 +1194,9 @@ describe("dx", () => {
       subscription: new GraphQLObjectType({
         name: "Type",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
     const document = parse(`subscription mockOperationName { a }`);
     const compiledQuery = compileQuery(schema, document) as CompiledQuery;
@@ -1206,9 +1208,9 @@ describe("dx", () => {
       query: new GraphQLObjectType({
         name: "TypeZ",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
     const document = parse(`query mockOperationName { a }`);
     const compiledQuery = compileQuery(schema, document) as CompiledQuery;

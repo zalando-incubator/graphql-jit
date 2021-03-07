@@ -9,7 +9,7 @@ if (isCompiledQuery(compiled)) {
   const now = Date.now();
   let operations = 0;
   const timelimit = getTimelimit();
-  function benchmark() {
+  const benchmark = () => {
     if (Date.now() - now > timelimit) {
       console.log(`Ran ${operations} operations in ${timelimit / 1000}s`);
       return;
@@ -17,11 +17,11 @@ if (isCompiledQuery(compiled)) {
     const p: any = executableQuery(undefined, undefined, {
       id: "2",
       width: 300,
-      height: 500
+      height: 500,
     });
     p.then(benchmark);
     operations++;
-  }
+  };
   benchmark();
 } else {
   console.log("failed to compile");

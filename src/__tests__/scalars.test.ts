@@ -1,11 +1,10 @@
-/* tslint:disable:no-big-function */
 import {
   DocumentNode,
   GraphQLObjectType,
   GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
-  parse
+  parse,
 } from "graphql";
 import { compileQuery } from "../index";
 import SpyInstance = jest.SpyInstance;
@@ -27,10 +26,10 @@ function setupSchema(scalar: GraphQLScalarType, data: any) {
       fields: {
         scalar: {
           type: scalar,
-          resolve: () => data
-        }
-      }
-    })
+          resolve: () => data,
+        },
+      },
+    }),
   });
 }
 
@@ -46,7 +45,7 @@ describe("Scalars: Is able to serialize custom scalar", () => {
       setupSchema(
         new GraphQLScalarType({
           name: "Custom",
-          serialize: (value: any) => value
+          serialize: (value: any) => value,
         }),
         "test"
       ),
@@ -54,8 +53,8 @@ describe("Scalars: Is able to serialize custom scalar", () => {
     );
     expect(result).toEqual({
       data: {
-        scalar: "test"
-      }
+        scalar: "test",
+      },
     });
   });
 
@@ -71,7 +70,7 @@ describe("Scalars: Is able to serialize custom scalar", () => {
         setupSchema(
           new GraphQLScalarType({
             name: "Custom",
-            serialize: () => undefined
+            serialize: () => undefined,
           }),
           "test"
         ),
@@ -79,15 +78,15 @@ describe("Scalars: Is able to serialize custom scalar", () => {
       );
       expect(result).toEqual({
         data: {
-          scalar: null
+          scalar: null,
         },
         errors: [
           {
             message: `Expected a value of type "Custom" but received: test`,
             path: ["scalar"],
-            locations: [{ column: 9, line: 3 }]
-          }
-        ]
+            locations: [{ column: 9, line: 3 }],
+          },
+        ],
       });
     });
     it("handles the field serializing throwing", async () => {
@@ -103,7 +102,7 @@ describe("Scalars: Is able to serialize custom scalar", () => {
             name: "Custom",
             serialize: () => {
               throw new Error("failed");
-            }
+            },
           }),
           "test"
         ),
@@ -111,15 +110,15 @@ describe("Scalars: Is able to serialize custom scalar", () => {
       );
       expect(result).toEqual({
         data: {
-          scalar: null
+          scalar: null,
         },
         errors: [
           {
             message: "failed",
             path: ["scalar"],
-            locations: [{ column: 9, line: 3 }]
-          }
-        ]
+            locations: [{ column: 9, line: 3 }],
+          },
+        ],
       });
     });
     it("handles the field serializing throwing with no error message", async () => {
@@ -135,7 +134,7 @@ describe("Scalars: Is able to serialize custom scalar", () => {
             name: "Custom",
             serialize: () => {
               throw new Error("");
-            }
+            },
           }),
           "test"
         ),
@@ -143,15 +142,15 @@ describe("Scalars: Is able to serialize custom scalar", () => {
       );
       expect(result).toEqual({
         data: {
-          scalar: null
+          scalar: null,
         },
         errors: [
           {
             message: `Expected a value of type "Custom" but received an Error`,
             path: ["scalar"],
-            locations: [{ column: 9, line: 3 }]
-          }
-        ]
+            locations: [{ column: 9, line: 3 }],
+          },
+        ],
       });
     });
   });
@@ -163,7 +162,7 @@ describe("Scalars: Is able to serialize custom scalar", () => {
         setupSchema(
           new GraphQLScalarType({
             name: "Custom",
-            serialize: spy
+            serialize: spy,
           }),
           "test"
         ),
@@ -174,8 +173,8 @@ describe("Scalars: Is able to serialize custom scalar", () => {
       const result = prepared.query(undefined, undefined, {});
       expect(result).toEqual({
         data: {
-          scalar: "test"
-        }
+          scalar: "test",
+        },
       });
       expect(spy).toHaveBeenCalledWith("test");
     });
@@ -200,8 +199,8 @@ describe("Scalars: Is able to serialize custom scalar", () => {
         const result = prepared.query(undefined, undefined, {});
         expect(result).toEqual({
           data: {
-            scalar: "test"
-          }
+            scalar: "test",
+          },
         });
         expect(GraphQLString.serialize).toHaveBeenCalledWith("test");
       });
@@ -215,8 +214,8 @@ describe("Scalars: Is able to serialize custom scalar", () => {
         const result = prepared.query(undefined, undefined, {});
         expect(result).toEqual({
           data: {
-            scalar: "test"
-          }
+            scalar: "test",
+          },
         });
         expect(GraphQLString.serialize).not.toHaveBeenCalledWith("test");
       });
@@ -231,8 +230,8 @@ describe("Scalars: Is able to serialize custom scalar", () => {
         const result = prepared.query(undefined, undefined, {});
         expect(result).toEqual({
           data: {
-            scalar: "test"
-          }
+            scalar: "test",
+          },
         });
         expect(GraphQLString.serialize).not.toHaveBeenCalledWith("test");
         expect(customSerializer).toHaveBeenCalledWith("test");

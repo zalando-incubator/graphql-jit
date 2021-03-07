@@ -6,7 +6,7 @@ import {
   GraphQLType,
   isListType,
   isNonNullType,
-  isObjectType
+  isObjectType,
 } from "graphql";
 import { isAbstractType } from "graphql/type";
 import merge from "lodash.merge";
@@ -169,7 +169,7 @@ function parseQueryNullables(
   }
   return {
     isNullable: true,
-    children: properties
+    children: properties,
   };
 }
 
@@ -220,7 +220,7 @@ function transformNode(
     }
     return {
       isNullable: true,
-      children: properties
+      children: properties,
     };
   }
   if (isListType(type)) {
@@ -228,13 +228,13 @@ function transformNode(
     if (child != null) {
       return {
         isNullable: true,
-        children: { [ARRAY_CHILD_NAME]: child }
+        children: { [ARRAY_CHILD_NAME]: child },
       };
     }
 
     return {
       isNullable: true,
-      children: {}
+      children: {},
     };
   }
   if (isAbstractType(type)) {
@@ -250,7 +250,7 @@ function transformNode(
       },
       {
         isNullable: true,
-        children: {}
+        children: {},
       }
     );
   }

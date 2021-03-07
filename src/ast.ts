@@ -26,7 +26,7 @@ import {
   typeFromAST,
   valueFromASTUntyped,
   ValueNode,
-  VariableNode
+  VariableNode,
 } from "graphql";
 import { getFieldDef } from "graphql/execution/execute";
 import { Kind, SelectionNode, TypeNode } from "graphql/language";
@@ -83,7 +83,7 @@ function collectFieldsImpl(
 ): FieldsAndNodes {
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
-      case Kind.FIELD:
+      case Kind.FIELD: {
         const name = getFieldEntryKey(selection);
         if (!fields[name]) {
           fields[name] = [];
@@ -123,8 +123,8 @@ function collectFieldsImpl(
 
         fields[name].push(fieldNode);
         break;
-
-      case Kind.INLINE_FRAGMENT:
+      }
+      case Kind.INLINE_FRAGMENT: {
         if (
           !doesFragmentConditionMatch(
             compilationContext,
@@ -148,8 +148,8 @@ function collectFieldsImpl(
           )
         );
         break;
-
-      case Kind.FRAGMENT_SPREAD:
+      }
+      case Kind.FRAGMENT_SPREAD: {
         const fragName = selection.name.value;
         if (visitedFragmentNames[fragName]) {
           continue;
@@ -176,6 +176,7 @@ function collectFieldsImpl(
           )
         );
         break;
+      }
     }
   }
   return fields;
@@ -294,7 +295,7 @@ function augmentFieldNodeTree(
  */
 function joinShouldIncludeCompilations(...compilations: string[]) {
   // remove empty strings
-  let filteredCompilations = compilations.filter(it => it);
+  let filteredCompilations = compilations.filter((it) => it);
 
   // FIXME(boopathi): Maybe, find a better fix?
   //
@@ -309,7 +310,7 @@ function joinShouldIncludeCompilations(...compilations: string[]) {
   // Failing to do this results in [RangeError: invalid array length]
   // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Invalid_array_length
   filteredCompilations = filteredCompilations.filter(
-    it => it.trim() !== "true"
+    (it) => it.trim() !== "true"
   );
 
   /**
@@ -377,10 +378,10 @@ function compileSkipIncludeDirectiveValues(
   node: SelectionNode
 ) {
   const skipDirective = node.directives?.find(
-    it => it.name.value === GraphQLSkipDirective.name
+    (it) => it.name.value === GraphQLSkipDirective.name
   );
   const includeDirective = node.directives?.find(
-    it => it.name.value === GraphQLIncludeDirective.name
+    (it) => it.name.value === GraphQLIncludeDirective.name
   );
 
   const skipValue = skipDirective
@@ -409,7 +410,7 @@ function compileSkipIncludeDirective(
   compilationContext: CompilationContext,
   directive: DirectiveNode
 ) {
-  const ifNode = directive.arguments?.find(it => it.name.value === "if");
+  const ifNode = directive.arguments?.find((it) => it.name.value === "if");
   if (ifNode == null) {
     throw new GraphQLError(
       `Directive '${directive.name.value}' is missing required arguments: 'if'`,
@@ -449,11 +450,11 @@ function validateSkipIncludeVariableType(
   variable: VariableNode
 ) {
   const variableDefinition = compilationContext.operation.variableDefinitions?.find(
-    it => it.variable.name.value === variable.name.value
+    (it) => it.variable.name.value === variable.name.value
   );
   if (variableDefinition == null) {
     throw new GraphQLError(`Variable '${variable.name.value}' is not defined`, [
-      variable
+      variable,
     ]);
   }
 
@@ -583,30 +584,30 @@ function memoize3(
 ) => { [key: string]: FieldNode[] } {
   let cache0: WeakMap<any, any>;
 
-  function memoized(a1: any, a2: any, a3: any) {
+  function memoized(...args: any[]) {
     if (!cache0) {
       cache0 = new WeakMap();
     }
-    let cache1 = cache0.get(a1);
+    let cache1 = cache0.get(args[0]);
     let cache2;
     if (cache1) {
-      cache2 = cache1.get(a2);
+      cache2 = cache1.get(args[1]);
       if (cache2) {
-        const cachedValue = cache2.get(a3);
+        const cachedValue = cache2.get(args[2]);
         if (cachedValue !== undefined) {
           return cachedValue;
         }
       }
     } else {
       cache1 = new WeakMap();
-      cache0.set(a1, cache1);
+      cache0.set(args[0], cache1);
     }
     if (!cache2) {
       cache2 = new WeakMap();
-      cache1.set(a2, cache2);
+      cache1.set(args[1], cache2);
     }
-    const newValue = (fn as any)(...arguments);
-    cache2.set(a3, newValue);
+    const newValue = (fn as any)(...args);
+    cache2.set(args[2], newValue);
     return newValue;
   }
 
@@ -634,7 +635,7 @@ export function getArgumentDefs(
   const missing: MissingVariablePath[] = [];
   const argDefs = def.args;
   const argNodes = node.arguments || [];
-  const argNodeMap = keyMap(argNodes, arg => arg.name.value);
+  const argNodeMap = keyMap(argNodes, (arg) => arg.name.value);
   for (const argDef of argDefs) {
     const name = argDef.name;
     if (argDef.defaultValue !== undefined) {
@@ -649,7 +650,7 @@ export function getArgumentDefs(
       missing.push({
         valueNode: argumentNode.value,
         path: addPath(undefined, name, "literal"),
-        argument: { definition: argDef, node: argumentNode }
+        argument: { definition: argDef, node: argumentNode },
       });
     } else if (argumentNode) {
       const coercedValue = valueFromAST(argumentNode.value, argType);
@@ -658,7 +659,7 @@ export function getArgumentDefs(
         // execution. This is a runtime check to ensure execution does not
         // continue with an invalid argument value.
         throw new GraphQLError(
-          `Argument "${name}" of type \"${argType}\" has invalid value ${print(
+          `Argument "${name}" of type "${argType}" has invalid value ${print(
             argumentNode.value
           )}.`,
           argumentNode.value
@@ -669,7 +670,7 @@ export function getArgumentDefs(
         missing.push(
           ...coercedValue.variables.map(({ valueNode, path }) => ({
             valueNode,
-            path: addPath(path, name, "literal")
+            path: addPath(path, name, "literal"),
           }))
         );
       }
@@ -724,7 +725,7 @@ export function valueFromAST(
   if (valueNode.kind === Kind.NULL) {
     // This is explicitly returning the value null.
     return {
-      value: null
+      value: null,
     };
   }
 
@@ -744,7 +745,7 @@ export function valueFromAST(
           coercedValues.push(null);
           variables.push({
             valueNode: itemNode,
-            path: addPath(undefined, i.toString(), "literal")
+            path: addPath(undefined, i.toString(), "literal"),
           });
         } else {
           const itemValue = valueFromAST(itemNode, itemType);
@@ -756,7 +757,7 @@ export function valueFromAST(
             variables.push(
               ...itemValue.variables.map(({ valueNode, path }) => ({
                 valueNode,
-                path: addPath(path, i.toString(), "literal")
+                path: addPath(path, i.toString(), "literal"),
               }))
             );
           }
@@ -774,8 +775,8 @@ export function valueFromAST(
         value: [coercedValue.value],
         variables: coercedValue.variables.map(({ valueNode, path }) => ({
           valueNode,
-          path: addPath(path, "0", "literal")
-        }))
+          path: addPath(path, "0", "literal"),
+        })),
       };
     }
     return { value: [coercedValue.value] };
@@ -787,7 +788,7 @@ export function valueFromAST(
     }
     const coercedObj = Object.create(null);
     const variables: MissingVariablePath[] = [];
-    const fieldNodes = keyMap(valueNode.fields, field => field.name.value);
+    const fieldNodes = keyMap(valueNode.fields, (field) => field.name.value);
     const fields = Object.values(type.getFields());
     for (const field of fields) {
       if (field.defaultValue !== undefined) {
@@ -805,7 +806,7 @@ export function valueFromAST(
         variables.push(
           ...fieldValue.variables.map(({ valueNode, path }) => ({
             valueNode,
-            path: addPath(path, field.name, "literal")
+            path: addPath(path, field.name, "literal"),
           }))
         );
       }
@@ -832,7 +833,6 @@ export function valueFromAST(
     let result;
     try {
       if (type.parseLiteral.length > 1) {
-        // tslint:disable-next-line
         console.error(
           "Scalar with variable inputs detected for parsing AST literals. This is not supported."
         );

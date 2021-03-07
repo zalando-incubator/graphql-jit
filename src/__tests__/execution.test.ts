@@ -2,6 +2,7 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/execution-test.js
  */
 
+import { makeExecutableSchema } from "@graphql-tools/schema";
 import {
   DocumentNode,
   ExecutableDefinitionNode,
@@ -13,10 +14,9 @@ import {
   GraphQLResolveInfo,
   GraphQLSchema,
   GraphQLString,
-  parse
+  parse,
 } from "graphql";
 import { CompiledQuery, compileQuery, isCompiledQuery } from "../execution";
-import { makeExecutableSchema } from "@graphql-tools/schema";
 
 function executeArgs(args: any) {
   const {
@@ -25,7 +25,7 @@ function executeArgs(args: any) {
     rootValue,
     contextValue,
     variableValues,
-    operationName
+    operationName,
   } = args;
   return executeQuery(
     schema,
@@ -62,9 +62,9 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Type",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
 
     expect(() => executeQuery(schema)).toThrow("Must provide document");
@@ -74,14 +74,14 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Type",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
 
     expect(() =>
       compileQuery(schema, parse("{ field }"), "", {
-        resolverInfoEnricher: "bad" as any
+        resolverInfoEnricher: "bad" as any,
       })
     ).toThrow("resolverInfoEnricher must be a function");
   });
@@ -91,13 +91,13 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Type",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
 
     let compiled: any = compileQuery(schema, parse("{ field }"), "", {
-      debug: true
+      debug: true,
     } as any);
 
     expect(
@@ -113,7 +113,7 @@ describe("Execute: Handles basic execution tasks", () => {
   test("throws if no schema is provided", async () => {
     expect(() =>
       executeArgs({
-        document: parse("{ field }")
+        document: parse("{ field }"),
       })
     ).toThrow("Expected undefined to be a GraphQL schema.");
   });
@@ -131,20 +131,20 @@ describe("Execute: Handles basic execution tasks", () => {
             type: GraphQLString,
             resolve(rootValue) {
               return rootValue;
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     const result = await executeArgs({
       schema,
       document: parse(doc),
-      rootValue: data
+      rootValue: data,
     });
 
     expect(result).toEqual({
-      data: { a: "rootValue" }
+      data: { a: "rootValue" },
     });
   });
 
@@ -169,8 +169,8 @@ describe("Execute: Handles basic execution tasks", () => {
         a: { type: GraphQLString, resolve: () => "Apple" },
         b: { type: GraphQLString, resolve: () => "Banana" },
         c: { type: GraphQLString, resolve: () => "Cherry" },
-        deep: { type: Type, resolve: () => ({}) }
-      })
+        deep: { type: Type, resolve: () => ({}) },
+      }),
     });
     const schema = new GraphQLSchema({ query: Type });
 
@@ -184,10 +184,10 @@ describe("Execute: Handles basic execution tasks", () => {
           c: "Cherry",
           deeper: {
             b: "Banana",
-            c: "Cherry"
-          }
-        }
-      }
+            c: "Cherry",
+          },
+        },
+      },
     });
   });
 
@@ -204,10 +204,10 @@ describe("Execute: Handles basic execution tasks", () => {
             type: GraphQLString,
             resolve(_: any, _1: any, _2: any, inf: GraphQLResolveInfo) {
               info = inf;
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     const rootValue = { root: "val" };
@@ -225,7 +225,7 @@ describe("Execute: Handles basic execution tasks", () => {
         "fragments",
         "rootValue",
         "operation",
-        "variableValues"
+        "variableValues",
       ].sort()
     );
     expect(info.fieldName).toEqual("test");
@@ -247,7 +247,7 @@ describe("Execute: Handles basic execution tasks", () => {
     const doc = "query Example { a }";
 
     const data = {
-      contextThing: "thing"
+      contextThing: "thing",
     };
 
     let resolvedRootValue: any = {};
@@ -260,10 +260,10 @@ describe("Execute: Handles basic execution tasks", () => {
             type: GraphQLString,
             resolve(rootValue) {
               resolvedRootValue = rootValue;
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     await executeQuery(schema, parse(doc), data);
@@ -287,15 +287,15 @@ describe("Execute: Handles basic execution tasks", () => {
           b: {
             args: {
               numArg: { type: GraphQLInt },
-              stringArg: { type: GraphQLString }
+              stringArg: { type: GraphQLString },
             },
             type: GraphQLString,
             resolve(_, args) {
               resolvedArgs = args;
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     executeQuery(schema, parse(doc));
@@ -340,7 +340,7 @@ describe("Execute: Handles basic execution tasks", () => {
           "sync0",
           new Error("Error getting syncReturnErrorList1"),
           "sync2",
-          new Error("Error getting syncReturnErrorList3")
+          new Error("Error getting syncReturnErrorList3"),
         ];
       },
       async() {
@@ -360,7 +360,6 @@ describe("Execute: Handles basic execution tasks", () => {
           throw new Error("Error getting asyncError");
         });
       },
-      // tslint:disable-next-line
       asyncRawError() {
         return new Promise(() => {
           /* eslint-disable */
@@ -378,7 +377,7 @@ describe("Execute: Handles basic execution tasks", () => {
         error.extensions = { foo: "bar" };
 
         return Promise.resolve(error);
-      }
+      },
     };
 
     const ast = parse(doc);
@@ -390,82 +389,82 @@ describe("Execute: Handles basic execution tasks", () => {
             type: GraphQLString,
             resolve(data) {
               return data.sync();
-            }
+            },
           },
           syncError: {
             type: GraphQLString,
             resolve(data) {
               return data.syncError();
-            }
+            },
           },
           syncRawError: {
             type: GraphQLString,
             resolve(data) {
               return data.syncRawError();
-            }
+            },
           },
           syncReturnError: {
             type: GraphQLString,
             resolve(data) {
               return data.syncReturnError();
-            }
+            },
           },
           syncReturnErrorList: {
             type: new GraphQLList(GraphQLString),
             resolve(data) {
               return data.syncReturnErrorList();
-            }
+            },
           },
           async: {
             type: GraphQLString,
             resolve(data) {
               return data.async();
-            }
+            },
           },
           asyncReject: {
             type: GraphQLString,
             resolve(data) {
               return data.asyncReject();
-            }
+            },
           },
           asyncRawReject: {
             type: GraphQLString,
             resolve(data) {
               return data.asyncRawReject();
-            }
+            },
           },
           asyncEmptyReject: {
             type: GraphQLString,
             resolve(data) {
               return data.asyncEmptyReject();
-            }
+            },
           },
           asyncError: {
             type: GraphQLString,
             resolve(data) {
               return data.asyncError();
-            }
+            },
           },
           asyncRawError: {
             type: GraphQLString,
             resolve(data) {
               return data.asyncRawError();
-            }
+            },
           },
           asyncReturnError: {
             type: GraphQLString,
             resolve(data) {
               return data.asyncReturnError();
-            }
+            },
           },
           asyncReturnErrorWithExtensions: {
             type: GraphQLString,
             resolve(data) {
               return data.asyncReturnErrorWithExtensions();
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     const result = await executeQuery(schema, ast, data);
@@ -484,71 +483,71 @@ describe("Execute: Handles basic execution tasks", () => {
         asyncError: null,
         asyncRawError: null,
         asyncReturnError: null,
-        asyncReturnErrorWithExtensions: null
+        asyncReturnErrorWithExtensions: null,
       },
       errors: [
         {
           message: "Error getting syncError",
           locations: [{ line: 3, column: 7 }],
-          path: ["syncError"]
+          path: ["syncError"],
         },
         {
           message: "Error getting syncRawError",
           locations: [{ line: 4, column: 7 }],
-          path: ["syncRawError"]
+          path: ["syncRawError"],
         },
         {
           message: "Error getting syncReturnError",
           locations: [{ line: 5, column: 7 }],
-          path: ["syncReturnError"]
+          path: ["syncReturnError"],
         },
         {
           message: "Error getting syncReturnErrorList1",
           locations: [{ line: 6, column: 7 }],
-          path: ["syncReturnErrorList", 1]
+          path: ["syncReturnErrorList", 1],
         },
         {
           message: "Error getting syncReturnErrorList3",
           locations: [{ line: 6, column: 7 }],
-          path: ["syncReturnErrorList", 3]
+          path: ["syncReturnErrorList", 3],
         },
         {
           message: "Error getting asyncReject",
           locations: [{ line: 8, column: 7 }],
-          path: ["asyncReject"]
+          path: ["asyncReject"],
         },
         {
           message: "Error getting asyncRawReject",
           locations: [{ line: 9, column: 7 }],
-          path: ["asyncRawReject"]
+          path: ["asyncRawReject"],
         },
         {
           message: "",
           locations: [{ line: 10, column: 7 }],
-          path: ["asyncEmptyReject"]
+          path: ["asyncEmptyReject"],
         },
         {
           message: "Error getting asyncError",
           locations: [{ line: 11, column: 7 }],
-          path: ["asyncError"]
+          path: ["asyncError"],
         },
         {
           message: "Error getting asyncRawError",
           locations: [{ line: 12, column: 7 }],
-          path: ["asyncRawError"]
+          path: ["asyncRawError"],
         },
         {
           message: "Error getting asyncReturnError",
           locations: [{ line: 13, column: 7 }],
-          path: ["asyncReturnError"]
+          path: ["asyncReturnError"],
         },
         {
           message: "Error getting asyncReturnErrorWithExtensions",
           locations: [{ line: 14, column: 7 }],
           path: ["asyncReturnErrorWithExtensions"],
-          extensions: { foo: "bar" }
-        }
-      ]
+          extensions: { foo: "bar" },
+        },
+      ],
     });
   });
 
@@ -570,16 +569,16 @@ describe("Execute: Handles basic execution tasks", () => {
               new GraphQLObjectType({
                 name: "Food",
                 fields: {
-                  name: { type: GraphQLString }
-                }
+                  name: { type: GraphQLString },
+                },
               })
             ),
             resolve() {
               return Promise.reject(new Error("Dangit"));
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     const ast = parse(query);
@@ -587,20 +586,20 @@ describe("Execute: Handles basic execution tasks", () => {
 
     expect(result).toEqual({
       data: {
-        foods: null
+        foods: null,
       },
       errors: [
         {
           locations: [
             {
               column: 9,
-              line: 3
-            }
+              line: 3,
+            },
           ],
           message: "Dangit",
-          path: ["foods"]
-        }
-      ]
+          path: ["foods"],
+        },
+      ],
     });
   });
 
@@ -610,31 +609,31 @@ describe("Execute: Handles basic execution tasks", () => {
       fields: () => ({
         nullableA: {
           type: A,
-          resolve: () => ({})
+          resolve: () => ({}),
         },
         nonNullA: {
           type: new GraphQLNonNull(A),
-          resolve: () => ({})
+          resolve: () => ({}),
         },
         throws: {
           type: new GraphQLNonNull(GraphQLString),
           resolve: () => {
             throw new Error("Catch me if you can");
-          }
-        }
-      })
+          },
+        },
+      }),
     });
     const queryType = new GraphQLObjectType({
       name: "query",
       fields: () => ({
         nullableA: {
           type: A,
-          resolve: () => ({})
-        }
-      })
+          resolve: () => ({}),
+        },
+      }),
     });
     const schema = new GraphQLSchema({
-      query: queryType
+      query: queryType,
     });
 
     const query = `
@@ -655,16 +654,16 @@ describe("Execute: Handles basic execution tasks", () => {
     expect(result).toEqual({
       data: {
         nullableA: {
-          aliasedA: null
-        }
+          aliasedA: null,
+        },
       },
       errors: [
         {
           message: "Catch me if you can",
           locations: [{ line: 7, column: 17 }],
-          path: ["nullableA", "aliasedA", "nonNullA", "anotherA", "throws"]
-        }
-      ]
+          path: ["nullableA", "aliasedA", "nonNullA", "anotherA", "throws"],
+        },
+      ],
     });
   });
 
@@ -676,9 +675,9 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Type",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
 
     const result = await executeQuery(schema, ast, data);
@@ -686,7 +685,6 @@ describe("Execute: Handles basic execution tasks", () => {
     expect(result).toEqual({ data: { a: "b" } });
   });
 
-  // tslint:disable-next-line
   test("uses the only operation if no operation name is provided", async () => {
     const doc = "query Example { a }";
     const data = { a: "b" };
@@ -695,9 +693,9 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Type",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
 
     const result = await executeQuery(schema, ast, data);
@@ -713,9 +711,9 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Type",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
 
     const result = await executeQuery(
@@ -738,17 +736,16 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Type",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
 
     expect(executeQuery(schema, ast, data)).toEqual({
-      errors: [{ message: "Must provide an operation." }]
+      errors: [{ message: "Must provide an operation." }],
     });
   });
 
-  // tslint:disable-next-line
   test("errors if no op name is provided with multiple operations", async () => {
     const doc = "query Example { a } query OtherExample { a }";
     const data = { a: "b" };
@@ -757,18 +754,18 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Type",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
 
     expect(executeQuery(schema, ast, data)).toEqual({
       errors: [
         {
           message:
-            "Must provide operation name if query contains multiple operations."
-        }
-      ]
+            "Must provide operation name if query contains multiple operations.",
+        },
+      ],
     });
   });
 
@@ -779,19 +776,19 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Type",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
 
     expect(
       executeArgs({
         schema,
         document: ast,
-        operationName: "UnknownExample"
+        operationName: "UnknownExample",
       })
     ).toEqual({
-      errors: [{ message: 'Unknown operation named "UnknownExample".' }]
+      errors: [{ message: 'Unknown operation named "UnknownExample".' }],
     });
   });
 
@@ -803,21 +800,21 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Q",
         fields: {
-          a: { type: GraphQLString }
-        }
+          a: { type: GraphQLString },
+        },
       }),
       mutation: new GraphQLObjectType({
         name: "M",
         fields: {
-          c: { type: GraphQLString }
-        }
+          c: { type: GraphQLString },
+        },
       }),
       subscription: new GraphQLObjectType({
         name: "S",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
 
     const queryResult = await executeQuery(schema, ast, data, null, {}, "Q");
@@ -833,15 +830,15 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Q",
         fields: {
-          a: { type: GraphQLString }
-        }
+          a: { type: GraphQLString },
+        },
       }),
       mutation: new GraphQLObjectType({
         name: "M",
         fields: {
-          c: { type: GraphQLString }
-        }
-      })
+          c: { type: GraphQLString },
+        },
+      }),
     });
 
     const mutationResult = await executeQuery(schema, ast, data, null, {}, "M");
@@ -857,15 +854,15 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Q",
         fields: {
-          a: { type: GraphQLString }
-        }
+          a: { type: GraphQLString },
+        },
       }),
       subscription: new GraphQLObjectType({
         name: "S",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
 
     const subscriptionResult = await executeQuery(
@@ -904,7 +901,7 @@ describe("Execute: Handles basic execution tasks", () => {
       },
       e() {
         return "e";
-      }
+      },
     };
 
     const ast = parse(doc);
@@ -916,34 +913,34 @@ describe("Execute: Handles basic execution tasks", () => {
             type: GraphQLString,
             resolve(data) {
               return data.a();
-            }
+            },
           },
           b: {
             type: GraphQLString,
             resolve(data) {
               return data.b();
-            }
+            },
           },
           c: {
             type: GraphQLString,
             resolve(data) {
               return data.c();
-            }
+            },
           },
           d: {
             type: GraphQLString,
             resolve(data) {
               return data.d();
-            }
+            },
           },
           e: {
             type: GraphQLString,
             resolve(data) {
               return data.e();
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     const result: any = await executeQuery(schema, ast, data);
@@ -954,8 +951,8 @@ describe("Execute: Handles basic execution tasks", () => {
         b: "b",
         c: "c",
         d: "d",
-        e: "e"
-      }
+        e: "e",
+      },
     });
 
     expect(Object.keys(result.data)).toEqual(["a", "b", "c", "d", "e"]);
@@ -980,9 +977,9 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Type",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
 
     const queryResult = await executeQuery(schema, ast, data, null, {}, "Q");
@@ -999,21 +996,21 @@ describe("Execute: Handles basic execution tasks", () => {
       query: new GraphQLObjectType({
         name: "Q",
         fields: {
-          a: { type: GraphQLString }
-        }
+          a: { type: GraphQLString },
+        },
       }),
       mutation: new GraphQLObjectType({
         name: "M",
         fields: {
-          c: { type: GraphQLString }
-        }
-      })
+          c: { type: GraphQLString },
+        },
+      }),
     });
 
     const mutationResult = await executeQuery(schema, ast);
 
     expect(mutationResult).toEqual({
-      data: {}
+      data: {},
     });
   });
 
@@ -1030,11 +1027,11 @@ describe("Execute: Handles basic execution tasks", () => {
               b: { type: GraphQLBoolean },
               c: { type: GraphQLBoolean },
               d: { type: GraphQLInt },
-              e: { type: GraphQLInt }
-            }
-          }
-        }
-      })
+              e: { type: GraphQLInt },
+            },
+          },
+        },
+      }),
     });
 
     const query = parse("{ field(a: true, c: false, e: 0) }");
@@ -1042,8 +1039,8 @@ describe("Execute: Handles basic execution tasks", () => {
 
     expect(result).toEqual({
       data: {
-        field: '{"a":true,"c":false,"e":0}'
-      }
+        field: '{"a":true,"c":false,"e":0}',
+      },
     });
   });
 
@@ -1062,8 +1059,8 @@ describe("Execute: Handles basic execution tasks", () => {
         return obj instanceof Special;
       },
       fields: {
-        value: { type: GraphQLString }
-      }
+        value: { type: GraphQLString },
+      },
     });
 
     const schema = new GraphQLSchema({
@@ -1072,42 +1069,42 @@ describe("Execute: Handles basic execution tasks", () => {
         fields: {
           special: {
             type: SpecialType,
-            resolve: rootValue => rootValue.special
+            resolve: (rootValue) => rootValue.special,
           },
           specials: {
             type: new GraphQLList(SpecialType),
-            resolve: rootValue => rootValue.specials
-          }
-        }
-      })
+            resolve: (rootValue) => rootValue.specials,
+          },
+        },
+      }),
     });
 
     const query = parse("{ special {value} specials { value } }");
     const value = {
       special: new NotSpecial("bar"),
-      specials: [new Special("foo"), new NotSpecial("bar")]
+      specials: [new Special("foo"), new NotSpecial("bar")],
     };
     const result = await executeQuery(schema, query, value);
 
     expect(result).toEqual({
       data: {
         special: null,
-        specials: [{ value: "foo" }, null]
+        specials: [{ value: "foo" }, null],
       },
       errors: [
         {
           message:
             'Expected value of type "SpecialType" but got: { value: "bar" }.',
           locations: [{ line: 1, column: 3 }],
-          path: ["special"]
+          path: ["special"],
         },
         {
           message:
             'Expected value of type "SpecialType" but got: { value: "bar" }.',
           locations: [{ line: 1, column: 19 }],
-          path: ["specials", 1]
-        }
-      ]
+          path: ["specials", 1],
+        },
+      ],
     });
   });
 
@@ -1126,17 +1123,17 @@ describe("Execute: Handles basic execution tasks", () => {
             type: GraphQLString,
             resolve() {
               return null;
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     const result = await executeQuery(schema, query, null);
     expect(result).toEqual({
       data: {
-        foo: null
-      }
+        foo: null,
+      },
     });
   });
 
@@ -1151,17 +1148,17 @@ describe("Execute: Handles basic execution tasks", () => {
             type: GraphQLString,
             resolve() {
               return "works";
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     const result = await executeQuery(schema, query, null);
     expect(result).toEqual({
       data: {
-        parent: "works"
-      }
+        parent: "works",
+      },
     });
   });
 
@@ -1169,18 +1166,18 @@ describe("Execute: Handles basic execution tasks", () => {
     const rootValue = {
       import: {
         export: "export",
-        var: "var"
+        var: "var",
       },
       async: {
         await: {
           import: {
             export: "export",
-            var: "var"
-          }
+            var: "var",
+          },
         },
         for: "for",
-        const: "const"
-      }
+        const: "const",
+      },
     };
 
     const schema = makeExecutableSchema({
@@ -1202,7 +1199,7 @@ describe("Execute: Handles basic execution tasks", () => {
           var: String
         }
       `,
-      resolvers: {}
+      resolvers: {},
     });
 
     const query = `
@@ -1237,7 +1234,7 @@ describe("Checks if the output of the compilation was a compiled query", () => {
     expect(
       isCompiledQuery({
         query: (jest.fn() as unknown) as CompiledQuery["query"],
-        stringify: JSON.stringify
+        stringify: JSON.stringify,
       })
     ).toBeTruthy();
   });
@@ -1249,9 +1246,9 @@ describe("dx", () => {
       query: new GraphQLObjectType({
         name: "Type",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
     const document = parse(`query mockOperationName { a }`);
     const compiledQuery = compileQuery(schema, document) as CompiledQuery;
@@ -1264,15 +1261,15 @@ describe("dx", () => {
       query: new GraphQLObjectType({
         name: "TypeZ",
         fields: {
-          a: { type: GraphQLString }
-        }
+          a: { type: GraphQLString },
+        },
       }),
       subscription: new GraphQLObjectType({
         name: "Type",
         fields: {
-          a: { type: GraphQLString }
-        }
-      })
+          a: { type: GraphQLString },
+        },
+      }),
     });
     const document = parse(`subscription mockOperationName { a }`);
     const compiledQuery = compileQuery(schema, document) as CompiledQuery;

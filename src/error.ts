@@ -5,7 +5,7 @@
 import {
   GraphQLError as UpstreamGraphQLError,
   printError,
-  SourceLocation
+  SourceLocation,
 } from "graphql";
 
 export function GraphQLError(
@@ -19,25 +19,25 @@ export function GraphQLError(
   Object.defineProperties(this, {
     message: {
       value: message,
-      enumerable: true
+      enumerable: true,
     },
     locations: {
       value: locations || undefined,
-      enumerable: locations && locations.length > 0
+      enumerable: locations && locations.length > 0,
     },
     path: {
       value: path || undefined,
-      enumerable: Boolean(path)
+      enumerable: Boolean(path),
     },
     originalError: {
-      value: originalError
+      value: originalError,
     },
     extensions: {
       // Coercing falsey values to undefined ensures they will not be included
       // in JSON.stringify() when not provided.
       value: extensions || undefined,
-      enumerable: Boolean(extensions)
-    }
+      enumerable: Boolean(extensions),
+    },
   });
 
   // Include (non-enumerable) stack trace.
@@ -45,7 +45,7 @@ export function GraphQLError(
     Object.defineProperty(this, "stack", {
       value: originalError.stack,
       writable: true,
-      configurable: true
+      configurable: true,
     });
   } else if (!skipStackCapturing) {
     if (Error.captureStackTrace) {
@@ -54,7 +54,7 @@ export function GraphQLError(
       Object.defineProperty(this, "stack", {
         value: Error().stack,
         writable: true,
-        configurable: true
+        configurable: true,
       });
     }
   }
@@ -68,7 +68,7 @@ export function GraphQLError(
     toString: {
       value: function toString() {
         return printError(this);
-      }
-    }
+      },
+    },
   }
 );

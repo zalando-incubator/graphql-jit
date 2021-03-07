@@ -17,7 +17,7 @@ import {
   SourceLocation,
   typeFromAST,
   valueFromAST,
-  VariableDefinitionNode
+  VariableDefinitionNode,
 } from "graphql";
 import { addPath, computeLocations, ObjectPath } from "./ast";
 import { GraphQLError as GraphQLJITError } from "./error";
@@ -68,7 +68,7 @@ export function compileVariableParsing(
       depth: 0,
       inputPath: addPath(undefined, "input"),
       responsePath: addPath(undefined, "coerced"),
-      dependencies
+      dependencies,
     };
     const varName = varDefNode.variable.name.value;
     const varType = typeFromAST(schema, varDefNode.type as any);
@@ -118,15 +118,12 @@ export function compileVariableParsing(
     }
   `);
 
-  return Function.apply(
-    null,
-    ["GraphQLJITError", "inspect"]
-      .concat(Array.from(dependencies.keys()))
-      .concat(gen.toString())
-  ).apply(
-    null,
-    [GraphQLJITError, inspect].concat(Array.from(dependencies.values()))
-  );
+  return Function(
+    "GraphQLJITError",
+    "inspect",
+    ...Array.from(dependencies.keys()),
+    gen.toString()
+  )(GraphQLJITError, inspect, ...Array.from(dependencies.values()));
 }
 
 // Int Scalars represent 32 bits

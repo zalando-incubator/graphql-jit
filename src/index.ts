@@ -2,7 +2,7 @@ export {
   compileQuery,
   isCompiledQuery,
   CompilerOptions,
-  CompiledQuery
+  CompiledQuery,
 } from "./execution";
 
 export {
@@ -11,5 +11,5 @@ export {
   LeafField,
   TypeExpansion,
   fieldExpansionEnricher,
-  isLeafField
+  isLeafField,
 } from "./resolve-info";
