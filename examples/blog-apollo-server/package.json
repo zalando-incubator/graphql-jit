@@ -1,8 +1,0 @@
-{
-  "name": "blog-apollo-server",
-  "version": "0.1.0",
-  "dependencies": {
-    "apollo-server": "^2.9.16",
-    "tiny-lru": "^7.0.2"
-  }
-}
