@@ -1,97 +1,40 @@
 # GraphQL JIT
 
-[![Build Status](https://travis-ci.org/zalando-incubator/graphql-jit.svg?branch=master)](https://travis-ci.org/zalando-incubator/graphql-jit)
-[![codecov](https://codecov.io/gh/zalando-incubator/graphql-jit/branch/master/graph/badge.svg)](https://codecov.io/gh/zalando-incubator/graphql-jit)
+[![Build](https://github.com/hoangvvo/graphql-jit/actions/workflows/build.yml/badge.svg)](https://github.com/hoangvvo/graphql-jit/actions/workflows/build.yml)
+[![codecov](https://codecov.io/gh/hoangvvo/graphql-jit/branch/dev/graph/badge.svg?token=WUU4718LQH)](https://codecov.io/gh/hoangvvo/graphql-jit)
 
-### Why?
+This is a fork of [zalando-incubator/graphql-jit](https://github.com/zalando-incubator/graphql-jit) that features the following improvements:
 
-GraphQL-JS is a very well written runtime implementation of the latest GraphQL spec. However, by compiling to JS, V8 is able to create optimized
-code which yields much better performance. `graphql-jit` leverages this behaviour of V8 optimization by compiling the queries into functions to significantly improve performance (See [benchmarks](#benchmarks) below)
+- Support for GraphQL Subscription
+- Custom JSON Stringify factory function
 
-#### Benchmarks
-
-```bash
-$ yarn benchmark skip-json
-Starting introspection
-graphql-js x 1,155 ops/sec ±1.55% (215 runs sampled)
-graphql-jit x 5,961 ops/sec ±5.34% (216 runs sampled)
-Starting fewResolvers
-graphql-js x 14,313 ops/sec ±1.43% (224 runs sampled)
-graphql-jit x 409,587 ops/sec ±1.08% (216 runs sampled)
-Starting manyResolvers
-graphql-js x 13,201 ops/sec ±1.50% (216 runs sampled)
-graphql-jit x 229,025 ops/sec ±1.18% (216 runs sampled)
-Starting nestedArrays
-graphql-js x 108 ops/sec ±1.30% (216 runs sampled)
-graphql-jit x 1,317 ops/sec ±2.38% (213 runs sampled)
-Done in 141.94s.
-```
-
-### Support for GraphQL spec
-
-The goal is to support the [June 2018 version of the GraphQL spec](https://facebook.github.io/graphql/June2018/). At this moment,
-the only missing feature is support for Subscriptions.
-
-#### Differences to `graphql-js`
-
-In order to achieve better performance, the `graphql-jit` compiler introduces some limitations.
-The primary limitation is that all computed properties must have a resolver and only these can return a `Promise`.
+Check out the [original README](https://github.com/zalando-incubator/graphql-jit/blob/master/README.md) to learn more.
 
 ## Install
 
 ```sh
-yarn add graphql-jit
+yarn add @hoangvvo/graphql-jit
+// or
+npm i @hoangvvo/graphql-jit
 ```
 
-## Example
-
-For complete working examples, check the [examples/](examples) directory
-
-#### Create a schema
+## Usage
 
 ```js
-const typedefs = `
-type Query {
-  hello: string
-}
-`;
-const resolvers = {
-  Query: {
-    hello() {
-      return new Promise(resolve => setTimeout(() => resolve("World!"), 200));
-    }
-  }
-};
+import { compileQuery, isCompiledQuery } from "graphql-jit";
 
-const { makeExecutableSchema } = require("graphql");
-const schema = makeExecutableSchema({ typedefs, resolvers });
-```
+const query = `{ hello }`;
 
-#### Compile a Query
-
-```js
-const query = `
-{
-  hello
-}
-`;
-const { parse } = require("graphql");
 const document = parse(query);
 
-const { compileQuery, isCompiledQuery } = require("graphql-jit");
 const compiledQuery = compileQuery(schema, document);
-// check if the compilation is successful
 
 if (!isCompiledQuery(compiledQuery)) {
   console.error(compiledQuery);
   throw new Error("Error compiling query");
 }
-```
 
-#### Execute the Query
-
-```js
-const executionResult = await compiledQuery.query();
+const executionResult = await compiledQuery.query(rootValue, contextValue, variableValues);
 console.log(executionResult);
 ```
 
@@ -112,7 +55,7 @@ Compiles the `document` AST, using an optional operationName and compiler option
     for overly expensive serializers
   - `customJSONSerializer` {function, default: undefined} - A function to be called with [`CompilationContext`](https://github.com/zalando-incubator/graphql-jit/blob/master/src/execution.ts#L87) to produce also a JSON serializer function. The default stringifier function is `JSON.stringify`
 
-#### compiledQuery.compiled(root: any, context: any, variables: Maybe<{ [key: string]: any }>)
+#### compiledQuery.query(root: any, context: any, variables: Maybe<{ [key: string]: any }>)
 
 the compiled function that can be called with a root value, a context and the required variables.
 

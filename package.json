@@ -1,23 +1,28 @@
 {
-  "name": "graphql-jit",
+  "name": "@hoangvvo/graphql-jit",
   "version": "0.5.0",
   "description": "GraphQL JIT Compiler to JS",
   "main": "dist/index.js",
   "types": "./dist/index.d.ts",
-  "author": "Rui Araujo",
+  "author": "Hoang Vo (https://hoangvvo.com)",
+  "keywords": [
+    "graphql",
+    "graphql-js",
+    "jit",
+    "performance"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git@github.com:ruiaraujo/graphql-jit.git"
+    "url": "git@github.com:hoangvvo/graphql-jit.git"
   },
   "scripts": {
-    "precommit": "lint-staged",
     "prepublishOnly": "yarn && yarn build",
     "lint": "eslint .",
     "lint-fix": "eslint . --fix",
     "build": "tsc",
     "test": "jest",
-    "codecov": "codecov",
+    "test:ci": "jest --ci --coverage && codecov",
     "benchmark": "NODE_ENV=production ts-node -T ./src/__benchmarks__/benchmarks.ts"
   },
   "files": [
@@ -61,7 +66,6 @@
     "fast-json-stringify": "^2.2.3",
     "graphql": "^15.1.0",
     "jest": "^24.7.1",
-    "lint-staged": "^8.1.5",
     "prettier": "^2.2.1",
     "ts-jest": "^24.0.2",
     "ts-node": "^8.0.3",
@@ -75,13 +79,5 @@
     "lodash.memoize": "^4.1.2",
     "lodash.merge": "4.6.2",
     "lodash.mergewith": "4.6.2"
-  },
-  "lint-staged": {
-    "linters": {
-      "*.ts": [
-        "eslint . --fix",
-        "git add"
-      ]
-    }
   }
 }

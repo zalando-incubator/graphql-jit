@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [master]
+    branches: [dev]
   pull_request:
-    branches: [master]
+    branches: [dev]
 
 jobs:
   build:
@@ -49,7 +49,7 @@ jobs:
         run: yarn lint
 
       - name: Tests and Coverage
-        run: yarn test --coverage
+        run: yarn test:ci
 
       - name: Build
         run: yarn build
