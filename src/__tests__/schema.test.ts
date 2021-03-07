@@ -2,7 +2,6 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/schema-test.js
  */
 
-/* tslint:disable:no-big-function */
 import {
   DocumentNode,
   getIntrospectionQuery,

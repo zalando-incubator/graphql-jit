@@ -2,6 +2,7 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/execution-test.js
  */
 
+import { makeExecutableSchema } from "@graphql-tools/schema";
 import {
   DocumentNode,
   ExecutableDefinitionNode,
@@ -16,7 +17,6 @@ import {
   parse
 } from "graphql";
 import { CompiledQuery, compileQuery, isCompiledQuery } from "../execution";
-import { makeExecutableSchema } from "@graphql-tools/schema";
 
 function executeArgs(args: any) {
   const {
@@ -360,8 +360,7 @@ describe("Execute: Handles basic execution tasks", () => {
           throw new Error("Error getting asyncError");
         });
       },
-      // tslint:disable-next-line
-      asyncRawError() {
+            asyncRawError() {
         return new Promise(() => {
           /* eslint-disable */
           throw new Error("Error getting asyncRawError");
@@ -686,8 +685,7 @@ describe("Execute: Handles basic execution tasks", () => {
     expect(result).toEqual({ data: { a: "b" } });
   });
 
-  // tslint:disable-next-line
-  test("uses the only operation if no operation name is provided", async () => {
+    test("uses the only operation if no operation name is provided", async () => {
     const doc = "query Example { a }";
     const data = { a: "b" };
     const ast = parse(doc);
@@ -748,8 +746,7 @@ describe("Execute: Handles basic execution tasks", () => {
     });
   });
 
-  // tslint:disable-next-line
-  test("errors if no op name is provided with multiple operations", async () => {
+    test("errors if no op name is provided with multiple operations", async () => {
     const doc = "query Example { a } query OtherExample { a }";
     const data = { a: "b" };
     const ast = parse(doc);

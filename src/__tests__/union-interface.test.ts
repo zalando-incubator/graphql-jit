@@ -12,8 +12,8 @@ import {
   GraphQLUnionType,
   parse
 } from "graphql";
-
 import { compileQuery } from "../index";
+
 
 class Dog {
   constructor(public name: string, public barks: boolean) {}
@@ -103,7 +103,6 @@ const odie = new Dog("Odie", true);
 const liz = new Person("Liz");
 const john = new Person("John", [garfield, odie], [liz, odie]);
 
-// tslint:disable-next-line
 describe("Execute: Union and intersection types", () => {
   test("can introspect on union and intersection types", () => {
     const ast = parse(`

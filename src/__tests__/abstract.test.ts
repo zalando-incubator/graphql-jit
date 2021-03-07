@@ -36,7 +36,6 @@ class Human {
   constructor(public name: string, public pets?: any) {}
 }
 
-// tslint:disable-next-line
 describe("Execute: Handles execution of abstract types", () => {
   test("isTypeOf used to resolve runtime type for Interface", () => {
     const PetType = new GraphQLInterfaceType({
@@ -306,8 +305,7 @@ describe("Execute: Handles execution of abstract types", () => {
 
     const PetType = new GraphQLUnionType({
       name: "Pet",
-      // tslint:disable-next-line
-      resolveType(obj) {
+            resolveType(obj) {
         return obj instanceof Dog
           ? DogType
           : obj instanceof Cat
@@ -325,8 +323,7 @@ describe("Execute: Handles execution of abstract types", () => {
         fields: {
           pets: {
             type: new GraphQLList(PetType),
-            // tslint:disable-next-line
-            resolve() {
+                        resolve() {
               return [
                 new Dog("Odie", true),
                 new Cat("Garfield", false),
@@ -528,8 +525,7 @@ describe("Execute: Handles execution of abstract types", () => {
                     friend: {
                       type: new GraphQLUnionType({
                         name: "DogFriend",
-                        // tslint:disable-next-line
-                        resolveType(obj) {
+                                                resolveType(obj) {
                           return obj instanceof Dog
                             ? DogType
                             : obj instanceof Cat
@@ -552,8 +548,7 @@ describe("Execute: Handles execution of abstract types", () => {
 
     const PetType = new GraphQLUnionType({
       name: "Pet",
-      // tslint:disable-next-line
-      resolveType(obj) {
+            resolveType(obj) {
         return obj instanceof Dog
           ? DogType
           : obj instanceof Cat

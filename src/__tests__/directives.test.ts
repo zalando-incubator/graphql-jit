@@ -2,10 +2,10 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/directives-test.js
  */
 
-import { parse } from "graphql";
-import { compileQuery } from "../index";
 import { makeExecutableSchema } from "@graphql-tools/schema";
+import { parse } from "graphql";
 import { isCompiledQuery } from "../execution";
+import { compileQuery } from "../index";
 
 const testSchema = makeExecutableSchema({
   typeDefs: `
@@ -36,7 +36,6 @@ function executeTestQuery(query: string, variables = {}, schema = testSchema) {
   return compiled.query(data, undefined, variables);
 }
 
-// tslint:disable-next-line
 describe("Execute: handles directives", () => {
   describe("works without directives", () => {
     test("basic query works", () => {
@@ -49,8 +48,7 @@ describe("Execute: handles directives", () => {
   });
 
   describe("works on scalars", () => {
-    // tslint:disable-next-line
-    test("if true includes scalar", () => {
+        test("if true includes scalar", () => {
       const result = executeTestQuery("{ a, b @include(if: true) }");
 
       expect(result).toEqual({
@@ -66,8 +64,7 @@ describe("Execute: handles directives", () => {
       });
     });
 
-    // tslint:disable-next-line
-    test("unless false includes scalar", () => {
+        test("unless false includes scalar", () => {
       const result = executeTestQuery("{ a, b @skip(if: false) }");
 
       expect(result).toEqual({
@@ -75,8 +72,7 @@ describe("Execute: handles directives", () => {
       });
     });
 
-    // tslint:disable-next-line
-    test("unless true omits scalar", () => {
+        test("unless true omits scalar", () => {
       const result = executeTestQuery("{ a, b @skip(if: true) }");
 
       expect(result).toEqual({

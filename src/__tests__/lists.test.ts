@@ -117,7 +117,6 @@ describe("Execute: Accepts any iterable as list value", () => {
 const containsValues = "Contains values";
 const containsNull = "Contains null";
 
-// tslint:disable-next-line
 describe("Execute: Handles list nullability", () => {
   describe("[T]", () => {
     const type = new GraphQLList(GraphQLInt);
@@ -276,8 +275,7 @@ describe("Execute: Handles list nullability", () => {
       );
     });
 
-    // tslint:disable-next-line
-    describe("Array<Promise<T>>", () => {
+        describe("Array<Promise<T>>", () => {
       test(
         containsValues,
         check(type, [resolved(1), resolved(2)], {

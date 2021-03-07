@@ -832,8 +832,7 @@ export function valueFromAST(
     let result;
     try {
       if (type.parseLiteral.length > 1) {
-        // tslint:disable-next-line
-        console.error(
+                console.error(
           "Scalar with variable inputs detected for parsing AST literals. This is not supported."
         );
       }

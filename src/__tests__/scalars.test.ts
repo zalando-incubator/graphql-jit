@@ -1,4 +1,3 @@
-/* tslint:disable:no-big-function */
 import {
   DocumentNode,
   GraphQLObjectType,

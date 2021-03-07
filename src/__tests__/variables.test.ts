@@ -2,7 +2,6 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/variables-test.js
  */
 
-/* tslint:disable:no-big-function */
 import {
   GraphQLBoolean,
   GraphQLEnumType,
@@ -32,8 +31,7 @@ const TestComplexScalar = new GraphQLScalarType({
     }
     return null;
   },
-  // tslint:disable-next-line
-  parseValue(value: any) {
+    parseValue(value: any) {
     if (value === "SerializedValue") {
       return "DeserializedValue";
     }

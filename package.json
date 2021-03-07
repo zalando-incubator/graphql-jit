@@ -13,13 +13,10 @@
   "scripts": {
     "precommit": "lint-staged",
     "prepublishOnly": "yarn && yarn build",
-    "format": "prettier --no-config --write 'src/**/*.ts' '*.js'",
-    "check-format": "prettier --no-config -l 'src/**/*.ts' '*.js'",
-    "lint": "tslint --project .",
-    "lint-fix": "tslint --project . --fix",
+    "lint": "eslint .",
+    "lint-fix": "eslint . --fix",
     "build": "tsc",
     "test": "jest",
-    "mutation-test": "stryker run",
     "codecov": "codecov",
     "benchmark": "NODE_ENV=production ts-node -T ./src/__benchmarks__/benchmarks.ts"
   },
@@ -51,27 +48,26 @@
   },
   "devDependencies": {
     "@graphql-tools/schema": "^6.0.10",
-    "@stryker-mutator/core": "^2.0.0",
-    "@stryker-mutator/jest-runner": "^2.0.0",
-    "@stryker-mutator/typescript": "^2.0.0",
     "@types/benchmark": "^1.0.31",
     "@types/jest": "^24.0.11",
     "@types/lodash.memoize": "^4.1.6",
     "@types/lodash.merge": "^4.6.6",
     "@types/lodash.mergewith": "^4.6.6",
     "@types/node": "^10.17.26",
+    "@typescript-eslint/eslint-plugin": "^4.13.0",
+    "@typescript-eslint/parser": "^4.13.0",
     "benchmark": "^2.1.4",
     "codecov": "^3.3.0",
     "fast-json-stringify": "^2.2.3",
     "graphql": "^15.1.0",
     "jest": "^24.7.1",
     "lint-staged": "^8.1.5",
-    "prettier": "^1.19.1",
+    "prettier": "^2.2.1",
     "ts-jest": "^24.0.2",
     "ts-node": "^8.0.3",
-    "tslint": "^5.15.0",
-    "tslint-config-prettier": "^1.18.0",
-    "tslint-plugin-prettier": "^2.0.1",
+    "eslint": "^7.18.0",
+    "eslint-config-prettier": "^7.1.0",
+    "eslint-plugin-prettier": "^3.3.1",
     "typescript": "^3.9.5"
   },
   "dependencies": {
@@ -83,12 +79,7 @@
   "lint-staged": {
     "linters": {
       "*.ts": [
-        "tslint -c tslint.json -p tsconfig.json --fix",
-        "prettier --no-config --write",
-        "git add"
-      ],
-      "*.{graphql,js,md,json,yaml,yml}": [
-        "prettier --no-config --write",
+        "eslint . --fix",
         "git add"
       ]
     }
