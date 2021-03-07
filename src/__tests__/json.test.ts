@@ -1,44 +1,33 @@
 import fastJson, {
-  ObjectSchema,
-  ArraySchema,
-  StringSchema,
-  NumberSchema,
   BooleanSchema,
   IntegerSchema,
-  NullSchema
+  NumberSchema,
+  ObjectSchema,
+  StringSchema
 } from "fast-json-stringify";
 import {
   formatError,
   GraphQLBoolean,
   GraphQLError,
   GraphQLID,
+  GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
-  parse,
-  GraphQLInt,
-  getOperationRootType,
-  FieldNode,
-  GraphQLType,
-  isObjectType,
-  isListType,
-  isNonNullType,
-  isEnumType,
-  isScalarType,
-  isAbstractType
+  parse
 } from "graphql";
-import { ExecutionContext, collectFields } from "graphql/execution/execute";
+import { ExecutionContext } from "graphql/execution/execute";
 import { compileQuery } from "../index";
-import { resolveFieldDef, collectSubfields } from "../ast";
 
 const PRIMITIVES: {
   [key: string]: (
     | StringSchema
     | NumberSchema
     | BooleanSchema
-    | IntegerSchema)["type"];
+    | IntegerSchema
+  )["type"];
 } = {
   Int: "integer",
   Float: "number",
@@ -48,34 +37,13 @@ const PRIMITIVES: {
 };
 
 function queryToJSONSchema(exeContext: ExecutionContext): ObjectSchema {
-  const type = getOperationRootType(exeContext.schema, exeContext.operation);
-  const fields = collectFields(
-    exeContext,
-    type,
-    exeContext.operation.selectionSet,
-    Object.create(null),
-    Object.create(null)
-  );
-  const fieldProperties = Object.create(null);
-  for (const responseName of Object.keys(fields)) {
-    const fieldType = resolveFieldDef(exeContext, type, fields[responseName]);
-    if (!fieldType) {
-      // if field does not exist, it should be ignored for compatibility concerns.
-      // Usually, validation would stop it before getting here but this could be an old query
-      continue;
-    }
-    fieldProperties[responseName] = transformNode(
-      exeContext,
-      fields[responseName],
-      fieldType.type
-    );
-  }
+  expect(exeContext).toBeTruthy();
   return {
     type: "object",
     properties: {
       data: {
         type: "object",
-        properties: fieldProperties,
+        additionalProperties: true,
         nullable: true
       },
       errors: {
@@ -112,94 +80,6 @@ function queryToJSONSchema(exeContext: ExecutionContext): ObjectSchema {
       }
     }
   };
-}
-
-function transformNode(
-  exeContext: ExecutionContext,
-  fieldNodes: FieldNode[],
-  type: GraphQLType
-):
-  | ObjectSchema
-  | ArraySchema
-  | StringSchema
-  | NumberSchema
-  | BooleanSchema
-  | IntegerSchema
-  | NullSchema {
-  if (isObjectType(type)) {
-    const subfields = collectSubfields(exeContext, type, fieldNodes);
-    const properties = Object.create(null);
-    for (const responseName of Object.keys(subfields)) {
-      const fieldType = resolveFieldDef(
-        exeContext,
-        type,
-        subfields[responseName]
-      );
-      if (!fieldType) {
-        // if field does not exist, it should be ignored for compatibility concerns.
-        // Usually, validation would stop it before getting here but this could be an old query
-        continue;
-      }
-      properties[responseName] = transformNode(
-        exeContext,
-        subfields[responseName],
-        fieldType.type
-      );
-    }
-    return {
-      type: "object",
-      nullable: true,
-      properties
-    };
-  }
-  if (isListType(type)) {
-    return {
-      type: "array",
-      nullable: true,
-      items: transformNode(exeContext, fieldNodes, type.ofType)
-    };
-  }
-  if (isNonNullType(type)) {
-    const nullable = transformNode(exeContext, fieldNodes, type.ofType);
-    if ("nullable" in nullable) {
-      delete nullable.nullable;
-    }
-    return nullable;
-  }
-  if (isEnumType(type)) {
-    return {
-      type: "string",
-      nullable: true
-    };
-  }
-  if (isScalarType(type)) {
-    const jsonSchemaType = PRIMITIVES[type.name];
-    if (jsonSchemaType) {
-      return {
-        type: jsonSchemaType,
-        nullable: true
-      } as StringSchema | NumberSchema | BooleanSchema | IntegerSchema;
-    }
-  }
-  if (isAbstractType(type)) {
-    return exeContext.schema.getPossibleTypes(type).reduce(
-      (res, t) => {
-        const jsonSchema = transformNode(
-          exeContext,
-          fieldNodes,
-          t
-        ) as ObjectSchema;
-        res.properties = { ...res.properties, ...jsonSchema.properties };
-        return res;
-      },
-      {
-        type: "object",
-        nullable: true,
-        properties: {}
-      }
-    );
-  }
-  throw new Error(`Got unhandled type: ${type.name}`);
 }
 
 describe("json schema creator", () => {
