@@ -8,17 +8,17 @@
 
 import { EventEmitter } from "events";
 import {
-  GraphQLObjectType,
-  GraphQLString,
+  DocumentNode,
+  ExecutionResult,
   GraphQLBoolean,
+  GraphQLError,
   GraphQLInt,
   GraphQLList,
+  GraphQLObjectType,
   GraphQLSchema,
+  GraphQLString,
   parse,
-  DocumentNode,
-  GraphQLError,
-  SubscriptionArgs,
-  ExecutionResult
+  SubscriptionArgs
 } from "graphql";
 import { CompiledQuery, compileQuery, isCompiledQuery } from "../execution";
 
@@ -91,7 +91,7 @@ async function subscribe({
 > {
   const prepared = compileQuery(schema, document, operationName || "");
   if (!isCompiledQuery(prepared)) return prepared;
-  return prepared.subscribe!(rootValue, contextValue, variableValues || {});
+  return prepared.subscribe!(rootValue, contextValue, variableValues);
 }
 
 const EmailType = new GraphQLObjectType({
