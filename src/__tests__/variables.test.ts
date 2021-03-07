@@ -15,7 +15,7 @@ import {
   GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
-  parse
+  parse,
 } from "graphql";
 import { GraphQLArgumentConfig } from "graphql/type/definition";
 import { compileQuery, isCompiledQuery } from "../index";
@@ -31,7 +31,7 @@ const TestComplexScalar = new GraphQLScalarType({
     }
     return null;
   },
-    parseValue(value: any) {
+  parseValue(value: any) {
     if (value === "SerializedValue") {
       return "DeserializedValue";
     }
@@ -42,7 +42,7 @@ const TestComplexScalar = new GraphQLScalarType({
       return "DeserializedValue";
     }
     return null;
-  }
+  },
 });
 
 const TestComplexThrowingScalar = new GraphQLScalarType({
@@ -55,7 +55,7 @@ const TestComplexThrowingScalar = new GraphQLScalarType({
   },
   parseLiteral() {
     return null;
-  }
+  },
 });
 
 const TestInputObject = new GraphQLInputObjectType({
@@ -65,15 +65,15 @@ const TestInputObject = new GraphQLInputObjectType({
     b: { type: new GraphQLList(GraphQLString) },
     c: { type: new GraphQLNonNull(GraphQLString) },
     d: { type: TestComplexScalar },
-    e: { type: new GraphQLList(GraphQLString) }
-  }
+    e: { type: new GraphQLList(GraphQLString) },
+  },
 });
 
 const TestThrowingInputObject = new GraphQLInputObjectType({
   name: "TestThrowingInputObject",
   fields: {
-    a: { type: TestComplexThrowingScalar }
-  }
+    a: { type: TestComplexThrowingScalar },
+  },
 });
 
 const TestNestedInputObject = new GraphQLInputObjectType({
@@ -81,8 +81,8 @@ const TestNestedInputObject = new GraphQLInputObjectType({
   fields: {
     na: { type: new GraphQLNonNull(TestInputObject) },
     nb: { type: new GraphQLNonNull(GraphQLString), defaultValue: "NB" },
-    nc: { type: new GraphQLList(new GraphQLNonNull(TestInputObject)) }
-  }
+    nc: { type: new GraphQLList(new GraphQLNonNull(TestInputObject)) },
+  },
 });
 
 const TestEnum = new GraphQLEnumType({
@@ -93,8 +93,8 @@ const TestEnum = new GraphQLEnumType({
     NAN: { value: NaN },
     FALSE: { value: false },
     CUSTOM: { value: "custom value" },
-    DEFAULT_VALUE: {}
-  }
+    DEFAULT_VALUE: {},
+  },
 });
 
 function fieldWithInputArg(inputArg: GraphQLArgumentConfig) {
@@ -102,11 +102,11 @@ function fieldWithInputArg(inputArg: GraphQLArgumentConfig) {
     type: GraphQLString,
     args: { input: inputArg },
     resolve(_: any, args: any) {
-      if (args.hasOwnProperty("input")) {
+      if (Object.prototype.hasOwnProperty.call(args, "input")) {
         return inspect(args.input);
       }
       return undefined;
-    }
+    },
   };
 }
 
@@ -115,11 +115,11 @@ const TestType = new GraphQLObjectType({
   fields: {
     fieldWithEnumInput: fieldWithInputArg({ type: TestEnum }),
     fieldWithNonNullableEnumInput: fieldWithInputArg({
-      type: new GraphQLNonNull(TestEnum)
+      type: new GraphQLNonNull(TestEnum),
     }),
     fieldWithObjectInput: fieldWithInputArg({ type: TestInputObject }),
     fieldWithObjectThrowingInput: fieldWithInputArg({
-      type: TestThrowingInputObject
+      type: TestThrowingInputObject,
     }),
     fieldWithNullableStringInput: fieldWithInputArg({ type: GraphQLString }),
     fieldWithNullableIDInput: fieldWithInputArg({ type: GraphQLID }),
@@ -127,47 +127,47 @@ const TestType = new GraphQLObjectType({
     fieldWithNullableFloatInput: fieldWithInputArg({ type: GraphQLFloat }),
     fieldWithNullableBooleanInput: fieldWithInputArg({ type: GraphQLBoolean }),
     fieldWithNonNullableStringInput: fieldWithInputArg({
-      type: new GraphQLNonNull(GraphQLString)
+      type: new GraphQLNonNull(GraphQLString),
     }),
     fieldWithNonNullableIDInput: fieldWithInputArg({
-      type: new GraphQLNonNull(GraphQLID)
+      type: new GraphQLNonNull(GraphQLID),
     }),
     fieldWithNonNullableIntInput: fieldWithInputArg({
-      type: new GraphQLNonNull(GraphQLInt)
+      type: new GraphQLNonNull(GraphQLInt),
     }),
     fieldWithNonNullableFloatInput: fieldWithInputArg({
-      type: new GraphQLNonNull(GraphQLFloat)
+      type: new GraphQLNonNull(GraphQLFloat),
     }),
     fieldWithNonNullableBooleanInput: fieldWithInputArg({
-      type: new GraphQLNonNull(GraphQLBoolean)
+      type: new GraphQLNonNull(GraphQLBoolean),
     }),
     fieldWithDefaultArgumentValue: fieldWithInputArg({
       type: GraphQLString,
-      defaultValue: "Hello World"
+      defaultValue: "Hello World",
     }),
     fieldWithNonNullableStringInputAndDefaultArgumentValue: fieldWithInputArg({
       type: new GraphQLNonNull(GraphQLString),
-      defaultValue: "Hello World"
+      defaultValue: "Hello World",
     }),
     fieldWithNestedInputObject: fieldWithInputArg({
-      type: TestNestedInputObject
+      type: TestNestedInputObject,
     }),
     list: fieldWithInputArg({ type: new GraphQLList(GraphQLString) }),
     superNestedList: fieldWithInputArg({
-      type: new GraphQLList(new GraphQLList(new GraphQLList(GraphQLString)))
+      type: new GraphQLList(new GraphQLList(new GraphQLList(GraphQLString))),
     }),
     nnList: fieldWithInputArg({
-      type: new GraphQLNonNull(new GraphQLList(GraphQLString))
+      type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
     }),
     listNN: fieldWithInputArg({
-      type: new GraphQLList(new GraphQLNonNull(GraphQLString))
+      type: new GraphQLList(new GraphQLNonNull(GraphQLString)),
     }),
     nnListNN: fieldWithInputArg({
       type: new GraphQLNonNull(
         new GraphQLList(new GraphQLNonNull(GraphQLString))
-      )
-    })
-  }
+      ),
+    }),
+  },
 });
 
 const schema = new GraphQLSchema({ query: TestType });
@@ -193,8 +193,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }'
-          }
+            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }',
+          },
         });
       });
 
@@ -207,8 +207,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }'
-          }
+            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }',
+          },
         });
       });
 
@@ -221,8 +221,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithObjectInput: '{ a: null, b: null, c: "C", d: null }'
-          }
+            fieldWithObjectInput: '{ a: null, b: null, c: "C", d: null }',
+          },
         });
       });
 
@@ -235,8 +235,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithObjectInput: '{ b: ["A", null, "C"], c: "C" }'
-          }
+            fieldWithObjectInput: '{ b: ["A", null, "C"], c: "C" }',
+          },
         });
       });
 
@@ -252,9 +252,9 @@ describe("Execute: Handles inputs", () => {
             {
               message:
                 'Argument "input" of type "TestInputObject" has invalid value ["foo", "bar", "baz"].',
-              locations: [{ line: 3, column: 41 }]
-            }
-          ]
+              locations: [{ line: 3, column: 41 }],
+            },
+          ],
         });
       });
 
@@ -270,9 +270,9 @@ describe("Execute: Handles inputs", () => {
             {
               message:
                 'Argument "input" of type "TestInputObject" has invalid value {b: ["A", null, "C"], c: false}.',
-              locations: [{ line: 3, column: 41 }]
-            }
-          ]
+              locations: [{ line: 3, column: 41 }],
+            },
+          ],
         });
       });
 
@@ -286,8 +286,8 @@ describe("Execute: Handles inputs", () => {
         expect(result).toEqual({
           data: {
             fieldWithNestedInputObject:
-              '{ na: { b: ["A", null, "C"], c: "C" }, nb: "NB", nc: [{ b: ["NC"] }] }'
-          }
+              '{ na: { b: ["A", null, "C"], c: "C" }, nb: "NB", nc: [{ b: ["NC"] }] }',
+          },
         });
       });
 
@@ -300,8 +300,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithObjectInput: '{ c: "foo", d: "DeserializedValue" }'
-          }
+            fieldWithObjectInput: '{ c: "foo", d: "DeserializedValue" }',
+          },
         });
       });
     });
@@ -319,8 +319,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }'
-          }
+            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }',
+          },
         });
       });
 
@@ -337,8 +337,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithNullableStringInput: null
-          }
+            fieldWithNullableStringInput: null,
+          },
         });
       });
 
@@ -353,8 +353,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithNullableStringInput: "null"
-          }
+            fieldWithNullableStringInput: "null",
+          },
         });
       });
 
@@ -367,8 +367,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }'
-          }
+            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }',
+          },
         });
       });
 
@@ -384,8 +384,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }'
-          }
+            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }',
+          },
         });
       });
 
@@ -402,7 +402,7 @@ describe("Execute: Handles inputs", () => {
           {
             a: "A",
             b: "B",
-            c: "C"
+            c: "C",
           }
         );
 
@@ -410,8 +410,8 @@ describe("Execute: Handles inputs", () => {
           data: {
             fieldWithNestedInputObject:
               '{ na: { b: ["A", null, "A"], c: "C" }, ' +
-              'nb: "NB", nc: [{ b: [], c: "C" }, { b: ["NC", "B"] }] }'
-          }
+              'nb: "NB", nc: [{ b: [], c: "C" }, { b: ["NC", "B"] }] }',
+          },
         });
       });
       test("properly parses nested variables to list", async () => {
@@ -426,15 +426,15 @@ describe("Execute: Handles inputs", () => {
           }
         `,
           {
-            b: "B"
+            b: "B",
           }
         );
 
         expect(result).toEqual({
           data: {
             fieldWithNestedInputObject:
-              '{ na: { b: [] }, nb: "NB", nc: [{ b: ["NC", "B"] }] }'
-          }
+              '{ na: { b: [] }, nb: "NB", nc: [{ b: ["NC", "B"] }] }',
+          },
         });
       });
 
@@ -448,8 +448,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithNullableStringInput: '"Variable value"'
-          }
+            fieldWithNullableStringInput: '"Variable value"',
+          },
         });
       });
 
@@ -464,8 +464,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithNullableStringInput: "null"
-          }
+            fieldWithNullableStringInput: "null",
+          },
         });
       });
 
@@ -482,8 +482,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithNullableStringInput: "null"
-          }
+            fieldWithNullableStringInput: "null",
+          },
         });
       });
 
@@ -493,8 +493,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }'
-          }
+            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }',
+          },
         });
       });
 
@@ -504,8 +504,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithObjectInput: '{ c: "foo", d: "DeserializedValue" }'
-          }
+            fieldWithObjectInput: '{ c: "foo", d: "DeserializedValue" }',
+          },
         });
       });
 
@@ -525,9 +525,9 @@ describe("Execute: Handles inputs", () => {
             {
               message:
                 'Variable "$a" got invalid value "SerializedValue"; Expected type ComplexThrowingScalar.',
-              locations: [{ line: 2, column: 16 }]
-            }
-          ]
+              locations: [{ line: 2, column: 16 }],
+            },
+          ],
         });
         expect(result.errors[0].originalError.message).toBe(
           "complex-scalar-error"
@@ -544,9 +544,9 @@ describe("Execute: Handles inputs", () => {
               message:
                 'Variable "$input" got invalid value { a: "foo", b: "bar", c: null }; ' +
                 "Expected non-nullable type String! not to be null at value.c.",
-              locations: [{ line: 2, column: 16 }]
-            }
-          ]
+              locations: [{ line: 2, column: 16 }],
+            },
+          ],
         });
       });
 
@@ -559,15 +559,15 @@ describe("Execute: Handles inputs", () => {
               message:
                 'Variable "$input" got invalid value "foo bar"; ' +
                 "Expected type TestInputObject to be an object.",
-              locations: [{ line: 2, column: 16 }]
-            }
-          ]
+              locations: [{ line: 2, column: 16 }],
+            },
+          ],
         });
       });
 
       test("errors on omission of nested non-null", async () => {
         const result = await executeQuery(doc, {
-          input: { a: "foo", b: "bar" }
+          input: { a: "foo", b: "bar" },
         });
 
         expect(result).toEqual({
@@ -576,15 +576,15 @@ describe("Execute: Handles inputs", () => {
               message:
                 'Variable "$input" got invalid value { a: "foo", b: "bar" }; ' +
                 "Field value.c of required type String! was not provided.",
-              locations: [{ line: 2, column: 16 }]
-            }
-          ]
+              locations: [{ line: 2, column: 16 }],
+            },
+          ],
         });
       });
 
       test("errors on addition of unknown input field", async () => {
         const params = {
-          input: { a: "foo", b: "bar", c: "baz", extra: "dog" }
+          input: { a: "foo", b: "bar", c: "baz", extra: "dog" },
         };
         const result = await executeQuery(doc, params);
 
@@ -594,9 +594,9 @@ describe("Execute: Handles inputs", () => {
               message:
                 'Variable "$input" got invalid value { a: "foo", b: "bar", c: "baz", extra: "dog" }; ' +
                 'Field "extra" is not defined by type TestInputObject.',
-              locations: [{ line: 2, column: 16 }]
-            }
-          ]
+              locations: [{ line: 2, column: 16 }],
+            },
+          ],
         });
       });
     });
@@ -620,8 +620,8 @@ describe("Execute: Handles inputs", () => {
           NaN: "NaN",
           false: "false",
           customValue: '"custom value"',
-          defaultValue: '"DEFAULT_VALUE"'
-        }
+          defaultValue: '"DEFAULT_VALUE"',
+        },
       });
     });
 
@@ -638,13 +638,13 @@ describe("Execute: Handles inputs", () => {
             locations: [
               {
                 column: 37,
-                line: 3
-              }
+                line: 3,
+              },
             ],
             message:
-              'Argument "input" of type "TestEnum" has invalid value WRONG.'
-          }
-        ]
+              'Argument "input" of type "TestEnum" has invalid value WRONG.',
+          },
+        ],
       });
     });
 
@@ -661,13 +661,13 @@ describe("Execute: Handles inputs", () => {
             locations: [
               {
                 column: 37,
-                line: 3
-              }
+                line: 3,
+              },
             ],
             message:
-              'Argument "input" of type "TestEnum" has invalid value "random".'
-          }
-        ]
+              'Argument "input" of type "TestEnum" has invalid value "random".',
+          },
+        ],
       });
     });
 
@@ -680,8 +680,8 @@ describe("Execute: Handles inputs", () => {
 
       expect(result).toEqual({
         data: {
-          fieldWithNonNullableEnumInput: "null"
-        }
+          fieldWithNonNullableEnumInput: "null",
+        },
       });
     });
 
@@ -697,8 +697,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithEnumInput: null
-          }
+            fieldWithEnumInput: null,
+          },
         });
       });
 
@@ -707,8 +707,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithEnumInput: "null"
-          }
+            fieldWithEnumInput: "null",
+          },
         });
       });
 
@@ -724,8 +724,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithEnumInput: "false"
-          }
+            fieldWithEnumInput: "false",
+          },
         });
       });
 
@@ -739,8 +739,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithEnumInput: "NaN"
-          }
+            fieldWithEnumInput: "NaN",
+          },
         });
       });
 
@@ -755,8 +755,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithEnumInput: "null"
-          }
+            fieldWithEnumInput: "null",
+          },
         });
       });
 
@@ -773,8 +773,8 @@ describe("Execute: Handles inputs", () => {
 
         expect(result).toEqual({
           data: {
-            fieldWithEnumInput: "null"
-          }
+            fieldWithEnumInput: "null",
+          },
         });
       });
 
@@ -786,9 +786,9 @@ describe("Execute: Handles inputs", () => {
             {
               message:
                 'Variable "$input" got invalid value "foo bar"; Expected type TestEnum.',
-              locations: [{ line: 2, column: 16 }]
-            }
-          ]
+              locations: [{ line: 2, column: 16 }],
+            },
+          ],
         });
       });
     });
@@ -821,8 +821,8 @@ describe("Execute: Handles inputs", () => {
           fieldWithNullableIDInput: null,
           fieldWithNullableIntInput: null,
           fieldWithNullableFloatInput: null,
-          fieldWithNullableBooleanInput: null
-        }
+          fieldWithNullableBooleanInput: null,
+        },
       });
     });
 
@@ -835,8 +835,8 @@ describe("Execute: Handles inputs", () => {
           fieldWithNullableIDInput: null,
           fieldWithNullableIntInput: null,
           fieldWithNullableFloatInput: null,
-          fieldWithNullableBooleanInput: null
-        }
+          fieldWithNullableBooleanInput: null,
+        },
       });
     });
 
@@ -857,8 +857,8 @@ describe("Execute: Handles inputs", () => {
           fieldWithNullableIDInput: null,
           fieldWithNullableIntInput: null,
           fieldWithNullableFloatInput: null,
-          fieldWithNullableBooleanInput: null
-        }
+          fieldWithNullableBooleanInput: null,
+        },
       });
     });
 
@@ -868,7 +868,7 @@ describe("Execute: Handles inputs", () => {
         id: null,
         int: null,
         float: null,
-        boolean: null
+        boolean: null,
       });
 
       expect(result).toEqual({
@@ -877,8 +877,8 @@ describe("Execute: Handles inputs", () => {
           fieldWithNullableIDInput: "null",
           fieldWithNullableIntInput: "null",
           fieldWithNullableFloatInput: "null",
-          fieldWithNullableBooleanInput: "null"
-        }
+          fieldWithNullableBooleanInput: "null",
+        },
       });
     });
 
@@ -888,7 +888,7 @@ describe("Execute: Handles inputs", () => {
         id: "id",
         int: 1,
         float: 1.5,
-        boolean: true
+        boolean: true,
       });
 
       expect(result).toEqual({
@@ -897,8 +897,8 @@ describe("Execute: Handles inputs", () => {
           fieldWithNullableIDInput: '"id"',
           fieldWithNullableIntInput: "1",
           fieldWithNullableFloatInput: "1.5",
-          fieldWithNullableBooleanInput: "true"
-        }
+          fieldWithNullableBooleanInput: "true",
+        },
       });
     });
 
@@ -911,10 +911,10 @@ describe("Execute: Handles inputs", () => {
             inputRecorder: {
               type: GraphQLString,
               args: { input: { type: GraphQLString } },
-              resolve: spy
-            }
-          }
-        })
+              resolve: spy,
+            },
+          },
+        }),
       });
 
       const document = `
@@ -956,8 +956,8 @@ describe("Execute: Handles inputs", () => {
           fieldWithNullableIDInput: '"id"',
           fieldWithNullableIntInput: "1",
           fieldWithNullableFloatInput: "1.5",
-          fieldWithNullableBooleanInput: "true"
-        }
+          fieldWithNullableBooleanInput: "true",
+        },
       });
     });
 
@@ -977,14 +977,14 @@ describe("Execute: Handles inputs", () => {
             locations: [
               {
                 column: 17,
-                line: 2
-              }
+                line: 2,
+              },
             ],
             message:
               'Variable "$int" got invalid value 9007199254740992; Expected type Int; ' +
-              "Int cannot represent non 32-bit signed integer value: 9007199254740992"
-          }
-        ]
+              "Int cannot represent non 32-bit signed integer value: 9007199254740992",
+          },
+        ],
       });
     });
 
@@ -994,7 +994,7 @@ describe("Execute: Handles inputs", () => {
         id: ["id"],
         int: 1.5,
         float: NaN,
-        boolean: "hello"
+        boolean: "hello",
       });
 
       expect(result).toEqual({
@@ -1003,58 +1003,58 @@ describe("Execute: Handles inputs", () => {
             locations: [
               {
                 column: 16,
-                line: 2
-              }
+                line: 2,
+              },
             ],
             message:
               'Variable "$string" got invalid value ["a"]; Expected type String; ' +
-              'String cannot represent a non string value: ["a"]'
+              'String cannot represent a non string value: ["a"]',
           },
           {
             locations: [
               {
                 column: 33,
-                line: 2
-              }
+                line: 2,
+              },
             ],
             message:
               'Variable "$id" got invalid value ["id"]; Expected type ID; ' +
-              'ID cannot represent value: ["id"]'
+              'ID cannot represent value: ["id"]',
           },
           {
             locations: [
               {
                 column: 42,
-                line: 2
-              }
+                line: 2,
+              },
             ],
             message:
               'Variable "$int" got invalid value 1.5; Expected type Int; ' +
-              "Int cannot represent non-integer value: 1.5"
+              "Int cannot represent non-integer value: 1.5",
           },
           {
             locations: [
               {
                 column: 53,
-                line: 2
-              }
+                line: 2,
+              },
             ],
             message:
               'Variable "$float" got invalid value NaN; Expected type Float; ' +
-              "Float cannot represent non numeric value: NaN"
+              "Float cannot represent non numeric value: NaN",
           },
           {
             locations: [
               {
                 column: 68,
-                line: 2
-              }
+                line: 2,
+              },
             ],
             message:
               'Variable "$boolean" got invalid value "hello"; Expected type Boolean; ' +
-              'Boolean cannot represent a non boolean value: "hello"'
-          }
-        ]
+              'Boolean cannot represent a non boolean value: "hello"',
+          },
+        ],
       });
     });
   });
@@ -1078,8 +1078,8 @@ describe("Execute: Handles inputs", () => {
 
       expect(result).toEqual({
         data: {
-          fieldWithNonNullableStringInput: '"default"'
-        }
+          fieldWithNonNullableStringInput: '"default"',
+        },
       });
     });
 
@@ -1091,47 +1091,48 @@ describe("Execute: Handles inputs", () => {
           {
             locations: [{ line: 2, column: 16 }],
             message:
-              'Variable "$string" of required type "String!" was not provided.'
+              'Variable "$string" of required type "String!" was not provided.',
           },
           {
             locations: [
               {
                 column: 34,
-                line: 2
-              }
+                line: 2,
+              },
             ],
-            message: 'Variable "$id" of required type "ID!" was not provided.'
+            message: 'Variable "$id" of required type "ID!" was not provided.',
           },
           {
             locations: [
               {
                 column: 44,
-                line: 2
-              }
+                line: 2,
+              },
             ],
-            message: 'Variable "$int" of required type "Int!" was not provided.'
+            message:
+              'Variable "$int" of required type "Int!" was not provided.',
           },
           {
             locations: [
               {
                 column: 56,
-                line: 2
-              }
+                line: 2,
+              },
             ],
             message:
-              'Variable "$float" of required type "Float!" was not provided.'
+              'Variable "$float" of required type "Float!" was not provided.',
           },
           {
             locations: [
               {
                 column: 72,
-                line: 2
-              }
+                line: 2,
+              },
             ],
             message:
-              'Variable "$boolean" of required type "Boolean!" was not provided.'
-          }
-        ]
+              'Variable "$boolean" of required type "Boolean!" was not provided.',
+          },
+        ],
       });
     });
 
@@ -1141,7 +1142,7 @@ describe("Execute: Handles inputs", () => {
         id: null,
         int: null,
         float: null,
-        boolean: null
+        boolean: null,
       });
 
       expect(result).toEqual({
@@ -1150,51 +1151,52 @@ describe("Execute: Handles inputs", () => {
             locations: [
               {
                 column: 16,
-                line: 2
-              }
+                line: 2,
+              },
             ],
             message:
-              'Variable "$string" of non-null type "String!" must not be null.'
+              'Variable "$string" of non-null type "String!" must not be null.',
           },
           {
             locations: [
               {
                 column: 34,
-                line: 2
-              }
+                line: 2,
+              },
             ],
-            message: 'Variable "$id" of non-null type "ID!" must not be null.'
+            message: 'Variable "$id" of non-null type "ID!" must not be null.',
           },
           {
             locations: [
               {
                 column: 44,
-                line: 2
-              }
+                line: 2,
+              },
             ],
-            message: 'Variable "$int" of non-null type "Int!" must not be null.'
+            message:
+              'Variable "$int" of non-null type "Int!" must not be null.',
           },
           {
             locations: [
               {
                 column: 56,
-                line: 2
-              }
+                line: 2,
+              },
             ],
             message:
-              'Variable "$float" of non-null type "Float!" must not be null.'
+              'Variable "$float" of non-null type "Float!" must not be null.',
           },
           {
             locations: [
               {
                 column: 72,
-                line: 2
-              }
+                line: 2,
+              },
             ],
             message:
-              'Variable "$boolean" of non-null type "Boolean!" must not be null.'
-          }
-        ]
+              'Variable "$boolean" of non-null type "Boolean!" must not be null.',
+          },
+        ],
       });
     });
 
@@ -1204,7 +1206,7 @@ describe("Execute: Handles inputs", () => {
         id: 1234,
         int: 1,
         float: 1.5,
-        boolean: true
+        boolean: true,
       });
 
       expect(result).toEqual({
@@ -1213,8 +1215,8 @@ describe("Execute: Handles inputs", () => {
           fieldWithNonNullableIDInput: '"1234"',
           fieldWithNonNullableIntInput: "1",
           fieldWithNonNullableFloatInput: "1.5",
-          fieldWithNonNullableBooleanInput: "true"
-        }
+          fieldWithNonNullableBooleanInput: "true",
+        },
       });
     });
 
@@ -1235,8 +1237,8 @@ describe("Execute: Handles inputs", () => {
           fieldWithNonNullableIDInput: '"id"',
           fieldWithNonNullableIntInput: "1",
           fieldWithNonNullableFloatInput: "1.5",
-          fieldWithNonNullableBooleanInput: "true"
-        }
+          fieldWithNonNullableBooleanInput: "true",
+        },
       });
     });
 
@@ -1248,9 +1250,9 @@ describe("Execute: Handles inputs", () => {
           {
             message:
               'Argument "input" of required type "String!" was not provided.',
-            locations: [{ line: 1, column: 3 }]
-          }
-        ]
+            locations: [{ line: 1, column: 3 }],
+          },
+        ],
       });
     });
 
@@ -1268,9 +1270,9 @@ describe("Execute: Handles inputs", () => {
             message:
               'Variable "$value" got invalid value [1, 2, 3]; ' +
               "Expected type String; String cannot represent a non string value: [1, 2, 3]",
-            locations: [{ line: 2, column: 16 }]
-          }
-        ]
+            locations: [{ line: 2, column: 16 }],
+          },
+        ],
       });
     });
 
@@ -1289,7 +1291,7 @@ describe("Execute: Handles inputs", () => {
 
       expect(result).toEqual({
         data: {
-          fieldWithNonNullableStringInput: null
+          fieldWithNonNullableStringInput: null,
         },
         errors: [
           {
@@ -1297,9 +1299,9 @@ describe("Execute: Handles inputs", () => {
               'Argument "input" of required type "String!" was provided the ' +
               'variable "$foo" which was not provided a runtime value.',
             locations: [{ line: 3, column: 50 }],
-            path: ["fieldWithNonNullableStringInput"]
-          }
-        ]
+            path: ["fieldWithNonNullableStringInput"],
+          },
+        ],
       });
     });
   });
@@ -1323,11 +1325,11 @@ describe("Execute: Handles inputs", () => {
         }
       `;
       const result = await executeQuery(doc, {
-        input: [[["A"]], [["B"], ["C"]]]
+        input: [[["A"]], [["B"], ["C"]]],
       });
 
       expect(result).toEqual({
-        data: { superNestedList: '[[["A"]], [["B"], ["C"]]]' }
+        data: { superNestedList: '[[["A"]], [["B"], ["C"]]]' },
       });
     });
 
@@ -1367,13 +1369,13 @@ describe("Execute: Handles inputs", () => {
             locations: [
               {
                 column: 23,
-                line: 3
-              }
+                line: 3,
+              },
             ],
             message:
-              'Argument "input" of type "[String]" has invalid value [false].'
-          }
-        ]
+              'Argument "input" of type "[String]" has invalid value [false].',
+          },
+        ],
       });
     });
     test("does not allow lists to be converted from unrelated items", async () => {
@@ -1390,13 +1392,13 @@ describe("Execute: Handles inputs", () => {
             locations: [
               {
                 column: 23,
-                line: 3
-              }
+                line: 3,
+              },
             ],
             message:
-              'Argument "input" of type "[String]" has invalid value false.'
-          }
-        ]
+              'Argument "input" of type "[String]" has invalid value false.',
+          },
+        ],
       });
     });
 
@@ -1413,9 +1415,9 @@ describe("Execute: Handles inputs", () => {
           {
             message:
               'Variable "$input" of non-null type "[String]!" must not be null.',
-            locations: [{ line: 2, column: 16 }]
-          }
-        ]
+            locations: [{ line: 2, column: 16 }],
+          },
+        ],
       });
     });
 
@@ -1477,9 +1479,9 @@ describe("Execute: Handles inputs", () => {
             message:
               'Variable "$input" got invalid value ["A", null, "B"]; ' +
               "Expected non-nullable type String! not to be null at value[1].",
-            locations: [{ line: 2, column: 16 }]
-          }
-        ]
+            locations: [{ line: 2, column: 16 }],
+          },
+        ],
       });
     });
 
@@ -1496,9 +1498,9 @@ describe("Execute: Handles inputs", () => {
           {
             message:
               'Variable "$input" of non-null type "[String!]!" must not be null.',
-            locations: [{ line: 2, column: 16 }]
-          }
-        ]
+            locations: [{ line: 2, column: 16 }],
+          },
+        ],
       });
     });
 
@@ -1527,9 +1529,9 @@ describe("Execute: Handles inputs", () => {
             message:
               'Variable "$input" got invalid value ["A", null, "B"]; ' +
               "Expected non-nullable type String! not to be null at value[1].",
-            locations: [{ line: 2, column: 16 }]
-          }
-        ]
+            locations: [{ line: 2, column: 16 }],
+          },
+        ],
       });
     });
 
@@ -1547,9 +1549,9 @@ describe("Execute: Handles inputs", () => {
             message:
               'Variable "$input" expected value of type "TestType!" which ' +
               "cannot be used as an input type.",
-            locations: [{ line: 2, column: 24 }]
-          }
-        ]
+            locations: [{ line: 2, column: 24 }],
+          },
+        ],
       });
     });
 
@@ -1567,9 +1569,9 @@ describe("Execute: Handles inputs", () => {
             message:
               'Variable "$input" expected value of type "UnknownType!" which ' +
               "cannot be used as an input type.",
-            locations: [{ line: 2, column: 24 }]
-          }
-        ]
+            locations: [{ line: 2, column: 24 }],
+          },
+        ],
       });
     });
   });
@@ -1580,8 +1582,8 @@ describe("Execute: Handles inputs", () => {
 
       expect(result).toEqual({
         data: {
-          fieldWithDefaultArgumentValue: '"Hello World"'
-        }
+          fieldWithDefaultArgumentValue: '"Hello World"',
+        },
       });
     });
 
@@ -1594,8 +1596,8 @@ describe("Execute: Handles inputs", () => {
 
       expect(result).toEqual({
         data: {
-          fieldWithDefaultArgumentValue: '"Hello World"'
-        }
+          fieldWithDefaultArgumentValue: '"Hello World"',
+        },
       });
     });
 
@@ -1611,9 +1613,9 @@ describe("Execute: Handles inputs", () => {
           {
             message:
               'Argument "input" of type "String" has invalid value WRONG_TYPE.',
-            locations: [{ line: 3, column: 48 }]
-          }
-        ]
+            locations: [{ line: 3, column: 48 }],
+          },
+        ],
       });
     });
 
@@ -1627,8 +1629,8 @@ describe("Execute: Handles inputs", () => {
       expect(result).toEqual({
         data: {
           fieldWithNonNullableStringInputAndDefaultArgumentValue:
-            '"Hello World"'
-        }
+            '"Hello World"',
+        },
       });
     });
     test("when null is provided to a non-null argument with default argument", async () => {
@@ -1643,16 +1645,16 @@ describe("Execute: Handles inputs", () => {
 
       expect(result).toEqual({
         data: {
-          fieldWithNonNullableStringInputAndDefaultArgumentValue: null
+          fieldWithNonNullableStringInputAndDefaultArgumentValue: null,
         },
         errors: [
           {
             message:
               'Argument "input" of non-null type "String!" must not be null.',
             locations: [{ line: 3, column: 73 }],
-            path: ["fieldWithNonNullableStringInputAndDefaultArgumentValue"]
-          }
-        ]
+            path: ["fieldWithNonNullableStringInputAndDefaultArgumentValue"],
+          },
+        ],
       });
     });
   });

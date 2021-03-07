@@ -3,7 +3,7 @@ import {
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
-  parse
+  parse,
 } from "graphql";
 import { compileQuery } from "../execution";
 
@@ -15,16 +15,16 @@ const schema = new GraphQLSchema({
         type: GraphQLString,
         resolve() {
           return "a";
-        }
+        },
       },
       b: {
         type: GraphQLString,
         resolve({ b }: { b: Error }) {
           throw b;
-        }
-      }
-    }
-  })
+        },
+      },
+    },
+  }),
 });
 
 function executeTestQuery(
@@ -34,7 +34,7 @@ function executeTestQuery(
 ) {
   const ast = parse(query);
   const compiled: any = compileQuery(schema, ast, "", {
-    disablingCapturingStackErrors
+    disablingCapturingStackErrors,
   });
   return compiled.query(root, undefined, {});
 }

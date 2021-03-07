@@ -25,9 +25,9 @@ describe("resolver info", () => {
       Query: {
         foo(_: any, _1: any, _2: any, info: any) {
           inf = info;
-        }
-      }
-    }
+        },
+      },
+    },
   });
 
   afterEach(() => {
@@ -45,7 +45,7 @@ describe("resolver info", () => {
       "operation",
       "rootValue",
       "variableValues",
-      "path"
+      "path",
     ].sort();
 
     test("no enricher provided", () => {
@@ -58,7 +58,7 @@ describe("resolver info", () => {
     });
     test("null enricher provided", () => {
       const prepared = compileQuery(schema, parse(`query { foo { a } }`), "", {
-        resolverInfoEnricher: null as any
+        resolverInfoEnricher: null as any,
       });
       if (!isCompiledQuery(prepared)) {
         throw prepared;
@@ -69,14 +69,14 @@ describe("resolver info", () => {
     test("enricher with wrong type provided", () => {
       expect(() =>
         compileQuery(schema, parse(`query { foo { a } }`), "", {
-          resolverInfoEnricher: {} as any
+          resolverInfoEnricher: {} as any,
         })
       ).toThrow();
     });
 
     test("enricher can overrule resolve info properties", () => {
       const prepared = compileQuery(schema, parse(`query { foo { a } }`), "", {
-        resolverInfoEnricher: () => ({ schema: "hello" })
+        resolverInfoEnricher: () => ({ schema: "hello" }),
       });
       if (!isCompiledQuery(prepared)) {
         throw prepared;
@@ -88,7 +88,7 @@ describe("resolver info", () => {
 
     test("enricher can add properties", () => {
       const prepared = compileQuery(schema, parse(`query { foo { a } }`), "", {
-        resolverInfoEnricher: () => ({ fancyNewField: "hello" })
+        resolverInfoEnricher: () => ({ fancyNewField: "hello" }),
       });
       if (!isCompiledQuery(prepared)) {
         throw prepared;
@@ -347,14 +347,14 @@ describe("resolver info", () => {
           Query: {
             iBar(_: any, _1: any, _2: any, info: any) {
               inf = info;
-            }
+            },
           },
           IBar: {
             __resolveType() {
               return "Bar1";
-            }
-          }
-        }
+            },
+          },
+        },
       });
 
       afterEach(() => {
@@ -618,14 +618,14 @@ describe("resolver info", () => {
           Query: {
             uBaz(_: any, _1: any, _2: any, info: any) {
               inf = info;
-            }
+            },
           },
           Baz: {
             __resolveType() {
               return "Foo";
-            }
-          }
-        }
+            },
+          },
+        },
       });
 
       afterEach(() => {
@@ -821,7 +821,7 @@ describe("resolver info", () => {
                 id,
                 url: "https://example.com",
                 children: [],
-                width: 50
+                width: 50,
               };
             },
             elements(_: any, _1: any, _2: any, info: any) {
@@ -831,24 +831,24 @@ describe("resolver info", () => {
             media(_: any, _1: any, _2: any, info: any) {
               infMedia = info;
               return [];
-            }
+            },
           },
           Node: {
             __resolveType() {
               return "Image";
-            }
+            },
           },
           Media: {
             __resolveType() {
               return "Video";
-            }
+            },
           },
           DocumentElement: {
             __resolveType() {
               return "Div";
-            }
-          }
-        }
+            },
+          },
+        },
       });
 
       afterEach(() => {

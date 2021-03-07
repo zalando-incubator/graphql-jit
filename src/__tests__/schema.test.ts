@@ -13,7 +13,7 @@ import {
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
-  parse
+  parse,
 } from "graphql";
 import { compileQuery, isCompiledQuery } from "../index";
 
@@ -30,8 +30,8 @@ const BlogImage = new GraphQLObjectType({
   fields: {
     url: { type: GraphQLString },
     width: { type: GraphQLInt },
-    height: { type: GraphQLInt }
-  }
+    height: { type: GraphQLInt },
+  },
 });
 
 const BlogAuthor = new GraphQLObjectType({
@@ -42,10 +42,10 @@ const BlogAuthor = new GraphQLObjectType({
     pic: {
       args: { width: { type: GraphQLInt }, height: { type: GraphQLInt } },
       type: BlogImage,
-      resolve: (obj, { width, height }) => obj.pic(width, height)
+      resolve: (obj, { width, height }) => obj.pic(width, height),
     },
-    recentArticle: { type: BlogArticle }
-  })
+    recentArticle: { type: BlogArticle },
+  }),
 });
 
 const BlogArticle: GraphQLObjectType = new GraphQLObjectType({
@@ -56,11 +56,11 @@ const BlogArticle: GraphQLObjectType = new GraphQLObjectType({
     author: { type: BlogAuthor },
     title: {
       type: GraphQLString,
-      resolve: article => Promise.resolve(article && article.title)
+      resolve: (article) => Promise.resolve(article && article.title),
     },
     body: { type: GraphQLString },
-    keywords: { type: new GraphQLList(GraphQLString) }
-  }
+    keywords: { type: new GraphQLList(GraphQLString) },
+  },
 });
 
 const BlogQuery = new GraphQLObjectType({
@@ -69,7 +69,7 @@ const BlogQuery = new GraphQLObjectType({
     article: {
       type: BlogArticle,
       args: { id: { type: GraphQLID } },
-      resolve: (_, { id }) => article(id)
+      resolve: (_, { id }) => article(id),
     },
     feed: {
       type: new GraphQLList(BlogArticle),
@@ -84,21 +84,21 @@ const BlogQuery = new GraphQLObjectType({
           article(7),
           article(8),
           article(9),
-          article(10)
-        ])
-    }
-  }
+          article(10),
+        ]),
+    },
+  },
 });
 
 const BlogSchema = new GraphQLSchema({
-  query: BlogQuery
+  query: BlogQuery,
 });
 
 const johnSmith = {
   id: 123,
   name: "John Smith",
   pic: (width: number, height: number) => getPic(123, width, height),
-  recentArticle: null
+  recentArticle: null,
 };
 johnSmith.recentArticle = article(1);
 
@@ -110,7 +110,7 @@ function article(id: number): any {
     title: "My Article " + id,
     body: "This is a post",
     hidden: "This data is not exposed in the schema",
-    keywords: ["foo", "bar", 1, true, null]
+    keywords: ["foo", "bar", 1, true, null],
   };
 }
 
@@ -118,7 +118,7 @@ function getPic(uid: number, width: number, height: number) {
   return {
     url: `cdn://${uid}`,
     width: `${width}`,
-    height: `${height}`
+    height: `${height}`,
   };
 }
 
@@ -173,7 +173,7 @@ describe("Execute: Handles execution with a complex schema", () => {
           { id: "7", title: "My Article 7" },
           { id: "8", title: "My Article 8" },
           { id: "9", title: "My Article 9" },
-          { id: "10", title: "My Article 10" }
+          { id: "10", title: "My Article 10" },
         ],
         article: {
           id: "1",
@@ -186,18 +186,18 @@ describe("Execute: Handles execution with a complex schema", () => {
             pic: {
               url: "cdn://123",
               width: 640,
-              height: 480
+              height: 480,
             },
             recentArticle: {
               id: "1",
               isPublished: true,
               title: "My Article 1",
               body: "This is a post",
-              keywords: ["foo", "bar", "1", "true", null]
-            }
-          }
-        }
-      }
+              keywords: ["foo", "bar", "1", "true", null],
+            },
+          },
+        },
+      },
     });
   });
   test("executes with resolves nested in lists", async () => {
@@ -230,9 +230,9 @@ describe("Execute: Handles execution with a complex schema", () => {
               pic: {
                 url: "cdn://123",
                 width: 640,
-                height: 480
-              }
-            }
+                height: 480,
+              },
+            },
           },
           {
             id: "2",
@@ -241,9 +241,9 @@ describe("Execute: Handles execution with a complex schema", () => {
               pic: {
                 url: "cdn://123",
                 width: 640,
-                height: 480
-              }
-            }
+                height: 480,
+              },
+            },
           },
           {
             id: "3",
@@ -252,9 +252,9 @@ describe("Execute: Handles execution with a complex schema", () => {
               pic: {
                 url: "cdn://123",
                 width: 640,
-                height: 480
-              }
-            }
+                height: 480,
+              },
+            },
           },
           {
             id: "4",
@@ -263,9 +263,9 @@ describe("Execute: Handles execution with a complex schema", () => {
               pic: {
                 url: "cdn://123",
                 width: 640,
-                height: 480
-              }
-            }
+                height: 480,
+              },
+            },
           },
           {
             id: "5",
@@ -274,9 +274,9 @@ describe("Execute: Handles execution with a complex schema", () => {
               pic: {
                 url: "cdn://123",
                 width: 640,
-                height: 480
-              }
-            }
+                height: 480,
+              },
+            },
           },
           {
             id: "6",
@@ -285,9 +285,9 @@ describe("Execute: Handles execution with a complex schema", () => {
               pic: {
                 url: "cdn://123",
                 width: 640,
-                height: 480
-              }
-            }
+                height: 480,
+              },
+            },
           },
           {
             id: "7",
@@ -296,9 +296,9 @@ describe("Execute: Handles execution with a complex schema", () => {
               pic: {
                 url: "cdn://123",
                 width: 640,
-                height: 480
-              }
-            }
+                height: 480,
+              },
+            },
           },
           {
             id: "8",
@@ -307,9 +307,9 @@ describe("Execute: Handles execution with a complex schema", () => {
               pic: {
                 url: "cdn://123",
                 width: 640,
-                height: 480
-              }
-            }
+                height: 480,
+              },
+            },
           },
           {
             id: "9",
@@ -318,9 +318,9 @@ describe("Execute: Handles execution with a complex schema", () => {
               pic: {
                 url: "cdn://123",
                 width: 640,
-                height: 480
-              }
-            }
+                height: 480,
+              },
+            },
           },
           {
             id: "10",
@@ -329,12 +329,12 @@ describe("Execute: Handles execution with a complex schema", () => {
               pic: {
                 url: "cdn://123",
                 width: 640,
-                height: 480
-              }
-            }
-          }
-        ]
-      }
+                height: 480,
+              },
+            },
+          },
+        ],
+      },
     });
   });
   test("executes using a schema without lists", async () => {
@@ -381,17 +381,17 @@ describe("Execute: Handles execution with a complex schema", () => {
             pic: {
               url: "cdn://123",
               width: 640,
-              height: 480
+              height: 480,
             },
             recentArticle: {
               id: "1",
               isPublished: true,
               title: "My Article 1",
-              body: "This is a post"
-            }
-          }
-        }
-      }
+              body: "This is a post",
+            },
+          },
+        },
+      },
     });
   });
 

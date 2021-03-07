@@ -3,7 +3,7 @@ import fastJson, {
   IntegerSchema,
   NumberSchema,
   ObjectSchema,
-  StringSchema
+  StringSchema,
 } from "fast-json-stringify";
 import {
   formatError,
@@ -16,7 +16,7 @@ import {
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
-  parse
+  parse,
 } from "graphql";
 import { ExecutionContext } from "graphql/execution/execute";
 import { compileQuery } from "../index";
@@ -33,7 +33,7 @@ const PRIMITIVES: {
   Float: "number",
   String: "string",
   Boolean: "boolean",
-  ID: "string"
+  ID: "string",
 };
 
 function queryToJSONSchema(exeContext: ExecutionContext): ObjectSchema {
@@ -44,7 +44,7 @@ function queryToJSONSchema(exeContext: ExecutionContext): ObjectSchema {
       data: {
         type: "object",
         additionalProperties: true,
-        nullable: true
+        nullable: true,
       },
       errors: {
         type: "array",
@@ -53,13 +53,13 @@ function queryToJSONSchema(exeContext: ExecutionContext): ObjectSchema {
           additionalProperties: true,
           properties: {
             message: {
-              type: "string"
+              type: "string",
             },
             path: {
               type: "array",
               items: {
-                type: ["string", "number"]
-              }
+                type: ["string", "number"],
+              },
             },
             locations: {
               type: "array",
@@ -67,18 +67,18 @@ function queryToJSONSchema(exeContext: ExecutionContext): ObjectSchema {
                 type: "object",
                 properties: {
                   line: {
-                    type: "number"
+                    type: "number",
                   },
                   column: {
-                    type: "number"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+                    type: "number",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   };
 }
 
@@ -94,14 +94,14 @@ describe("json schema creator", () => {
           fields: {
             width: { type: GraphQLInt },
             height: { type: GraphQLInt },
-            url: { type: GraphQLString }
-          }
-        })
+            url: { type: GraphQLString },
+          },
+        }),
       },
       recentArticle: {
-        type: BlogArticle
-      }
-    })
+        type: BlogArticle,
+      },
+    }),
   });
 
   const BlogArticle: GraphQLObjectType = new GraphQLObjectType({
@@ -111,8 +111,8 @@ describe("json schema creator", () => {
       isPublished: { type: GraphQLBoolean },
       author: { type: new GraphQLNonNull(BlogAuthor) },
       title: { type: GraphQLString },
-      body: { type: GraphQLString }
-    }
+      body: { type: GraphQLString },
+    },
   });
 
   const BlogQuery = new GraphQLObjectType({
@@ -121,7 +121,7 @@ describe("json schema creator", () => {
       article: {
         type: BlogArticle,
         args: { id: { type: GraphQLID } },
-        resolve: (_, { id }) => article(id)
+        resolve: (_, { id }) => article(id),
       },
       feed: {
         type: new GraphQLList(BlogArticle),
@@ -135,10 +135,10 @@ describe("json schema creator", () => {
           article(7),
           article(8),
           article(9),
-          article(10)
-        ]
-      }
-    }
+          article(10),
+        ],
+      },
+    },
   });
 
   function article(id: number): any {
@@ -147,16 +147,16 @@ describe("json schema creator", () => {
       isPublished: true,
       author: {
         id: 123,
-        name: "John Smith"
+        name: "John Smith",
       },
       title: "My Article " + id,
       body: "This is a post",
-      hidden: "This data is not exposed in the schema"
+      hidden: "This data is not exposed in the schema",
     };
   }
 
   const blogSchema = new GraphQLSchema({
-    query: BlogQuery
+    query: BlogQuery,
   });
 
   const query = `
@@ -196,9 +196,9 @@ describe("json schema creator", () => {
   describe("custom json serializer", () => {
     test("valid response serialization", async () => {
       const prepared: any = compileQuery(blogSchema, parse(query), "", {
-        customJSONSerializer: compiledContext => {
+        customJSONSerializer: (compiledContext) => {
           return fastJson(queryToJSONSchema(compiledContext));
-        }
+        },
       });
       const response = await prepared.query(undefined, undefined, {});
       expect(prepared.stringify).not.toBe(JSON.stringify);
@@ -210,12 +210,12 @@ describe("json schema creator", () => {
     });
     test("error response serialization", async () => {
       const prepared: any = compileQuery(blogSchema, parse(query), "", {
-        customJSONSerializer: compiledContext => {
+        customJSONSerializer: (compiledContext) => {
           return fastJson(queryToJSONSchema(compiledContext));
-        }
+        },
       });
       const response = {
-        errors: [formatError(new GraphQLError("test"))]
+        errors: [formatError(new GraphQLError("test"))],
       };
       expect(prepared.stringify(response)).toEqual(JSON.stringify(response));
     });

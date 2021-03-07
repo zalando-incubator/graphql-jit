@@ -7,7 +7,7 @@ import resolvers from "./resolvers";
 
 const schema = makeExecutableSchema({
   typeDefs: readFileSync(path.join(__dirname, "../schema.gql"), "utf-8"),
-  resolvers
+  resolvers,
 });
 const store = new QueryStore(schema);
 
@@ -17,14 +17,14 @@ function runServer() {
   const server = createServer(async (req, res) => {
     switch (req.url) {
       case "/persist":
-        persistHandler(req, res).catch(e => {
+        persistHandler(req, res).catch((e) => {
           console.error(e);
           internalServerError(res, e.message);
         });
         break;
 
       case "/graphql":
-        graphqlHandler(req, res).catch(e => {
+        graphqlHandler(req, res).catch((e) => {
           console.error(e);
           internalServerError(res, e.message);
         });
@@ -88,16 +88,16 @@ async function graphqlHandler(req: IncomingMessage, res: ServerResponse) {
 
   const result = await compiledQuery.query({}, {}, inp.variables);
   res.writeHead(200, {
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
   });
   res.end(JSON.stringify(result));
 }
 
 function readRequestBody(req: IncomingMessage): Promise<string> {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     const body: Uint8Array[] = [];
     req
-      .on("data", chunk => body.push(chunk))
+      .on("data", (chunk) => body.push(chunk))
       .on("end", () => resolve(Buffer.concat(body).toString()));
   });
 }

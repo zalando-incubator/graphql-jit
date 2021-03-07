@@ -27,7 +27,7 @@ import {
   isSpecifiedScalarType,
   Kind,
   locatedError,
-  TypeNameMetaFieldDef
+  TypeNameMetaFieldDef,
 } from "graphql";
 import { ExecutionContext as GraphQLContext } from "graphql/execution/execute";
 import { pathToArray } from "graphql/jsutils/Path";
@@ -45,20 +45,20 @@ import {
   getArgumentDefs,
   JitFieldNode,
   ObjectPath,
-  resolveFieldDef
+  resolveFieldDef,
 } from "./ast";
 import { GraphQLError as GraphqlJitError } from "./error";
 import createInspect from "./inspect";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
 import {
   createResolveInfoThunk,
-  ResolveInfoEnricherInput
+  ResolveInfoEnricherInput,
 } from "./resolve-info";
 import { Maybe } from "./types";
 import {
   CoercedVariableValues,
   compileVariableParsing,
-  failToParseVariables
+  failToParseVariables,
 } from "./variables";
 
 const inspect = createInspect();
@@ -215,7 +215,7 @@ export function compileQuery(
       customJSONSerializer: undefined,
       disableLeafSerialization: false,
       customSerializers: {},
-      ...partialOptions
+      ...partialOptions,
     };
 
     // If a valid context cannot be created due to incorrect arguments,
@@ -260,7 +260,7 @@ export function compileQuery(
           ? context.operation.name.value
           : undefined
       ),
-      stringify
+      stringify,
     };
 
     if (context.operation.operation === "subscription") {
@@ -288,7 +288,7 @@ export function compileQuery(
     return compiledQuery;
   } catch (err) {
     return {
-      errors: normalizeErrors(err)
+      errors: normalizeErrors(err),
     };
   }
 }
@@ -313,7 +313,7 @@ export function createBoundQuery(
     typeResolvers,
     isTypeOfs,
     serializers,
-    resolveInfos
+    resolveInfos,
   } = compilationContext;
   const trimmer = createNullTrimmer(compilationContext);
   const fnName = operationName ? operationName : "query";
@@ -357,14 +357,14 @@ export function createBoundQuery(
         promiseCounter: 0,
         data: {},
         nullErrors: [],
-        errors: []
+        errors: [],
       };
       const result = func.call(null, executionContext);
       if (isPromise(result)) {
         return result.then(postProcessResult);
       }
       return postProcessResult(executionContext);
-    }
+    },
   };
 
   return ret[fnName];
@@ -374,18 +374,18 @@ function postProcessResult({
   data,
   nullErrors,
   errors,
-  trimmer
+  trimmer,
 }: ExecutionContext) {
   if (nullErrors.length > 0) {
     const trimmed = trimmer(data, nullErrors);
     return {
       data: trimmed.data,
-      errors: errors.concat(trimmed.errors)
+      errors: errors.concat(trimmed.errors),
     };
   } else if (errors.length > 0) {
     return {
       data,
-      errors
+      errors,
     };
   }
   return { data };
@@ -501,7 +501,7 @@ function compileDeferredField(
     jsFieldName,
     responsePath,
     parentType,
-    args
+    args,
   } = deferredField;
 
   const subContext = createSubCompilationContext(context);
@@ -589,7 +589,7 @@ function compileDeferredField(
 
 function compileDeferredFieldsSerially(context: CompilationContext): string {
   let body = "";
-  context.deferred.forEach(deferredField => {
+  context.deferred.forEach((deferredField) => {
     const { name, fieldName, parentType } = deferredField;
     const resolverName = getResolverName(parentType.name, fieldName);
     const mutationHandler = getHoistedFunctionName(
@@ -841,10 +841,12 @@ function compileObjectType(
      */
     body(`
       (
-        ${fieldNodes
-          .map(it => it.__internalShouldInclude)
-          .filter(it => it)
-          .join(" || ") || /* if(true) - default */ "true"}
+        ${
+          fieldNodes
+            .map((it) => it.__internalShouldInclude)
+            .filter((it) => it)
+            .join(" || ") || /* if(true) - default */ "true"
+        }
       )
     `);
 
@@ -860,7 +862,7 @@ function compileObjectType(
     let resolver = field.resolve;
     if (!resolver && alwaysDefer) {
       const fieldName = field.name;
-      resolver = parent => parent && parent[fieldName];
+      resolver = (parent) => parent && parent[fieldName];
     }
     if (resolver) {
       context.deferred.push({
@@ -873,7 +875,7 @@ function compileObjectType(
         jsFieldName: getJsFieldName(field.name),
         fieldType: field.type,
         fieldNodes,
-        args: getArgumentDefs(field, fieldNodes[0])
+        args: getArgumentDefs(field, fieldNodes[0]),
       });
       context.resolvers[getResolverName(type.name, field.name)] = resolver;
       body(
@@ -937,7 +939,7 @@ function compileAbstractType(
   context.typeResolvers[typeResolverName] = resolveType;
   const collectedTypes = context.schema
     .getPossibleTypes(type)
-    .map(objectType => {
+    .map((objectType) => {
       const subContext = createSubCompilationContext(context);
       const object = compileType(
         subContext,
@@ -1205,7 +1207,7 @@ function getExecutionInfo(
       parentType,
       fieldName,
       fieldType,
-      fieldNodes
+      fieldNodes,
     },
     context.options.resolverInfoEnricher
   );
@@ -1385,7 +1387,7 @@ function getErrorDestination(type: GraphQLType): string {
 function createResolveInfoName(path: ObjectPath) {
   return (
     flattenPath(path)
-      .map(p => p.key)
+      .map((p) => p.key)
       .join("_") + "Info"
   );
 }
@@ -1563,7 +1565,7 @@ function buildCompilationContext(
     depth: -1,
     variableValues: {},
     fieldResolver: undefined as any,
-    errors: errors as any
+    errors: errors as any,
   };
 }
 
@@ -1627,7 +1629,7 @@ function promiseDone() {
 
 function normalizeErrors(err: Error[] | Error): GraphQLError[] {
   if (Array.isArray(err)) {
-    return err.map(e => normalizeError(e));
+    return err.map((e) => normalizeError(e));
   }
   return [normalizeError(err)];
 }
@@ -1714,7 +1716,7 @@ function compileSubscriptionOperation(
   function reportGraphQLError(error: any): ExecutionResult {
     if (error instanceof GraphQLError) {
       return {
-        errors: [error]
+        errors: [error],
       };
     }
     throw error;
@@ -1811,7 +1813,7 @@ function createBoundSubscribe(
     typeResolvers,
     isTypeOfs,
     serializers,
-    resolveInfos
+    resolveInfos,
   } = compilationContext;
   const trimmer = createNullTrimmer(compilationContext);
   const fnName = operationName ? operationName : "subscribe";
@@ -1846,11 +1848,11 @@ function createBoundSubscribe(
         promiseCounter: 0,
         nullErrors: [],
         errors: [],
-        data: {}
+        data: {},
       };
 
       return func.call(null, executionContext);
-    }
+    },
   };
 
   return ret[fnName];

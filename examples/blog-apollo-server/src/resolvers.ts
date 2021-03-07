@@ -3,16 +3,16 @@ const posts = [
     id: "post:1",
     title: "Introduction to GraphQL!",
     author: {
-      id: "user:1"
-    }
+      id: "user:1",
+    },
   },
   {
     id: "post:2",
     title: "GraphQL-Jit a fast engine for GraphQL",
     author: {
-      id: "user:2"
-    }
-  }
+      id: "user:2",
+    },
+  },
 ];
 
 const users = [
@@ -21,23 +21,23 @@ const users = [
     name: "Boopathi",
     posts: [
       {
-        id: "post:1"
-      }
-    ]
+        id: "post:1",
+      },
+    ],
   },
   {
     id: "user:2",
     name: "Rui",
     posts: [
       {
-        id: "post:2"
-      }
-    ]
-  }
+        id: "post:2",
+      },
+    ],
+  },
 ];
 
 function getPost(id: string) {
-  const post = posts.find(post => post.id === id);
+  const post = posts.find((post) => post.id === id);
   if (post == null) {
     throw new Error(`Post "${id} not found"`);
   }
@@ -45,7 +45,7 @@ function getPost(id: string) {
 }
 
 function getUser(id: string) {
-  const user = users.find(user => user.id === id);
+  const user = users.find((user) => user.id === id);
   if (user == null) {
     throw new Error(`User "${id}" not found`);
   }
@@ -74,21 +74,21 @@ export default {
     },
     users() {
       return users;
-    }
+    },
   },
   Node: {
     __resolveType({ __typename }: { __typename: string }) {
       return __typename;
-    }
+    },
   },
   Post: {
     author({ author }: { author: { id: string } }) {
       return getUser(author.id);
-    }
+    },
   },
   User: {
     posts({ posts }: { posts: { id: string }[] }) {
       return posts.map(({ id }) => getPost(id));
-    }
-  }
+    },
+  },
 };

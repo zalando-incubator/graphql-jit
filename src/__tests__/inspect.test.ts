@@ -82,7 +82,7 @@ describe("inspect", () => {
     const object = {
       inspect() {
         return "<custom inspect>";
-      }
+      },
     };
 
     expect(inspect(object)).toEqual("<custom inspect>");
@@ -92,7 +92,7 @@ describe("inspect", () => {
     const object = {
       inspect() {
         return this;
-      }
+      },
     };
 
     expect(inspect(object)).toEqual("{ inspect: [function inspect] }");
@@ -105,7 +105,7 @@ describe("inspect", () => {
       },
       [String(nodejsCustomInspectSymbol)]() {
         return "<custom symbol inspect>";
-      }
+      },
     };
 
     expect(inspect(object)).toEqual("<custom symbol inspect>");
@@ -115,7 +115,7 @@ describe("inspect", () => {
     const object = {
       inspect() {
         return { custom: "inspect" };
-      }
+      },
     };
 
     expect(inspect(object)).toEqual('{ custom: "inspect" }');
@@ -126,7 +126,7 @@ describe("inspect", () => {
       str: "Hello World!",
       inspect() {
         return this.str;
-      }
+      },
     };
 
     expect(inspect(object)).toEqual("Hello World!");
@@ -153,11 +153,11 @@ describe("inspect", () => {
     expect(inspect(mixed)).toEqual("{ array: [[Circular]] }");
 
     const customA = {
-      inspect: () => customB
+      inspect: () => customB,
     };
 
     const customB = {
-      inspect: () => customA
+      inspect: () => customA,
     };
 
     expect(inspect(customA)).toEqual("[Circular]");

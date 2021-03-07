@@ -20,9 +20,9 @@ const testSchema = makeExecutableSchema({
   resolvers: {
     TestType: {
       a: () => "a",
-      b: () => "b"
-    }
-  }
+      b: () => "b",
+    },
+  },
 });
 
 const data = {};
@@ -42,17 +42,17 @@ describe("Execute: handles directives", () => {
       const result = executeTestQuery("{ a, b }");
 
       expect(result).toEqual({
-        data: { a: "a", b: "b" }
+        data: { a: "a", b: "b" },
       });
     });
   });
 
   describe("works on scalars", () => {
-        test("if true includes scalar", () => {
+    test("if true includes scalar", () => {
       const result = executeTestQuery("{ a, b @include(if: true) }");
 
       expect(result).toEqual({
-        data: { a: "a", b: "b" }
+        data: { a: "a", b: "b" },
       });
     });
 
@@ -60,23 +60,23 @@ describe("Execute: handles directives", () => {
       const result = executeTestQuery("{ a, b @include(if: false) }");
 
       expect(result).toEqual({
-        data: { a: "a" }
+        data: { a: "a" },
       });
     });
 
-        test("unless false includes scalar", () => {
+    test("unless false includes scalar", () => {
       const result = executeTestQuery("{ a, b @skip(if: false) }");
 
       expect(result).toEqual({
-        data: { a: "a", b: "b" }
+        data: { a: "a", b: "b" },
       });
     });
 
-        test("unless true omits scalar", () => {
+    test("unless true omits scalar", () => {
       const result = executeTestQuery("{ a, b @skip(if: true) }");
 
       expect(result).toEqual({
-        data: { a: "a" }
+        data: { a: "a" },
       });
     });
   });
@@ -94,7 +94,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a" }
+        data: { a: "a" },
       });
     });
 
@@ -110,7 +110,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a", b: "b" }
+        data: { a: "a", b: "b" },
       });
     });
 
@@ -126,7 +126,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a", b: "b" }
+        data: { a: "a", b: "b" },
       });
     });
 
@@ -142,7 +142,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a" }
+        data: { a: "a" },
       });
     });
   });
@@ -159,7 +159,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a" }
+        data: { a: "a" },
       });
     });
 
@@ -174,7 +174,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a", b: "b" }
+        data: { a: "a", b: "b" },
       });
     });
     test("unless false includes inline fragment", () => {
@@ -188,7 +188,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a", b: "b" }
+        data: { a: "a", b: "b" },
       });
     });
     test("unless true includes inline fragment", () => {
@@ -202,7 +202,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a" }
+        data: { a: "a" },
       });
     });
   });
@@ -219,7 +219,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a" }
+        data: { a: "a" },
       });
     });
 
@@ -234,7 +234,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a", b: "b" }
+        data: { a: "a", b: "b" },
       });
     });
     test("unless false includes anonymous inline fragment", () => {
@@ -248,7 +248,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a", b: "b" }
+        data: { a: "a", b: "b" },
       });
     });
 
@@ -263,7 +263,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a" }
+        data: { a: "a" },
       });
     });
   });
@@ -278,7 +278,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a", b: "b" }
+        data: { a: "a", b: "b" },
       });
     });
 
@@ -291,7 +291,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a" }
+        data: { a: "a" },
       });
     });
 
@@ -304,7 +304,7 @@ describe("Execute: handles directives", () => {
       `);
 
       expect(result).toEqual({
-        data: { a: "a" }
+        data: { a: "a" },
       });
     });
   });
@@ -328,21 +328,21 @@ describe("Execute: handles directives", () => {
       resolvers: {
         Query: {
           foo: () => ({
-            b: 42
-          })
+            b: 42,
+          }),
         },
         Foo: {
           bar() {
             return {
               c: "ccc",
-              d: "ddd"
+              d: "ddd",
             };
           },
           a() {
             return "aa";
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
     test("skip on field", async () => {
@@ -355,7 +355,7 @@ describe("Execute: handles directives", () => {
       `;
       const result = await executeTestQuery(query, { skip: true }, schema);
       expect(result).toEqual({
-        data: {}
+        data: {},
       });
     });
 
@@ -369,7 +369,7 @@ describe("Execute: handles directives", () => {
       `;
       const result = await executeTestQuery(query, { include: false }, schema);
       expect(result).toEqual({
-        data: {}
+        data: {},
       });
     });
 
@@ -387,7 +387,7 @@ describe("Execute: handles directives", () => {
         schema
       );
       expect(result).toEqual({
-        data: { foo: {} }
+        data: { foo: {} },
       });
     });
 
@@ -405,25 +405,25 @@ describe("Execute: handles directives", () => {
       test("skip=false, include=false", async () => {
         const result = await exec(false, false);
         expect(result).toEqual({
-          data: {}
+          data: {},
         });
       });
       test("skip=false, include=true", async () => {
         const result = await exec(false, true);
         expect(result).toEqual({
-          data: { foo: { a: "aa" } }
+          data: { foo: { a: "aa" } },
         });
       });
       test("skip=true, include=false", async () => {
         const result = await exec(true, false);
         expect(result).toEqual({
-          data: {}
+          data: {},
         });
       });
       test("skip=true, include=true", async () => {
         const result = await exec(true, true);
         expect(result).toEqual({
-          data: {}
+          data: {},
         });
       });
     });
@@ -441,7 +441,7 @@ describe("Execute: handles directives", () => {
         `;
         const result = await executeTestQuery(query, { skip: true }, schema);
         expect(result).toEqual({
-          data: {}
+          data: {},
         });
       });
 
@@ -458,7 +458,7 @@ describe("Execute: handles directives", () => {
         `;
         const result = await executeTestQuery(query, { skip: true }, schema);
         expect(result).toEqual({
-          data: {}
+          data: {},
         });
       });
     });
@@ -622,9 +622,9 @@ describe("Execute: handles directives", () => {
         expect(result).toEqual({
           errors: [
             expect.objectContaining({
-              message: "Directive 'skip' is missing required arguments: 'if'"
-            })
-          ]
+              message: "Directive 'skip' is missing required arguments: 'if'",
+            }),
+          ],
         });
       });
 
@@ -641,9 +641,9 @@ describe("Execute: handles directives", () => {
           errors: [
             expect.objectContaining({
               message:
-                "Argument 'if' on Directive 'skip' has an invalid value (0). Expected type 'Boolean!'"
-            })
-          ]
+                "Argument 'if' on Directive 'skip' has an invalid value (0). Expected type 'Boolean!'",
+            }),
+          ],
         });
       });
 
@@ -659,9 +659,9 @@ describe("Execute: handles directives", () => {
         expect(result).toEqual({
           errors: [
             expect.objectContaining({
-              message: `Variable 'skip' is not defined`
-            })
-          ]
+              message: `Variable 'skip' is not defined`,
+            }),
+          ],
         });
       });
 
@@ -677,9 +677,9 @@ describe("Execute: handles directives", () => {
         expect(result).toEqual({
           errors: [
             expect.objectContaining({
-              message: `Variable 'skip' of type 'Int!' used in position expecting type 'Boolean!'`
-            })
-          ]
+              message: `Variable 'skip' of type 'Int!' used in position expecting type 'Boolean!'`,
+            }),
+          ],
         });
       });
 
@@ -695,9 +695,9 @@ describe("Execute: handles directives", () => {
         expect(result).toEqual({
           errors: [
             expect.objectContaining({
-              message: `Variable 'skip' of type '[Int!]!' used in position expecting type 'Boolean!'`
-            })
-          ]
+              message: `Variable 'skip' of type '[Int!]!' used in position expecting type 'Boolean!'`,
+            }),
+          ],
         });
       });
     });
@@ -713,9 +713,9 @@ describe("Execute: handles directives", () => {
       `,
         resolvers: {
           Query: {
-            foo: mockResolver
-          }
-        }
+            foo: mockResolver,
+          },
+        },
       });
     const query = `
       query ($skip: Boolean!) {

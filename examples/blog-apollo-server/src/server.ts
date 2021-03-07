@@ -6,11 +6,11 @@ import resolvers from "./resolvers";
 
 const schema = makeExecutableSchema({
   typeDefs: readFileSync(path.join(__dirname, "../schema.gql"), "utf-8"),
-  resolvers
+  resolvers,
 });
 const apollo = new ApolloServer({
   schema,
-  executor: executor(schema)
+  executor: executor(schema),
 });
 
 apollo.listen({ port: 3000 }).then(() => {

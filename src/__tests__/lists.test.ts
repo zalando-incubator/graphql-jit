@@ -11,7 +11,7 @@ import {
   GraphQLSchema,
   GraphQLString,
   GraphQLType,
-  parse
+  parse,
 } from "graphql";
 import { compileQuery, isCompiledQuery } from "../index";
 
@@ -35,8 +35,8 @@ function check(testType: any, testData: any, expected: any) {
       name: "DataType",
       fields: () => ({
         test: { type: testType, resolve: (data: any) => data.test },
-        nest: { type: dataType, resolve: () => data }
-      })
+        nest: { type: dataType, resolve: () => data },
+      }),
     });
     const schema = new GraphQLSchema({ query: dataType });
 
@@ -69,7 +69,7 @@ describe("Execute: Accepts any iterable as list value", () => {
   test(
     "Accepts an Generator function as a List value",
     check(new GraphQLList(GraphQLString), yieldItems(), {
-      data: { nest: { test: ["one", "2", "true"] } }
+      data: { nest: { test: ["one", "2", "true"] } },
     })
   );
 
@@ -80,7 +80,7 @@ describe("Execute: Accepts any iterable as list value", () => {
   test(
     "Accepts function arguments as a List value",
     check(new GraphQLList(GraphQLString), getArgs("one", "two"), {
-      data: { nest: { test: ["one", "two"] } }
+      data: { nest: { test: ["one", "two"] } },
     })
   );
 
@@ -93,9 +93,9 @@ describe("Execute: Accepts any iterable as list value", () => {
           message:
             "Expected Iterable, but did not find one for field DataType.test.",
           locations: [{ line: 1, column: 10 }],
-          path: ["nest", "test"]
-        }
-      ]
+          path: ["nest", "test"],
+        },
+      ],
     })
   );
   test(
@@ -107,9 +107,9 @@ describe("Execute: Accepts any iterable as list value", () => {
           message:
             "Expected Iterable, but did not find one for field DataType.test.",
           locations: [{ line: 1, column: 10 }],
-          path: ["nest", "test"]
-        }
-      ]
+          path: ["nest", "test"],
+        },
+      ],
     })
   );
 });
@@ -147,7 +147,7 @@ describe("Execute: Handles list nullability", () => {
       test(
         containsNull,
         check(type, resolved([1, null, 2]), {
-          data: { nest: { test: [1, null, 2] } }
+          data: { nest: { test: [1, null, 2] } },
         })
       );
 
@@ -164,9 +164,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: "bad",
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test"]
-            }
-          ]
+              path: ["nest", "test"],
+            },
+          ],
         })
       );
     });
@@ -175,14 +175,14 @@ describe("Execute: Handles list nullability", () => {
       test(
         containsValues,
         check(type, [resolved(1), resolved(2)], {
-          data: { nest: { test: [1, 2] } }
+          data: { nest: { test: [1, 2] } },
         })
       );
 
       test(
         containsNull,
         check(type, [resolved(1), resolved(null), resolved(2)], {
-          data: { nest: { test: [1, null, 2] } }
+          data: { nest: { test: [1, null, 2] } },
         })
       );
 
@@ -194,9 +194,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: "bad",
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test", 1]
-            }
-          ]
+              path: ["nest", "test", 1],
+            },
+          ],
         })
       );
     });
@@ -226,9 +226,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: errorStr,
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test"]
-            }
-          ]
+              path: ["nest", "test"],
+            },
+          ],
         })
       );
     });
@@ -242,7 +242,7 @@ describe("Execute: Handles list nullability", () => {
       test(
         containsNull,
         check(type, resolved([1, null, 2]), {
-          data: { nest: { test: [1, null, 2] } }
+          data: { nest: { test: [1, null, 2] } },
         })
       );
 
@@ -254,9 +254,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: errorStr,
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test"]
-            }
-          ]
+              path: ["nest", "test"],
+            },
+          ],
         })
       );
 
@@ -268,25 +268,25 @@ describe("Execute: Handles list nullability", () => {
             {
               message: "bad",
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test"]
-            }
-          ]
+              path: ["nest", "test"],
+            },
+          ],
         })
       );
     });
 
-        describe("Array<Promise<T>>", () => {
+    describe("Array<Promise<T>>", () => {
       test(
         containsValues,
         check(type, [resolved(1), resolved(2)], {
-          data: { nest: { test: [1, 2] } }
+          data: { nest: { test: [1, 2] } },
         })
       );
 
       test(
         containsNull,
         check(type, [resolved(1), resolved(null), resolved(2)], {
-          data: { nest: { test: [1, null, 2] } }
+          data: { nest: { test: [1, null, 2] } },
         })
       );
 
@@ -298,9 +298,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: "bad",
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test", 1]
-            }
-          ]
+              path: ["nest", "test", 1],
+            },
+          ],
         })
       );
     });
@@ -323,9 +323,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: errorStr,
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test", 1]
-            }
-          ]
+              path: ["nest", "test", 1],
+            },
+          ],
         })
       );
 
@@ -349,9 +349,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: errorStr,
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test", 1]
-            }
-          ]
+              path: ["nest", "test", 1],
+            },
+          ],
         })
       );
 
@@ -368,9 +368,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: "bad",
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test"]
-            }
-          ]
+              path: ["nest", "test"],
+            },
+          ],
         })
       );
     });
@@ -379,7 +379,7 @@ describe("Execute: Handles list nullability", () => {
       test(
         containsValues,
         check(type, [resolved(1), resolved(2)], {
-          data: { nest: { test: [1, 2] } }
+          data: { nest: { test: [1, 2] } },
         })
       );
 
@@ -391,9 +391,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: errorStr,
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test", 1]
-            }
-          ]
+              path: ["nest", "test", 1],
+            },
+          ],
         })
       );
 
@@ -405,9 +405,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: "bad",
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test", 1]
-            }
-          ]
+              path: ["nest", "test", 1],
+            },
+          ],
         })
       );
     });
@@ -432,9 +432,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: errorStr,
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test", 1]
-            }
-          ]
+              path: ["nest", "test", 1],
+            },
+          ],
         })
       );
 
@@ -446,9 +446,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: errorStr,
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test"]
-            }
-          ]
+              path: ["nest", "test"],
+            },
+          ],
         })
       );
     });
@@ -467,9 +467,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: errorStr,
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test", 1]
-            }
-          ]
+              path: ["nest", "test", 1],
+            },
+          ],
         })
       );
 
@@ -481,9 +481,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: errorStr,
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test"]
-            }
-          ]
+              path: ["nest", "test"],
+            },
+          ],
         })
       );
 
@@ -495,9 +495,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: "bad",
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test"]
-            }
-          ]
+              path: ["nest", "test"],
+            },
+          ],
         })
       );
     });
@@ -506,7 +506,7 @@ describe("Execute: Handles list nullability", () => {
       test(
         containsValues,
         check(type, [resolved(1), resolved(2)], {
-          data: { nest: { test: [1, 2] } }
+          data: { nest: { test: [1, 2] } },
         })
       );
 
@@ -518,9 +518,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: errorStr,
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test", 1]
-            }
-          ]
+              path: ["nest", "test", 1],
+            },
+          ],
         })
       );
 
@@ -532,9 +532,9 @@ describe("Execute: Handles list nullability", () => {
             {
               message: "bad",
               locations: [{ line: 1, column: 10 }],
-              path: ["nest", "test", 1]
-            }
-          ]
+              path: ["nest", "test", 1],
+            },
+          ],
         })
       );
     });
@@ -554,9 +554,9 @@ describe("Execute: Handles nested lists", () => {
         fields: () => ({
           test: {
             type: new GraphQLList(new GraphQLList(testType)),
-            resolve: (data: any) => data
-          }
-        })
+            resolve: (data: any) => data,
+          },
+        }),
       });
       const schema = new GraphQLSchema({ query: dataType });
       const ast = parse(query || "{ test }");
@@ -580,7 +580,7 @@ describe("Execute: Handles nested lists", () => {
       undefined,
       [Promise.resolve([Promise.resolve("test")])],
       {
-        data: { test: [["test"]] }
+        data: { test: [["test"]] },
       }
     )
   );
@@ -592,9 +592,9 @@ describe("Execute: Handles nested lists", () => {
         {
           locations: [{ column: 3, line: 1 }],
           message: "test",
-          path: ["test", 0, 0]
-        }
-      ]
+          path: ["test", 0, 0],
+        },
+      ],
     })
   );
   test(
@@ -605,9 +605,9 @@ describe("Execute: Handles nested lists", () => {
         {
           locations: [{ column: 3, line: 1 }],
           message: 'String cannot represent value: { test: "" }',
-          path: ["test", 0, 0]
-        }
-      ]
+          path: ["test", 0, 0],
+        },
+      ],
     })
   );
   test(
@@ -617,9 +617,9 @@ describe("Execute: Handles nested lists", () => {
         name: "Object",
         fields: () => ({
           obj: {
-            type: GraphQLString
-          }
-        })
+            type: GraphQLString,
+          },
+        }),
       }),
       "{test {obj}}",
       [[{ obj: "test" }]],
@@ -633,9 +633,9 @@ describe("Execute: Handles nested lists", () => {
         name: "Object",
         fields: () => ({
           obj: {
-            type: GraphQLString
-          }
-        })
+            type: GraphQLString,
+          },
+        }),
       }),
       "{test {obj}}",
       [[Promise.resolve({ obj: "test" })]],
@@ -650,9 +650,9 @@ describe("Execute: Handles nested lists", () => {
         fields: () => ({
           obj: {
             type: GraphQLString,
-            resolve: ({ obj }) => obj
-          }
-        })
+            resolve: ({ obj }) => obj,
+          },
+        }),
       }),
       "{test {obj}}",
       [[Promise.resolve({ obj: "test" })]],
@@ -667,9 +667,9 @@ describe("Execute: Handles nested lists", () => {
         fields: () => ({
           obj: {
             type: GraphQLString,
-            resolve: ({ obj }) => Promise.resolve(obj)
-          }
-        })
+            resolve: ({ obj }) => Promise.resolve(obj),
+          },
+        }),
       }),
       "{test {obj}}",
       [[Promise.resolve({ obj: "test" })]],
@@ -683,9 +683,9 @@ describe("Execute: Handles nested lists", () => {
         name: "Object",
         fields: () => ({
           obj: {
-            type: GraphQLString
-          }
-        })
+            type: GraphQLString,
+          },
+        }),
       }),
       "{test {obj}}",
       [[{ obj: "test" }, Promise.reject("bad")]],
@@ -695,9 +695,9 @@ describe("Execute: Handles nested lists", () => {
           {
             locations: [{ column: 2, line: 1 }],
             message: "bad",
-            path: ["test", 0, 1]
-          }
-        ]
+            path: ["test", 0, 1],
+          },
+        ],
       }
     )
   );
@@ -709,9 +709,9 @@ describe("Execute: Handles nested lists", () => {
           name: "Object",
           fields: () => ({
             obj: {
-              type: GraphQLString
-            }
-          })
+              type: GraphQLString,
+            },
+          }),
         })
       ),
       "{test {obj}}",
@@ -722,9 +722,9 @@ describe("Execute: Handles nested lists", () => {
           {
             locations: [{ column: 2, line: 1 }],
             message: "bad",
-            path: ["test", 0, 1]
-          }
-        ]
+            path: ["test", 0, 1],
+          },
+        ],
       }
     )
   );
@@ -735,8 +735,8 @@ describe("resolved fields in object list", () => {
     const article: GraphQLObjectType = new GraphQLObjectType({
       name: "Article",
       fields: {
-        id: { type: new GraphQLNonNull(GraphQLID), resolve: obj => obj.id }
-      }
+        id: { type: new GraphQLNonNull(GraphQLID), resolve: (obj) => obj.id },
+      },
     });
 
     return new GraphQLSchema({
@@ -745,10 +745,10 @@ describe("resolved fields in object list", () => {
         fields: {
           feed: {
             type: new GraphQLList(article),
-            resolve: () => data
-          }
-        }
-      })
+            resolve: () => data,
+          },
+        },
+      }),
     });
   }
 
@@ -769,8 +769,8 @@ describe("resolved fields in object list", () => {
     const response = await prepared.query(undefined, undefined, {});
     expect(response).toEqual({
       data: {
-        feed: [{ id: "123" }]
-      }
+        feed: [{ id: "123" }],
+      },
     });
   });
   test("executes with nulls", async () => {
@@ -790,8 +790,8 @@ describe("resolved fields in object list", () => {
     const response = await prepared.query(undefined, undefined, {});
     expect(response).toEqual({
       data: {
-        feed: [{ id: "123" }, null]
-      }
+        feed: [{ id: "123" }, null],
+      },
     });
   });
   test("executes with errors", async () => {
@@ -811,15 +811,15 @@ describe("resolved fields in object list", () => {
     const response = await prepared.query(undefined, undefined, {});
     expect(response).toEqual({
       data: {
-        feed: [{ id: "123" }, null]
+        feed: [{ id: "123" }, null],
       },
       errors: [
         {
           locations: [{ column: 11, line: 4 }],
           message: "test",
-          path: ["feed", 1, "id"]
-        }
-      ]
+          path: ["feed", 1, "id"],
+        },
+      ],
     });
   });
   test("ignores undefined fields using a schema", async () => {
@@ -837,7 +837,7 @@ describe("resolved fields in object list", () => {
 
     const prepared: any = compileQuery(getSchema([]), parse(request), "");
     expect(prepared.query(undefined, undefined, undefined)).toEqual({
-      data: { feed: [] }
+      data: { feed: [] },
     });
   });
 });

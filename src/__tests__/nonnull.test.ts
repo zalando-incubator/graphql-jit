@@ -8,7 +8,7 @@ import {
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
-  parse
+  parse,
 } from "graphql";
 import { compileQuery } from "../index";
 
@@ -45,7 +45,7 @@ const throwingData = {
   },
   promiseNonNullNest() {
     return Promise.resolve(throwingData);
-  }
+  },
 };
 
 const nullingData = {
@@ -72,7 +72,7 @@ const nullingData = {
   },
   promiseNonNullNest() {
     return Promise.resolve(nullingData);
-  }
+  },
 };
 
 const dataType: GraphQLObjectType = new GraphQLObjectType({
@@ -81,27 +81,27 @@ const dataType: GraphQLObjectType = new GraphQLObjectType({
     sync: { type: GraphQLString, resolve: (root: any) => root.sync() },
     syncNonNull: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve: (root: any) => root.syncNonNull()
+      resolve: (root: any) => root.syncNonNull(),
     },
     promise: { type: GraphQLString, resolve: (root: any) => root.promise() },
     promiseNonNull: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve: (root: any) => root.promiseNonNull()
+      resolve: (root: any) => root.promiseNonNull(),
     },
     syncNest: { type: dataType, resolve: (root: any) => root.syncNest() },
     syncNonNullNest: {
       type: new GraphQLNonNull(dataType),
-      resolve: (root: any) => root.syncNonNullNest()
+      resolve: (root: any) => root.syncNonNullNest(),
     },
     promiseNest: { type: dataType, resolve: (root: any) => root.promiseNest() },
     promiseNonNullNest: {
       type: new GraphQLNonNull(dataType),
-      resolve: (root: any) => root.promiseNonNullNest()
-    }
-  })
+      resolve: (root: any) => root.promiseNonNullNest(),
+    },
+  }),
 });
 const schema = new GraphQLSchema({
-  query: dataType
+  query: dataType,
 });
 
 function executeQuery(query: string, rootValue: any) {
@@ -115,7 +115,7 @@ function executeArgs(args: any) {
     rootValue,
     contextValue,
     variableValues,
-    operationName
+    operationName,
   } = args;
   return doExecute(
     schema1,
@@ -170,7 +170,7 @@ describe("Execute: handles non-nullable types", () => {
     test("that returns null", async () => {
       const result = await executeSyncAndAsync(query, nullingData);
       expect(result).toEqual({
-        data: { sync: null }
+        data: { sync: null },
       });
     });
 
@@ -182,9 +182,9 @@ describe("Execute: handles non-nullable types", () => {
           {
             message: syncError.message,
             path: ["sync"],
-            locations: [{ line: 3, column: 9 }]
-          }
-        ]
+            locations: [{ line: 3, column: 9 }],
+          },
+        ],
       });
     });
   });
@@ -207,9 +207,9 @@ describe("Execute: handles non-nullable types", () => {
             message:
               "Cannot return null for non-nullable field DataType.syncNonNull.",
             path: ["syncNest", "syncNonNull"],
-            locations: [{ line: 4, column: 11 }]
-          }
-        ]
+            locations: [{ line: 4, column: 11 }],
+          },
+        ],
       });
     });
 
@@ -221,9 +221,9 @@ describe("Execute: handles non-nullable types", () => {
           {
             message: syncNonNullError.message,
             path: ["syncNest", "syncNonNull"],
-            locations: [{ line: 4, column: 11 }]
-          }
-        ]
+            locations: [{ line: 4, column: 11 }],
+          },
+        ],
       });
     });
   });
@@ -246,9 +246,9 @@ describe("Execute: handles non-nullable types", () => {
             message:
               "Cannot return null for non-nullable field DataType.syncNonNull.",
             path: ["promiseNest", "syncNonNull"],
-            locations: [{ line: 4, column: 11 }]
-          }
-        ]
+            locations: [{ line: 4, column: 11 }],
+          },
+        ],
       });
     });
 
@@ -260,9 +260,9 @@ describe("Execute: handles non-nullable types", () => {
           {
             message: syncNonNullError.message,
             path: ["promiseNest", "syncNonNull"],
-            locations: [{ line: 4, column: 11 }]
-          }
-        ]
+            locations: [{ line: 4, column: 11 }],
+          },
+        ],
       });
     });
   });
@@ -289,14 +289,14 @@ describe("Execute: handles non-nullable types", () => {
         sync: null,
         promise: null,
         syncNest: { sync: null, promise: null },
-        promiseNest: { sync: null, promise: null }
+        promiseNest: { sync: null, promise: null },
       },
       promiseNest: {
         sync: null,
         promise: null,
         syncNest: { sync: null, promise: null },
-        promiseNest: { sync: null, promise: null }
-      }
+        promiseNest: { sync: null, promise: null },
+      },
     };
 
     test("that returns null", async () => {
@@ -312,64 +312,64 @@ describe("Execute: handles non-nullable types", () => {
           {
             message: syncError.message,
             path: ["syncNest", "sync"],
-            locations: [{ line: 4, column: 11 }]
+            locations: [{ line: 4, column: 11 }],
           },
           {
             message: syncError.message,
             path: ["syncNest", "syncNest", "sync"],
-            locations: [{ line: 6, column: 22 }]
+            locations: [{ line: 6, column: 22 }],
           },
           {
             message: promiseError.message,
             path: ["syncNest", "promise"],
-            locations: [{ line: 5, column: 11 }]
+            locations: [{ line: 5, column: 11 }],
           },
           {
             message: promiseError.message,
             path: ["syncNest", "syncNest", "promise"],
-            locations: [{ line: 6, column: 27 }]
+            locations: [{ line: 6, column: 27 }],
           },
           {
             message: syncError.message,
             path: ["syncNest", "promiseNest", "sync"],
-            locations: [{ line: 7, column: 25 }]
+            locations: [{ line: 7, column: 25 }],
           },
           {
             message: syncError.message,
             path: ["promiseNest", "sync"],
-            locations: [{ line: 10, column: 11 }]
+            locations: [{ line: 10, column: 11 }],
           },
           {
             message: syncError.message,
             path: ["promiseNest", "syncNest", "sync"],
-            locations: [{ line: 12, column: 22 }]
+            locations: [{ line: 12, column: 22 }],
           },
           {
             message: promiseError.message,
             path: ["syncNest", "promiseNest", "promise"],
-            locations: [{ line: 7, column: 30 }]
+            locations: [{ line: 7, column: 30 }],
           },
           {
             message: promiseError.message,
             path: ["promiseNest", "promise"],
-            locations: [{ line: 11, column: 11 }]
+            locations: [{ line: 11, column: 11 }],
           },
           {
             message: promiseError.message,
             path: ["promiseNest", "syncNest", "promise"],
-            locations: [{ line: 12, column: 27 }]
+            locations: [{ line: 12, column: 27 }],
           },
           {
             message: syncError.message,
             path: ["promiseNest", "promiseNest", "sync"],
-            locations: [{ line: 13, column: 25 }]
+            locations: [{ line: 13, column: 25 }],
           },
           {
             message: promiseError.message,
             path: ["promiseNest", "promiseNest", "promise"],
-            locations: [{ line: 13, column: 30 }]
-          }
-        ]
+            locations: [{ line: 13, column: 30 }],
+          },
+        ],
       });
     });
   });
@@ -427,7 +427,7 @@ describe("Execute: handles non-nullable types", () => {
       syncNest: null,
       promiseNest: null,
       anotherNest: null,
-      anotherPromiseNest: null
+      anotherPromiseNest: null,
     };
 
     test("that returns null", async () => {
@@ -444,9 +444,9 @@ describe("Execute: handles non-nullable types", () => {
               "promiseNonNullNest",
               "syncNonNullNest",
               "promiseNonNullNest",
-              "syncNonNull"
+              "syncNonNull",
             ],
-            locations: [{ line: 8, column: 19 }]
+            locations: [{ line: 8, column: 19 }],
           },
           {
             message:
@@ -457,9 +457,9 @@ describe("Execute: handles non-nullable types", () => {
               "promiseNonNullNest",
               "syncNonNullNest",
               "promiseNonNullNest",
-              "syncNonNull"
+              "syncNonNull",
             ],
-            locations: [{ line: 19, column: 19 }]
+            locations: [{ line: 19, column: 19 }],
           },
           {
             message:
@@ -470,9 +470,9 @@ describe("Execute: handles non-nullable types", () => {
               "promiseNonNullNest",
               "syncNonNullNest",
               "promiseNonNullNest",
-              "promiseNonNull"
+              "promiseNonNull",
             ],
-            locations: [{ line: 30, column: 19 }]
+            locations: [{ line: 30, column: 19 }],
           },
           {
             message:
@@ -483,11 +483,11 @@ describe("Execute: handles non-nullable types", () => {
               "promiseNonNullNest",
               "syncNonNullNest",
               "promiseNonNullNest",
-              "promiseNonNull"
+              "promiseNonNull",
             ],
-            locations: [{ line: 41, column: 19 }]
-          }
-        ]
+            locations: [{ line: 41, column: 19 }],
+          },
+        ],
       });
     });
 
@@ -504,9 +504,9 @@ describe("Execute: handles non-nullable types", () => {
               "promiseNonNullNest",
               "syncNonNullNest",
               "promiseNonNullNest",
-              "syncNonNull"
+              "syncNonNull",
             ],
-            locations: [{ line: 8, column: 19 }]
+            locations: [{ line: 8, column: 19 }],
           },
           {
             message: syncNonNullError.message,
@@ -516,9 +516,9 @@ describe("Execute: handles non-nullable types", () => {
               "promiseNonNullNest",
               "syncNonNullNest",
               "promiseNonNullNest",
-              "syncNonNull"
+              "syncNonNull",
             ],
-            locations: [{ line: 19, column: 19 }]
+            locations: [{ line: 19, column: 19 }],
           },
           {
             message: promiseNonNullError.message,
@@ -528,9 +528,9 @@ describe("Execute: handles non-nullable types", () => {
               "promiseNonNullNest",
               "syncNonNullNest",
               "promiseNonNullNest",
-              "promiseNonNull"
+              "promiseNonNull",
             ],
-            locations: [{ line: 30, column: 19 }]
+            locations: [{ line: 30, column: 19 }],
           },
           {
             message: promiseNonNullError.message,
@@ -540,11 +540,11 @@ describe("Execute: handles non-nullable types", () => {
               "promiseNonNullNest",
               "syncNonNullNest",
               "promiseNonNullNest",
-              "promiseNonNull"
+              "promiseNonNull",
             ],
-            locations: [{ line: 41, column: 19 }]
-          }
-        ]
+            locations: [{ line: 41, column: 19 }],
+          },
+        ],
       });
     });
   });
@@ -565,9 +565,9 @@ describe("Execute: handles non-nullable types", () => {
             message:
               "Cannot return null for non-nullable field DataType.syncNonNull.",
             path: ["syncNonNull"],
-            locations: [{ line: 3, column: 9 }]
-          }
-        ]
+            locations: [{ line: 3, column: 9 }],
+          },
+        ],
       });
     });
 
@@ -579,9 +579,9 @@ describe("Execute: handles non-nullable types", () => {
           {
             message: syncNonNullError.message,
             path: ["syncNonNull"],
-            locations: [{ line: 3, column: 9 }]
-          }
-        ]
+            locations: [{ line: 3, column: 9 }],
+          },
+        ],
       });
     });
   });
@@ -595,18 +595,18 @@ describe("Execute: handles non-nullable types", () => {
             type: GraphQLString,
             args: {
               cannotBeNull: {
-                type: new GraphQLNonNull(GraphQLString)
-              }
+                type: new GraphQLNonNull(GraphQLString),
+              },
             },
             resolve: (_, args) => {
               if (typeof args.cannotBeNull === "string") {
                 return "Passed: " + args.cannotBeNull;
               }
               return;
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     test("succeeds when passed non-null literal value", async () => {
@@ -616,13 +616,13 @@ describe("Execute: handles non-nullable types", () => {
           query {
             withNonNullArg (cannotBeNull: "literal value")
           }
-        `)
+        `),
       });
 
       expect(result).toEqual({
         data: {
-          withNonNullArg: "Passed: literal value"
-        }
+          withNonNullArg: "Passed: literal value",
+        },
       });
     });
 
@@ -635,14 +635,14 @@ describe("Execute: handles non-nullable types", () => {
           }
         `),
         variableValues: {
-          testVar: "variable value"
-        }
+          testVar: "variable value",
+        },
       });
 
       expect(result).toEqual({
         data: {
-          withNonNullArg: "Passed: variable value"
-        }
+          withNonNullArg: "Passed: variable value",
+        },
       });
     });
 
@@ -656,13 +656,13 @@ describe("Execute: handles non-nullable types", () => {
         `),
         variableValues: {
           // Intentionally missing variable
-        }
+        },
       });
 
       expect(result).toEqual({
         data: {
-          withNonNullArg: "Passed: default value"
-        }
+          withNonNullArg: "Passed: default value",
+        },
       });
     });
 
@@ -675,7 +675,7 @@ describe("Execute: handles non-nullable types", () => {
           query {
             withNonNullArg
           }
-        `)
+        `),
       });
 
       expect(result).toEqual({
@@ -684,9 +684,9 @@ describe("Execute: handles non-nullable types", () => {
             locations: [{ column: 13, line: 3 }],
             path: undefined,
             message:
-              'Argument "cannotBeNull" of required type "String!" was not provided.'
-          }
-        ]
+              'Argument "cannotBeNull" of required type "String!" was not provided.',
+          },
+        ],
       });
     });
 
@@ -699,7 +699,7 @@ describe("Execute: handles non-nullable types", () => {
           query {
             withNonNullArg(cannotBeNull: null)
           }
-        `)
+        `),
       });
       expect(result).toEqual({
         errors: [
@@ -707,9 +707,9 @@ describe("Execute: handles non-nullable types", () => {
             locations: [{ column: 42, line: 3 }],
             path: undefined,
             message:
-              'Argument "cannotBeNull" of type "String!" has invalid value null.'
-          }
-        ]
+              'Argument "cannotBeNull" of type "String!" has invalid value null.',
+          },
+        ],
       });
     });
 
@@ -725,12 +725,12 @@ describe("Execute: handles non-nullable types", () => {
         `),
         variableValues: {
           // Intentionally missing variable
-        }
+        },
       });
 
       expect(result).toEqual({
         data: {
-          withNonNullArg: null
+          withNonNullArg: null,
         },
         errors: [
           {
@@ -738,9 +738,9 @@ describe("Execute: handles non-nullable types", () => {
               'Argument "cannotBeNull" of required type "String!" was provided the variable ' +
               '"$testVar" which was not provided a runtime value.',
             locations: [{ line: 3, column: 42 }],
-            path: ["withNonNullArg"]
-          }
-        ]
+            path: ["withNonNullArg"],
+          },
+        ],
       });
     });
 
@@ -753,22 +753,22 @@ describe("Execute: handles non-nullable types", () => {
           }
         `),
         variableValues: {
-          testVar: null
-        }
+          testVar: null,
+        },
       });
 
       expect(result).toEqual({
         data: {
-          withNonNullArg: null
+          withNonNullArg: null,
         },
         errors: [
           {
             message:
               'Argument "cannotBeNull" of non-null type "String!" must not be null.',
             locations: [{ line: 3, column: 43 }],
-            path: ["withNonNullArg"]
-          }
-        ]
+            path: ["withNonNullArg"],
+          },
+        ],
       });
     });
   });

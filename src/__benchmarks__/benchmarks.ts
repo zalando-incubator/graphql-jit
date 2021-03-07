@@ -4,20 +4,20 @@ import {
   execute,
   getIntrospectionQuery,
   GraphQLSchema,
-  parse
+  parse,
 } from "graphql";
 import { compileQuery, isCompiledQuery, isPromise } from "../execution";
 import {
   query as fewResolversQuery,
-  schema as fewResolversSchema
+  schema as fewResolversSchema,
 } from "./schema-few-resolvers";
 import {
   query as manyResolverQuery,
-  schema as manyResolverSchema
+  schema as manyResolverSchema,
 } from "./schema-many-resolvers";
 import {
   query as nestedArrayQuery,
-  schema as nestedArraySchema
+  schema as nestedArraySchema,
 } from "./schema-nested-array";
 
 interface BenchmarkMaterial {
@@ -29,23 +29,23 @@ interface BenchmarkMaterial {
 const benchmarks: { [key: string]: BenchmarkMaterial } = {
   introspection: {
     schema: nestedArraySchema(),
-    query: parse(getIntrospectionQuery({ descriptions: true }))
+    query: parse(getIntrospectionQuery({ descriptions: true })),
   },
   fewResolvers: {
     schema: fewResolversSchema(),
     query: fewResolversQuery,
-    variables: { id: "2", width: 300, height: 500 }
+    variables: { id: "2", width: 300, height: 500 },
   },
   manyResolvers: {
     schema: manyResolverSchema(),
     query: manyResolverQuery,
-    variables: { id: "2", width: 300, height: 500 }
+    variables: { id: "2", width: 300, height: 500 },
   },
   nestedArrays: {
     schema: nestedArraySchema(),
     query: nestedArrayQuery,
-    variables: { id: "2", width: 300, height: 500 }
-  }
+    variables: { id: "2", width: 300, height: 500 },
+  },
 };
 
 async function runBenchmarks() {
@@ -55,7 +55,7 @@ async function runBenchmarks() {
     Object.entries(benchmarks).map(
       async ([bench, { query, schema, variables }]) => {
         const compiledQuery = compileQuery(schema, query, undefined, {
-          debug: true
+          debug: true,
         } as any);
         if (!isCompiledQuery(compiledQuery)) {
           console.error(`${bench} failed to compile`);
@@ -103,14 +103,14 @@ async function runBenchmarks() {
                 variables || {}
               );
               if (isPromise(result)) {
-                return result.then(res =>
+                return result.then((res) =>
                   deferred.resolve(skipJSON ? res : JSON.stringify(res))
                 );
               }
               return deferred.resolve(
                 skipJSON ? result : JSON.stringify(result)
               );
-            }
+            },
           });
         }
         suite
@@ -124,7 +124,7 @@ async function runBenchmarks() {
                 variables || {}
               );
               if (isPromise(result)) {
-                return result.then(res =>
+                return result.then((res) =>
                   deferred.resolve(
                     skipJSON ? res : compiledQuery.stringify(res)
                   )
@@ -133,7 +133,7 @@ async function runBenchmarks() {
               return deferred.resolve(
                 skipJSON ? result : compiledQuery.stringify(result)
               );
-            }
+            },
           })
           // add listeners
           .on("cycle", (event: any) => {
@@ -149,7 +149,7 @@ async function runBenchmarks() {
 
   const benchsToRun = benchs.filter(isNotNull);
   let benchRunning = 1;
-  benchsToRun.forEach(bench =>
+  benchsToRun.forEach((bench) =>
     bench.on("complete", () => {
       if (benchRunning < benchsToRun.length) {
         benchsToRun[benchRunning++].run();
@@ -159,7 +159,7 @@ async function runBenchmarks() {
   if (benchsToRun.length > 0) {
     benchsToRun[0].run();
   } else {
-        console.log("No benchmarks to run");
+    console.log("No benchmarks to run");
   }
 }
 

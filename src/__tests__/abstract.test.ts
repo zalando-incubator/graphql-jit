@@ -11,7 +11,7 @@ import {
   GraphQLSchema,
   GraphQLString,
   GraphQLUnionType,
-  parse
+  parse,
 } from "graphql";
 import { compileQuery, isCompiledQuery } from "../index";
 
@@ -41,28 +41,28 @@ describe("Execute: Handles execution of abstract types", () => {
     const PetType = new GraphQLInterfaceType({
       name: "Pet",
       fields: {
-        name: { type: GraphQLString }
-      }
+        name: { type: GraphQLString },
+      },
     });
 
     const DogType = new GraphQLObjectType({
       name: "Dog",
       interfaces: [PetType],
-      isTypeOf: obj => obj instanceof Dog,
+      isTypeOf: (obj) => obj instanceof Dog,
       fields: {
         name: { type: GraphQLString },
-        woofs: { type: GraphQLBoolean }
-      }
+        woofs: { type: GraphQLBoolean },
+      },
     });
 
     const CatType = new GraphQLObjectType({
       name: "Cat",
       interfaces: [PetType],
-      isTypeOf: obj => obj instanceof Cat,
+      isTypeOf: (obj) => obj instanceof Cat,
       fields: {
         name: { type: GraphQLString },
-        meows: { type: GraphQLBoolean }
-      }
+        meows: { type: GraphQLBoolean },
+      },
     });
 
     const schema = new GraphQLSchema({
@@ -73,11 +73,11 @@ describe("Execute: Handles execution of abstract types", () => {
             type: new GraphQLList(PetType),
             resolve() {
               return [new Dog("Odie", true), new Cat("Garfield", false)];
-            }
-          }
-        }
+            },
+          },
+        },
       }),
-      types: [CatType, DogType]
+      types: [CatType, DogType],
     });
 
     const query = `{
@@ -99,39 +99,39 @@ describe("Execute: Handles execution of abstract types", () => {
         pets: [
           {
             name: "Odie",
-            woofs: true
+            woofs: true,
           },
           {
             name: "Garfield",
-            meows: false
-          }
-        ]
-      }
+            meows: false,
+          },
+        ],
+      },
     });
   });
 
   test("isTypeOf used to resolve runtime type for Union", () => {
     const DogType = new GraphQLObjectType({
       name: "Dog",
-      isTypeOf: obj => obj instanceof Dog,
+      isTypeOf: (obj) => obj instanceof Dog,
       fields: {
         name: { type: GraphQLString },
-        woofs: { type: GraphQLBoolean }
-      }
+        woofs: { type: GraphQLBoolean },
+      },
     });
 
     const CatType = new GraphQLObjectType({
       name: "Cat",
-      isTypeOf: obj => obj instanceof Cat,
+      isTypeOf: (obj) => obj instanceof Cat,
       fields: {
         name: { type: GraphQLString },
-        meows: { type: GraphQLBoolean }
-      }
+        meows: { type: GraphQLBoolean },
+      },
     });
 
     const PetType = new GraphQLUnionType({
       name: "Pet",
-      types: [DogType, CatType]
+      types: [DogType, CatType],
     });
 
     const schema = new GraphQLSchema({
@@ -142,10 +142,10 @@ describe("Execute: Handles execution of abstract types", () => {
             type: new GraphQLList(PetType),
             resolve() {
               return [new Dog("Odie", true), new Cat("Garfield", false)];
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     const query = `{
@@ -168,14 +168,14 @@ describe("Execute: Handles execution of abstract types", () => {
         pets: [
           {
             name: "Odie",
-            woofs: true
+            woofs: true,
           },
           {
             name: "Garfield",
-            meows: false
-          }
-        ]
-      }
+            meows: false,
+          },
+        ],
+      },
     });
   });
 
@@ -192,15 +192,15 @@ describe("Execute: Handles execution of abstract types", () => {
           : null;
       },
       fields: {
-        name: { type: GraphQLString }
-      }
+        name: { type: GraphQLString },
+      },
     });
 
     const HumanType = new GraphQLObjectType({
       name: "Human",
       fields: {
-        name: { type: GraphQLString }
-      }
+        name: { type: GraphQLString },
+      },
     });
 
     const DogType = new GraphQLObjectType({
@@ -208,8 +208,8 @@ describe("Execute: Handles execution of abstract types", () => {
       interfaces: [PetType],
       fields: {
         name: { type: GraphQLString },
-        woofs: { type: GraphQLBoolean }
-      }
+        woofs: { type: GraphQLBoolean },
+      },
     });
 
     const CatType = new GraphQLObjectType({
@@ -217,8 +217,8 @@ describe("Execute: Handles execution of abstract types", () => {
       interfaces: [PetType],
       fields: {
         name: { type: GraphQLString },
-        meows: { type: GraphQLBoolean }
-      }
+        meows: { type: GraphQLBoolean },
+      },
     });
 
     const schema = new GraphQLSchema({
@@ -231,13 +231,13 @@ describe("Execute: Handles execution of abstract types", () => {
               return [
                 new Dog("Odie", true),
                 new Cat("Garfield", false),
-                new Human("Jon")
+                new Human("Jon"),
               ];
-            }
-          }
-        }
+            },
+          },
+        },
       }),
-      types: [CatType, DogType]
+      types: [CatType, DogType],
     });
 
     const query = `{
@@ -259,23 +259,23 @@ describe("Execute: Handles execution of abstract types", () => {
         pets: [
           {
             name: "Odie",
-            woofs: true
+            woofs: true,
           },
           {
             name: "Garfield",
-            meows: false
+            meows: false,
           },
-          null
-        ]
+          null,
+        ],
       },
       errors: [
         {
           message:
             'Runtime Object type "Human" is not a possible type for "Pet".',
           locations: [{ line: 2, column: 7 }],
-          path: ["pets", 2]
-        }
-      ]
+          path: ["pets", 2],
+        },
+      ],
     });
   });
 
@@ -283,29 +283,29 @@ describe("Execute: Handles execution of abstract types", () => {
     const HumanType = new GraphQLObjectType({
       name: "Human",
       fields: {
-        name: { type: GraphQLString }
-      }
+        name: { type: GraphQLString },
+      },
     });
 
     const DogType = new GraphQLObjectType({
       name: "Dog",
       fields: {
         name: { type: GraphQLString },
-        woofs: { type: GraphQLBoolean }
-      }
+        woofs: { type: GraphQLBoolean },
+      },
     });
 
     const CatType = new GraphQLObjectType({
       name: "Cat",
       fields: {
         name: { type: GraphQLString },
-        meows: { type: GraphQLBoolean }
-      }
+        meows: { type: GraphQLBoolean },
+      },
     });
 
     const PetType = new GraphQLUnionType({
       name: "Pet",
-            resolveType(obj) {
+      resolveType(obj) {
         return obj instanceof Dog
           ? DogType
           : obj instanceof Cat
@@ -314,7 +314,7 @@ describe("Execute: Handles execution of abstract types", () => {
           ? HumanType
           : null;
       },
-      types: [DogType, CatType]
+      types: [DogType, CatType],
     });
 
     const schema = new GraphQLSchema({
@@ -323,16 +323,16 @@ describe("Execute: Handles execution of abstract types", () => {
         fields: {
           pets: {
             type: new GraphQLList(PetType),
-                        resolve() {
+            resolve() {
               return [
                 new Dog("Odie", true),
                 new Cat("Garfield", false),
-                new Human("Jon")
+                new Human("Jon"),
               ];
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      }),
     });
 
     const query = `{
@@ -355,23 +355,23 @@ describe("Execute: Handles execution of abstract types", () => {
         pets: [
           {
             name: "Odie",
-            woofs: true
+            woofs: true,
           },
           {
             name: "Garfield",
-            meows: false
+            meows: false,
           },
-          null
-        ]
+          null,
+        ],
       },
       errors: [
         {
           message:
             'Runtime Object type "Human" is not a possible type for "Pet".',
           locations: [{ line: 2, column: 7 }],
-          path: ["pets", 2]
-        }
-      ]
+          path: ["pets", 2],
+        },
+      ],
     });
   });
 
@@ -379,13 +379,13 @@ describe("Execute: Handles execution of abstract types", () => {
     const fooInterface = new GraphQLInterfaceType({
       name: "FooInterface",
       fields: { bar: { type: GraphQLString } },
-      resolveType: () => []
+      resolveType: () => [],
     } as any);
 
     const fooObject = new GraphQLObjectType({
       name: "FooObject",
       fields: { bar: { type: GraphQLString } },
-      interfaces: [fooInterface]
+      interfaces: [fooInterface],
     });
 
     const schema = new GraphQLSchema({
@@ -394,11 +394,11 @@ describe("Execute: Handles execution of abstract types", () => {
         fields: {
           foo: {
             type: fooInterface,
-            resolve: () => "dummy"
-          }
-        }
+            resolve: () => "dummy",
+          },
+        },
       }),
-      types: [fooObject]
+      types: [fooObject],
     });
 
     const result = graphql(schema, "{ foo { bar } }");
@@ -413,9 +413,9 @@ describe("Execute: Handles execution of abstract types", () => {
             'Either the FooInterface type should provide a "resolveType" ' +
             'function or each possible types should provide an "isTypeOf" function.',
           locations: [{ line: 1, column: 3 }],
-          path: ["foo"]
-        }
-      ]
+          path: ["foo"],
+        },
+      ],
     });
   });
 
@@ -426,8 +426,8 @@ describe("Execute: Handles execution of abstract types", () => {
         return obj instanceof Dog ? "Dog" : obj instanceof Cat ? "Cat" : null;
       },
       fields: {
-        name: { type: GraphQLString }
-      }
+        name: { type: GraphQLString },
+      },
     });
 
     const DogType = new GraphQLObjectType({
@@ -435,8 +435,8 @@ describe("Execute: Handles execution of abstract types", () => {
       interfaces: [PetType],
       fields: {
         name: { type: GraphQLString },
-        woofs: { type: GraphQLBoolean }
-      }
+        woofs: { type: GraphQLBoolean },
+      },
     });
 
     const CatType = new GraphQLObjectType({
@@ -444,8 +444,8 @@ describe("Execute: Handles execution of abstract types", () => {
       interfaces: [PetType],
       fields: {
         name: { type: GraphQLString },
-        meows: { type: GraphQLBoolean }
-      }
+        meows: { type: GraphQLBoolean },
+      },
     });
 
     const schema = new GraphQLSchema({
@@ -456,11 +456,11 @@ describe("Execute: Handles execution of abstract types", () => {
             type: new GraphQLList(PetType),
             resolve() {
               return [new Dog("Odie", true), new Cat("Garfield", false)];
-            }
-          }
-        }
+            },
+          },
+        },
       }),
-      types: [CatType, DogType]
+      types: [CatType, DogType],
     });
 
     const query = `{
@@ -482,14 +482,14 @@ describe("Execute: Handles execution of abstract types", () => {
         pets: [
           {
             name: "Odie",
-            woofs: true
+            woofs: true,
           },
           {
             name: "Garfield",
-            meows: false
-          }
-        ]
-      }
+            meows: false,
+          },
+        ],
+      },
     });
   });
 
@@ -504,9 +504,9 @@ describe("Execute: Handles execution of abstract types", () => {
           resolve: (obj, _, _1, info) => {
             nestedInfo = info;
             return Promise.resolve(obj.meows);
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
     const DogType: GraphQLObjectType = new GraphQLObjectType({
@@ -525,7 +525,7 @@ describe("Execute: Handles execution of abstract types", () => {
                     friend: {
                       type: new GraphQLUnionType({
                         name: "DogFriend",
-                                                resolveType(obj) {
+                        resolveType(obj) {
                           return obj instanceof Dog
                             ? DogType
                             : obj instanceof Cat
@@ -534,21 +534,21 @@ describe("Execute: Handles execution of abstract types", () => {
                             ? HumanType
                             : null;
                         },
-                        types: [CatType]
-                      })
-                    }
-                  }
-                })
-              }
-            }
-          })
-        }
-      }
+                        types: [CatType],
+                      }),
+                    },
+                  },
+                }),
+              },
+            },
+          }),
+        },
+      },
     });
 
     const PetType = new GraphQLUnionType({
       name: "Pet",
-            resolveType(obj) {
+      resolveType(obj) {
         return obj instanceof Dog
           ? DogType
           : obj instanceof Cat
@@ -557,7 +557,7 @@ describe("Execute: Handles execution of abstract types", () => {
           ? HumanType
           : null;
       },
-      types: [DogType, CatType]
+      types: [DogType, CatType],
     });
 
     const HumanType: GraphQLObjectType = new GraphQLObjectType({
@@ -565,9 +565,9 @@ describe("Execute: Handles execution of abstract types", () => {
       fields: {
         name: { type: GraphQLString },
         pets: {
-          type: new GraphQLList(PetType)
-        }
-      }
+          type: new GraphQLList(PetType),
+        },
+      },
     });
 
     const schema = new GraphQLSchema({
@@ -581,16 +581,16 @@ describe("Execute: Handles execution of abstract types", () => {
                 new Human("Jon", [
                   new Dog("Odie", true, {
                     nested: {
-                      friend: new Cat("Garfield", false)
-                    }
+                      friend: new Cat("Garfield", false),
+                    },
                   }),
                   new Cat("Garfield", false),
-                  new Human("Jon")
+                  new Human("Jon"),
                 ])
-              )
-          }
-        }
-      })
+              ),
+          },
+        },
+      }),
     });
 
     const query = `{
@@ -625,23 +625,23 @@ describe("Execute: Handles execution of abstract types", () => {
               woofs: true,
               other: {
                 nested: {
-                  friend: { name: "Garfield", meows: false }
-                }
-              }
+                  friend: { name: "Garfield", meows: false },
+                },
+              },
             },
             {},
-            null
-          ]
-        }
+            null,
+          ],
+        },
       },
       errors: [
         {
           message:
             'Runtime Object type "Human" is not a possible type for "Pet".',
           locations: [{ line: 3, column: 9 }],
-          path: ["owner", "pets", 2]
-        }
-      ]
+          path: ["owner", "pets", 2],
+        },
+      ],
     });
     expect(nestedInfo).toBeDefined();
     if (nestedInfo) {
@@ -659,13 +659,13 @@ describe("Execute: Handles execution of abstract types", () => {
                   key: "pets",
                   prev: {
                     key: "owner",
-                    prev: undefined
-                  }
-                }
-              }
-            }
-          }
-        }
+                    prev: undefined,
+                  },
+                },
+              },
+            },
+          },
+        },
       });
     }
   });

@@ -7,7 +7,7 @@ import {
   GraphQLInt,
   GraphQLObjectType,
   GraphQLSchema,
-  parse
+  parse,
 } from "graphql";
 import { compileQuery, isCompiledQuery } from "../index";
 
@@ -32,7 +32,7 @@ class Root {
   }
 
   promiseToChangeTheNumber(newNumber: number): Promise<NumberHolder> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       process.nextTick(() => {
         resolve(this.immediatelyChangeTheNumber(newNumber));
       });
@@ -54,16 +54,16 @@ class Root {
 
 const numberHolderType = new GraphQLObjectType({
   fields: {
-    theNumber: { type: GraphQLInt }
+    theNumber: { type: GraphQLInt },
   },
-  name: "NumberHolder"
+  name: "NumberHolder",
 });
 const schema = new GraphQLSchema({
   query: new GraphQLObjectType({
     fields: {
-      numberHolder: { type: numberHolderType }
+      numberHolder: { type: numberHolderType },
     },
-    name: "Query"
+    name: "Query",
   }),
   mutation: new GraphQLObjectType({
     fields: {
@@ -72,32 +72,32 @@ const schema = new GraphQLSchema({
         args: { newNumber: { type: GraphQLInt } },
         resolve(obj, { newNumber }) {
           return obj.immediatelyChangeTheNumber(newNumber);
-        }
+        },
       },
       promiseToChangeTheNumber: {
         type: numberHolderType,
         args: { newNumber: { type: GraphQLInt } },
         resolve(obj, { newNumber }) {
           return obj.promiseToChangeTheNumber(newNumber);
-        }
+        },
       },
       failToChangeTheNumber: {
         type: numberHolderType,
         args: { newNumber: { type: GraphQLInt } },
         resolve(obj, { newNumber }) {
           return obj.failToChangeTheNumber(newNumber);
-        }
+        },
       },
       promiseAndFailToChangeTheNumber: {
         type: numberHolderType,
         args: { newNumber: { type: GraphQLInt } },
         resolve(obj, { newNumber }) {
           return obj.promiseAndFailToChangeTheNumber(newNumber);
-        }
-      }
+        },
+      },
     },
-    name: "Mutation"
-  })
+    name: "Mutation",
+  }),
 });
 
 function executeQuery(
@@ -140,8 +140,8 @@ describe("Execute: Handles mutation execution ordering", () => {
         second: { theNumber: 2 },
         third: { theNumber: 3 },
         fourth: { theNumber: 4 },
-        fifth: { theNumber: 5 }
-      }
+        fifth: { theNumber: 5 },
+      },
     });
   });
 
@@ -176,20 +176,20 @@ describe("Execute: Handles mutation execution ordering", () => {
         third: null,
         fourth: { theNumber: 4 },
         fifth: { theNumber: 5 },
-        sixth: null
+        sixth: null,
       },
       errors: [
         {
           message: "Cannot change the number",
           locations: [{ line: 8, column: 7 }],
-          path: ["third"]
+          path: ["third"],
         },
         {
           message: "Cannot change the number",
           locations: [{ line: 17, column: 7 }],
-          path: ["sixth"]
-        }
-      ]
+          path: ["sixth"],
+        },
+      ],
     });
   });
 });

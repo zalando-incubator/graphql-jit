@@ -7,7 +7,7 @@ import {
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
-  parse
+  parse,
 } from "graphql";
 import { GraphQLFieldConfig } from "graphql/type/definition";
 import { compileQuery } from "../index";
@@ -34,9 +34,9 @@ describe("Execute: resolve function", () => {
       query: new GraphQLObjectType({
         name: "Query",
         fields: {
-          test: testField
-        }
-      })
+          test: testField,
+        },
+      }),
     });
   }
 
@@ -44,13 +44,13 @@ describe("Execute: resolve function", () => {
     const schema = testSchema({ type: GraphQLString });
 
     const source = {
-      test: "testValue"
+      test: "testValue",
     };
 
     expect(await executeQuery(schema, "{ test }", source)).toEqual({
       data: {
-        test: "testValue"
-      }
+        test: "testValue",
+      },
     });
   });
 
@@ -58,9 +58,9 @@ describe("Execute: resolve function", () => {
     const schema = testSchema({
       type: GraphQLInt,
       args: {
-        addend1: { type: GraphQLInt }
+        addend1: { type: GraphQLInt },
       },
-      resolve: (root: any, arg: any, c: any) => root.test(arg, c)
+      resolve: (root: any, arg: any, c: any) => root.test(arg, c),
     });
 
     class Adder {
@@ -75,12 +75,12 @@ describe("Execute: resolve function", () => {
 
     expect(
       await executeQuery(schema, "{ test(addend1: 80) }", source, {
-        addend2: 9
+        addend2: 9,
       })
     ).toEqual({
       data: {
-        test: 789
-      }
+        test: 789,
+      },
     });
   });
 
@@ -89,31 +89,31 @@ describe("Execute: resolve function", () => {
       type: GraphQLString,
       args: {
         aStr: { type: GraphQLString },
-        aInt: { type: GraphQLInt }
+        aInt: { type: GraphQLInt },
       },
       resolve(source, args) {
         return JSON.stringify([source, args]);
-      }
+      },
     });
 
     expect(await executeQuery(schema, "{ test }")).toEqual({
       data: {
-        test: "[null,{}]"
-      }
+        test: "[null,{}]",
+      },
     });
 
     expect(await executeQuery(schema, "{ test }", "Source!")).toEqual({
       data: {
-        test: '["Source!",{}]'
-      }
+        test: '["Source!",{}]',
+      },
     });
 
     expect(
       await executeQuery(schema, '{ test(aStr: "String!") }', "Source!")
     ).toEqual({
       data: {
-        test: '["Source!",{"aStr":"String!"}]'
-      }
+        test: '["Source!",{"aStr":"String!"}]',
+      },
     });
 
     expect(
@@ -124,8 +124,8 @@ describe("Execute: resolve function", () => {
       )
     ).toEqual({
       data: {
-        test: '["Source!",{"aStr":"String!","aInt":-123}]'
-      }
+        test: '["Source!",{"aStr":"String!","aInt":-123}]',
+      },
     });
   });
 });
@@ -140,13 +140,13 @@ describe("Resolver: collision", () => {
           type: new GraphQLObjectType({
             name: "OtherTest",
             fields: {
-              test: { type: GraphQLString, resolve: () => "otherTest" }
-            }
+              test: { type: GraphQLString, resolve: () => "otherTest" },
+            },
           }),
-          resolve: () => ({})
-        }
-      }
-    })
+          resolve: () => ({}),
+        },
+      },
+    }),
   });
 
   test("has no collisions between resolver functions", async () => {
@@ -154,9 +154,9 @@ describe("Resolver: collision", () => {
       data: {
         test: "test",
         otherTest: {
-          test: "otherTest"
-        }
-      }
+          test: "otherTest",
+        },
+      },
     });
   });
 });
