@@ -7,7 +7,6 @@ import {
   parse,
 } from "graphql";
 import { compileQuery } from "../index";
-import SpyInstance = jest.SpyInstance;
 
 function executeQuery(
   schema: GraphQLSchema,
@@ -180,7 +179,7 @@ describe("Scalars: Is able to serialize custom scalar", () => {
     });
 
     describe("builtin behaviour", () => {
-      let serializeSpy: SpyInstance<any>;
+      let serializeSpy: jest.SpyInstance<any>;
       beforeEach(() => {
         serializeSpy = jest.spyOn(GraphQLString, "serialize");
       });
