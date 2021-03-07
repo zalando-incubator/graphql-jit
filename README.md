@@ -91,10 +91,18 @@ if (!isCompiledQuery(compiledQuery)) {
 #### Execute the Query
 
 ```js
-const executionResult = await compiledQuery.query();
+const executionResult = await compiledQuery.query(root, context, variables);
 console.log(executionResult);
 ```
 
+#### Subscribe to the Query
+
+```js
+const result = await compiledQuery.subscribe(root, context, variables);
+for await (const value of result) {
+  console.log(value);
+}
+```
 ## API
 
 ### compiledQuery = compileQuery(schema, document, operationName, compilerOptions)
@@ -112,14 +120,18 @@ Compiles the `document` AST, using an optional operationName and compiler option
     for overly expensive serializers
   - `customJSONSerializer` {boolean, default: false} - Whether to produce also a JSON serializer function using `fast-json-stringify`. The default stringifier function is `JSON.stringify`
 
-#### compiledQuery.compiled(root: any, context: any, variables: Maybe<{ [key: string]: any }>)
+#### compiledQuery.query(root: any, context: any, variables: Maybe<{ [key: string]: any }>)
 
-the compiled function that can be called with a root value, a context and the required variables.
+the compiled function that can be called with a root value, a context and the required variables to produce execution result.
+
+#### compiledQuery.subscribe(root: any, context: any, variables: Maybe<{ [key: string]: any }>)
+
+(available for GraphQL Subscription only) the compiled function that can be called with a root value, a context and the required variables to produce either an AsyncIterator (if successful) or an ExecutionResult (error).
 
 #### compiledQuery.stringify(value: any)
 
 the compiled function for producing a JSON string. It will be `JSON.stringify` unless `compilerOptions.customJSONSerializer` is true.
-The value argument should the return of the compiled GraphQL function.
+The value argument should be the return of the compiled GraphQL function.
 
 ## LICENSE
 
