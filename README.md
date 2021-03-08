@@ -29,8 +29,7 @@ Done in 141.94s.
 
 ### Support for GraphQL spec
 
-The goal is to support the [June 2018 version of the GraphQL spec](https://facebook.github.io/graphql/June2018/). At this moment,
-the only missing feature is support for Subscriptions.
+The goal is to support the [June 2018 version of the GraphQL spec](https://facebook.github.io/graphql/June2018/).
 
 #### Differences to `graphql-js`
 
