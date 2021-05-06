@@ -466,8 +466,8 @@ describe("Execute: handles directives", () => {
         });
       });
 
-      describe("spread same fragment on multiple directives", () => {
-        const query = `
+      describe("fragments on multiple directives are correctly includes", () => {
+        const fragmentSpreadQuery = `
           query (
             $includeVar: Boolean!,
             $skipVar: Boolean!,
@@ -487,9 +487,39 @@ describe("Execute: handles directives", () => {
             d @include(if: $fieldVar)
           }
         `;
-        function exec(skipVar: boolean, includeVar: boolean, fieldVar: boolean) {
+        const fragmentInlineQuery = `
+          query (
+            $includeVar: Boolean!,
+            $skipVar: Boolean!,
+            $fieldVar:Boolean!
+            ) {
+            foo{
+              bar1:bar @skip(if: $skipVar){
+                ...on Bar {
+                  c
+                  d @include(if: $fieldVar)
+                }
+              }
+              bar2:bar @include(if: $includeVar){
+                ...on Bar {
+                  c
+                  d @include(if: $fieldVar)
+                }
+              }
+            }
+          }
+        `;
+        function execFragmentSpread(skipVar: boolean, includeVar: boolean, fieldVar: boolean) {
           return executeTestQuery(
-            query,
+            fragmentSpreadQuery,
+            { includeVar, skipVar, fieldVar },
+            schema
+          );
+        }
+
+        function execFragmentInline(skipVar: boolean, includeVar: boolean, fieldVar: boolean) {
+          return executeTestQuery(
+            fragmentInlineQuery,
             { includeVar, skipVar, fieldVar },
             schema
           );
@@ -508,109 +538,219 @@ describe("Execute: handles directives", () => {
           |       1 |          1 |        1 |    0 |    1 | 1 |
           +---------+------------+----------+------+------+---+
          */
-        test("one spread not skipped, one spread not included, one field not included", async () => {
-          const result = exec(false, false, false);
-          expect(result).toEqual({
-            data: {
-              foo: {
-                bar1: {
-                  c: "ccc",
+        describe("on fragments spreads", () => {
+          test("one spread not skipped, one spread not included, one field not included", async () => {
+            const result = execFragmentSpread(false, false, false);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar1: {
+                    c: "ccc",
+                  }
                 }
               }
-            }
+            });
           });
-        });
 
-        test("one spread not skipped, one spread not included, one field included", async () => {
-          const result = exec(false, false, true);
-          expect(result).toEqual({
-            data: {
-              foo: {
-                bar1: {
-                  c: "ccc",
-                  d: "ddd",
+          test("one spread not skipped, one spread not included, one field included", async () => {
+            const result = execFragmentSpread(false, false, true);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar1: {
+                    c: "ccc",
+                    d: "ddd",
+                  }
                 }
               }
-            }
+            });
           });
-        });
 
-        test("one spread not skipped, one spread included, one field not included", async () => {
-          const result = exec(false, true, false);
-          expect(result).toEqual({
-            data: {
-              foo: {
-                bar1: {
-                  c: "ccc",
-                },
-                bar2: {
-                  c: "ccc",
+          test("one spread not skipped, one spread included, one field not included", async () => {
+            const result = execFragmentSpread(false, true, false);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar1: {
+                    c: "ccc",
+                  },
+                  bar2: {
+                    c: "ccc",
+                  }
                 }
               }
-            }
+            });
           });
-        });
 
-        test("one spread not skipped, one spread included, one field included", async () => {
-          const result = exec(false, true, true);
-          expect(result).toEqual({
-            data: {
-              foo: {
-                bar1: {
-                  c: "ccc",
-                  d: "ddd",
-                },
-                bar2: {
-                  c: "ccc",
-                  d: "ddd",
+          test("one spread not skipped, one spread included, one field included", async () => {
+            const result = execFragmentSpread(false, true, true);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar1: {
+                    c: "ccc",
+                    d: "ddd",
+                  },
+                  bar2: {
+                    c: "ccc",
+                    d: "ddd",
+                  }
                 }
               }
-            }
+            });
           });
-        });
 
-        test("one spread skipped, one spread not included, one field not included", async () => {
-          const result = exec(true, false, false);
-          expect(result).toEqual({
-            data: {
-              foo: {}
-            }
+          test("one spread skipped, one spread not included, one field not included", async () => {
+            const result = execFragmentSpread(true, false, false);
+            expect(result).toEqual({
+              data: {
+                foo: {}
+              }
+            });
           });
-        });
 
-        test("one spread skipped, one spread not included, one field included", async () => {
-          const result = exec(true, false, true);
-          expect(result).toEqual({
-            data: {
-              foo: {}
-            }
+          test("one spread skipped, one spread not included, one field included", async () => {
+            const result = execFragmentSpread(true, false, true);
+            expect(result).toEqual({
+              data: {
+                foo: {}
+              }
+            });
           });
-        });
 
-        test("one spread skipped, one spread included, one field not included", async () => {
-          const result = exec(true, true, false);
-          expect(result).toEqual({
-            data: {
-              foo: {
-                bar2: {
-                  c: "ccc",
+          test("one spread skipped, one spread included, one field not included", async () => {
+            const result = execFragmentSpread(true, true, false);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar2: {
+                    c: "ccc",
+                  }
                 }
               }
-            }
+            });
+          });
+
+          test("one spread skipped, one spread included, one field included", async () => {
+            const result = execFragmentSpread(true, true, true);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar2: {
+                    c: "ccc",
+                    d: "ddd",
+                  }
+                }
+              }
+            });
           });
         });
 
-        test("one spread skipped, one spread included, one field included", async () => {
-          const result = exec(true, true, true);
-          expect(result).toEqual({
-            data: {
-              foo: {
-                bar2: {
-                  c: "ccc",
-                  d: "ddd",
+        describe("on fragments inline", () => {
+          test("one fragment not skipped, one fragment not included, one field not included", async () => {
+            const result = execFragmentInline(false, false, false);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar1: {
+                    c: "ccc",
+                  }
                 }
               }
-            }
+            });
+          });
+
+          test("one fragment not skipped, one fragment not included, one field included", async () => {
+            const result = execFragmentInline(false, false, true);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar1: {
+                    c: "ccc",
+                    d: "ddd",
+                  }
+                }
+              }
+            });
+          });
+
+          test("one fragment not skipped, one fragment included, one field not included", async () => {
+            const result = execFragmentInline(false, true, false);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar1: {
+                    c: "ccc",
+                  },
+                  bar2: {
+                    c: "ccc",
+                  }
+                }
+              }
+            });
+          });
+
+          test("one fragment not skipped, one fragment included, one field included", async () => {
+            const result = execFragmentInline(false, true, true);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar1: {
+                    c: "ccc",
+                    d: "ddd",
+                  },
+                  bar2: {
+                    c: "ccc",
+                    d: "ddd",
+                  }
+                }
+              }
+            });
+          });
+
+          test("one fragment skipped, one fragment not included, one field not included", async () => {
+            const result = execFragmentInline(true, false, false);
+            expect(result).toEqual({
+              data: {
+                foo: {}
+              }
+            });
+          });
+
+          test("one fragment skipped, one fragment not included, one field included", async () => {
+            const result = execFragmentInline(true, false, true);
+            expect(result).toEqual({
+              data: {
+                foo: {}
+              }
+            });
+          });
+
+          test("one fragment skipped, one fragment included, one field not included", async () => {
+            const result = execFragmentInline(true, true, false);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar2: {
+                    c: "ccc",
+                  }
+                }
+              }
+            });
+          });
+
+          test("one fragment skipped, one fragment included, one field included", async () => {
+            const result = execFragmentInline(true, true, true);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar2: {
+                    c: "ccc",
+                    d: "ddd",
+                  }
+                }
+              }
+            });
           });
         });
       });
