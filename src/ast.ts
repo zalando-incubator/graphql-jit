@@ -239,7 +239,11 @@ function augmentFieldNodeTree(
    * Recursively traverse through sub-selection and combine `shouldInclude`s
    * from parent and current ones.
    */
-  function handle(parentFieldNode: JitFieldNode, selection: SelectionNode, comesFromFragmentSpread: boolean = false) {
+  function handle(
+    parentFieldNode: JitFieldNode,
+    selection: SelectionNode,
+    comesFromFragmentSpread: boolean = false
+  ) {
     switch (selection.kind) {
       case Kind.FIELD: {
         const jitFieldNode: JitFieldNode = selection;
@@ -270,6 +274,7 @@ function augmentFieldNodeTree(
     }
   }
 }
+
 /**
  * Joins a list of shouldInclude compiled code into a single logical
  * statement.

@@ -403,9 +403,11 @@ describe("Execute: handles directives", () => {
           }
         }
       `;
+
       function exec(skip: boolean, include: boolean) {
         return executeTestQuery(query, { skip, include }, schema);
       }
+
       test("skip=false, include=false", async () => {
         const result = await exec(false, false);
         expect(result).toEqual({
@@ -509,7 +511,12 @@ describe("Execute: handles directives", () => {
             }
           }
         `;
-        function execFragmentSpread(skipVar: boolean, includeVar: boolean, fieldVar: boolean) {
+
+        function execFragmentSpread(
+          skipVar: boolean,
+          includeVar: boolean,
+          fieldVar: boolean
+        ) {
           return executeTestQuery(
             fragmentSpreadQuery,
             { includeVar, skipVar, fieldVar },
@@ -517,13 +524,18 @@ describe("Execute: handles directives", () => {
           );
         }
 
-        function execFragmentInline(skipVar: boolean, includeVar: boolean, fieldVar: boolean) {
+        function execFragmentInline(
+          skipVar: boolean,
+          includeVar: boolean,
+          fieldVar: boolean
+        ) {
           return executeTestQuery(
             fragmentInlineQuery,
             { includeVar, skipVar, fieldVar },
             schema
           );
         }
+
         /*
           +---------+------------+----------+------+------+---+
           | skipVar | includeVar | fieldVar | bar1 | bar2 | d |
@@ -545,7 +557,7 @@ describe("Execute: handles directives", () => {
               data: {
                 foo: {
                   bar1: {
-                    c: "ccc",
+                    c: "ccc"
                   }
                 }
               }
@@ -559,7 +571,7 @@ describe("Execute: handles directives", () => {
                 foo: {
                   bar1: {
                     c: "ccc",
-                    d: "ddd",
+                    d: "ddd"
                   }
                 }
               }
@@ -572,10 +584,10 @@ describe("Execute: handles directives", () => {
               data: {
                 foo: {
                   bar1: {
-                    c: "ccc",
+                    c: "ccc"
                   },
                   bar2: {
-                    c: "ccc",
+                    c: "ccc"
                   }
                 }
               }
@@ -589,11 +601,11 @@ describe("Execute: handles directives", () => {
                 foo: {
                   bar1: {
                     c: "ccc",
-                    d: "ddd",
+                    d: "ddd"
                   },
                   bar2: {
                     c: "ccc",
-                    d: "ddd",
+                    d: "ddd"
                   }
                 }
               }
@@ -624,7 +636,7 @@ describe("Execute: handles directives", () => {
               data: {
                 foo: {
                   bar2: {
-                    c: "ccc",
+                    c: "ccc"
                   }
                 }
               }
@@ -638,7 +650,7 @@ describe("Execute: handles directives", () => {
                 foo: {
                   bar2: {
                     c: "ccc",
-                    d: "ddd",
+                    d: "ddd"
                   }
                 }
               }
@@ -653,7 +665,7 @@ describe("Execute: handles directives", () => {
               data: {
                 foo: {
                   bar1: {
-                    c: "ccc",
+                    c: "ccc"
                   }
                 }
               }
@@ -667,7 +679,7 @@ describe("Execute: handles directives", () => {
                 foo: {
                   bar1: {
                     c: "ccc",
-                    d: "ddd",
+                    d: "ddd"
                   }
                 }
               }
@@ -680,10 +692,10 @@ describe("Execute: handles directives", () => {
               data: {
                 foo: {
                   bar1: {
-                    c: "ccc",
+                    c: "ccc"
                   },
                   bar2: {
-                    c: "ccc",
+                    c: "ccc"
                   }
                 }
               }
@@ -697,11 +709,11 @@ describe("Execute: handles directives", () => {
                 foo: {
                   bar1: {
                     c: "ccc",
-                    d: "ddd",
+                    d: "ddd"
                   },
                   bar2: {
                     c: "ccc",
-                    d: "ddd",
+                    d: "ddd"
                   }
                 }
               }
@@ -732,7 +744,7 @@ describe("Execute: handles directives", () => {
               data: {
                 foo: {
                   bar2: {
-                    c: "ccc",
+                    c: "ccc"
                   }
                 }
               }
@@ -746,7 +758,7 @@ describe("Execute: handles directives", () => {
                 foo: {
                   bar2: {
                     c: "ccc",
-                    d: "ddd",
+                    d: "ddd"
                   }
                 }
               }
@@ -774,6 +786,7 @@ describe("Execute: handles directives", () => {
           }
         }
       `;
+
       function exec(
         skip1: boolean,
         skip2: boolean,
@@ -846,6 +859,7 @@ describe("Execute: handles directives", () => {
           }
         }
       `;
+
       function exec(
         skip1: boolean,
         skip2: boolean,
