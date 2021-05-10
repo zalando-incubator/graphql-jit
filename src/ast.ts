@@ -239,14 +239,20 @@ function augmentFieldNodeTree(
    * Recursively traverse through sub-selection and combine `shouldInclude`s
    * from parent and current ones.
    */
-  function handle(parentFieldNode: JitFieldNode, selection: SelectionNode) {
+  function handle(
+    parentFieldNode: JitFieldNode,
+    selection: SelectionNode,
+    comesFromFragmentSpread: boolean = false
+  ) {
     switch (selection.kind) {
       case Kind.FIELD: {
         const jitFieldNode: JitFieldNode = selection;
-        jitFieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
-          parentFieldNode.__internalShouldInclude ?? "",
-          jitFieldNode.__internalShouldInclude ?? ""
-        );
+        if (!comesFromFragmentSpread) {
+          jitFieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
+            parentFieldNode.__internalShouldInclude ?? "",
+            jitFieldNode.__internalShouldInclude ?? ""
+          );
+        }
         // go further down the query tree
         for (const selection of jitFieldNode.selectionSet?.selections ?? []) {
           handle(jitFieldNode, selection);
@@ -262,7 +268,7 @@ function augmentFieldNodeTree(
       case Kind.FRAGMENT_SPREAD: {
         const fragment = compilationContext.fragments[selection.name.value];
         for (const subSelection of fragment.selectionSet.selections) {
-          handle(parentFieldNode, subSelection);
+          handle(parentFieldNode, subSelection, true);
         }
       }
     }
