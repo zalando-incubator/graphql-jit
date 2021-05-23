@@ -1,6 +1,5 @@
 /**
  * Based on https://github.com/graphql/graphql-js/blob/main/src/subscription/__tests__/subscribe-test.js
- * (commit 39b69da863fca34f0e921bb9ac6a1b99797e17cf)
  * This test suite includes certain deviations from the original:
  * graphql-jit does not support the root resolver pattern that this test uses
  * so the part must be rewritten to include that root resolver in `subscribe` of
@@ -21,10 +20,10 @@ import {
 import { compileQuery, isAsyncIterable, isCompiledQuery } from "../execution";
 
 type Email = {
-  from: string,
-  subject: string,
-  message: string,
-  unread: boolean,
+  from: string;
+  subject: string;
+  message: string;
+  unread: boolean;
 };
 
 const EmailType = new GraphQLObjectType({
@@ -33,8 +32,8 @@ const EmailType = new GraphQLObjectType({
     from: { type: GraphQLString },
     subject: { type: GraphQLString },
     message: { type: GraphQLString },
-    unread: { type: GraphQLBoolean },
-  },
+    unread: { type: GraphQLBoolean }
+  }
 });
 
 const InboxType = new GraphQLObjectType({
@@ -42,22 +41,22 @@ const InboxType = new GraphQLObjectType({
   fields: {
     total: {
       type: GraphQLInt,
-      resolve: (inbox) => inbox.emails.length,
+      resolve: inbox => inbox.emails.length
     },
     unread: {
       type: GraphQLInt,
-      resolve: (inbox) => inbox.emails.filter((email) => email.unread).length,
+      resolve: inbox => inbox.emails.filter((email: any) => email.unread).length
     },
-    emails: { type: new GraphQLList(EmailType) },
-  },
+    emails: { type: new GraphQLList(EmailType) }
+  }
 });
 
 const EmailEventType = new GraphQLObjectType({
   name: "EmailEvent",
   fields: {
     email: { type: EmailType },
-    inbox: { type: InboxType },
-  },
+    inbox: { type: InboxType }
+  }
 });
 
 async function subscribe({
@@ -67,7 +66,7 @@ async function subscribe({
   rootValue,
   contextValue,
   variableValues
-}: Partial<SubscriptionArgs>): Promise<
+}: SubscriptionArgs): Promise<
   AsyncIterableIterator<ExecutionResult> | ExecutionResult
 > {
   const prepared = compileQuery(schema, document, operationName || "");
@@ -96,8 +95,8 @@ function createSubscription(pubsub: SimplePubSub<Email>) {
       from: "joe@graphql.org",
       subject: "Hello",
       message: "Hello World",
-      unread: false,
-    },
+      unread: false
+    }
   ];
 
   const inbox = { emails };
@@ -105,8 +104,8 @@ function createSubscription(pubsub: SimplePubSub<Email>) {
   const QueryType = new GraphQLObjectType({
     name: "Query",
     fields: {
-      inbox: { type: InboxType, resolve: () => emails },
-    },
+      inbox: { type: InboxType, resolve: () => emails }
+    }
   });
 
   const emailSchema = new GraphQLSchema({
@@ -117,24 +116,24 @@ function createSubscription(pubsub: SimplePubSub<Email>) {
         importantEmail: {
           type: EmailEventType,
           args: {
-            priority: { type: GraphQLInt },
+            priority: { type: GraphQLInt }
           },
           // FIXME: we shouldn't use mapAsyncIterator here since it makes tests way more complex
           subscribe() {
-            return pubsub.getSubscriber((newEmail) => {
+            return pubsub.getSubscriber(newEmail => {
               emails.push(newEmail);
 
               return {
                 importantEmail: {
                   email: newEmail,
-                  inbox,
-                },
+                  inbox
+                }
               };
-            })
+            });
           }
-        },
-      },
-    }),
+        }
+      }
+    })
   });
 
   return subscribe({ schema: emailSchema, document });
@@ -157,15 +156,15 @@ async function expectPromise(promise: Promise<any>) {
     toRejectWith(message: string) {
       expect(caughtError).toBeInstanceOf(Error);
       expect(caughtError).toHaveProperty("message", message);
-    },
+    }
   };
 }
 
 const DummyQueryType = new GraphQLObjectType({
   name: "Query",
   fields: {
-    dummy: { type: GraphQLString },
-  },
+    dummy: { type: GraphQLString }
+  }
 });
 
 // Check all error cases when initializing the subscription.
@@ -181,24 +180,24 @@ describe("Subscription Initialization Phase", () => {
         name: "Subscription",
         fields: {
           foo: { type: GraphQLString, subscribe: fooGenerator },
-          bar: { type: GraphQLString },
-        },
-      }),
+          bar: { type: GraphQLString }
+        }
+      })
     });
 
-    const subscription = await subscribe({
+    const subscription = (await subscribe({
       schema,
-      document: parse("subscription { foo }"),
-    }) as AsyncIterableIterator<ExecutionResult>;
+      document: parse("subscription { foo }")
+    })) as AsyncIterableIterator<ExecutionResult>;
     expect(isAsyncIterable(subscription)).toBeTruthy();
 
     expect(await subscription.next()).toEqual({
       done: false,
-      value: { data: { foo: "FooValue" } },
+      value: { data: { foo: "FooValue" } }
     });
 
     // Close subscription
-    await subscription.return();
+    await subscription.return!();
   });
 
   it("accepts type definition with sync subscribe function", async () => {
@@ -213,25 +212,25 @@ describe("Subscription Initialization Phase", () => {
         fields: {
           foo: {
             type: GraphQLString,
-            subscribe: fooGenerator,
-          },
-        },
-      }),
+            subscribe: fooGenerator
+          }
+        }
+      })
     });
 
-    const subscription = await subscribe({
+    const subscription = (await subscribe({
       schema,
-      document: parse("subscription { foo }"),
-    }) as AsyncIterableIterator<ExecutionResult>;
+      document: parse("subscription { foo }")
+    })) as AsyncIterableIterator<ExecutionResult>;
     expect(isAsyncIterable(subscription)).toBeTruthy();
 
     expect(await subscription.next()).toEqual({
       done: false,
-      value: { data: { foo: "FooValue" } },
+      value: { data: { foo: "FooValue" } }
     });
 
     // Close subscription
-    await subscription.return();
+    await subscription.return!();
   });
 
   it("accepts type definition with async subscribe function", async () => {
@@ -249,25 +248,25 @@ describe("Subscription Initialization Phase", () => {
             async subscribe() {
               await resolveOnNextTick();
               return fooGenerator();
-            },
-          },
-        },
-      }),
+            }
+          }
+        }
+      })
     });
 
-    const subscription = await subscribe({
+    const subscription = (await subscribe({
       schema,
-      document: parse("subscription { foo }"),
-    }) as AsyncIterableIterator<ExecutionResult>;
+      document: parse("subscription { foo }")
+    })) as AsyncIterableIterator<ExecutionResult>;
     expect(isAsyncIterable(subscription)).toBeTruthy();
 
     expect(await subscription.next()).toEqual({
       done: false,
-      value: { data: { foo: "FooValue" } },
+      value: { data: { foo: "FooValue" } }
     });
 
     // Close subscription
-    await subscription.return();
+    await subscription.return!();
   });
 
   it("should only resolve the first field of invalid multi-field", async () => {
@@ -288,23 +287,22 @@ describe("Subscription Initialization Phase", () => {
             subscribe() {
               didResolveFoo = true;
               return fooGenerator();
-            },
+            }
           },
           bar: {
             type: GraphQLString,
-            // istanbul ignore next (Shouldn't be called)
             subscribe() {
               didResolveBar = true;
-            },
-          },
-        },
-      }),
+            }
+          }
+        }
+      })
     });
 
-    const subscription = await subscribe({
+    const subscription = (await subscribe({
       schema,
-      document: parse("subscription { foo bar }"),
-    }) as AsyncIterableIterator<ExecutionResult>;
+      document: parse("subscription { foo bar }")
+    })) as AsyncIterableIterator<ExecutionResult>;
     expect(isAsyncIterable(subscription)).toBeTruthy();
 
     expect(didResolveFoo).toBe(true);
@@ -313,7 +311,7 @@ describe("Subscription Initialization Phase", () => {
     expect(await subscription.next()).toHaveProperty("done", false);
 
     // Close subscription
-    await subscription.return();
+    await subscription.return!();
   });
 
   it("throws an error if some of required arguments are missing", async () => {
@@ -323,9 +321,9 @@ describe("Subscription Initialization Phase", () => {
       subscription: new GraphQLObjectType({
         name: "Subscription",
         fields: {
-          foo: { type: GraphQLString },
-        },
-      }),
+          foo: { type: GraphQLString }
+        }
+      })
     });
 
     // @ts-ignore
@@ -355,9 +353,9 @@ describe("Subscription Initialization Phase", () => {
       subscription: new GraphQLObjectType({
         name: "Subscription",
         fields: {
-          foo: { type: GraphQLString },
-        },
-      }),
+          foo: { type: GraphQLString }
+        }
+      })
     });
     const document = parse("subscription { unknownField }");
 
@@ -366,9 +364,9 @@ describe("Subscription Initialization Phase", () => {
       errors: [
         {
           message: 'The subscription field "unknownField" is not defined.',
-          locations: [{ line: 1, column: 16 }],
-        },
-      ],
+          locations: [{ line: 1, column: 16 }]
+        }
+      ]
     });
   });
 
@@ -378,9 +376,9 @@ describe("Subscription Initialization Phase", () => {
       subscription: new GraphQLObjectType({
         name: "Subscription",
         fields: {
-          foo: { type: GraphQLString },
-        },
-      }),
+          foo: { type: GraphQLString }
+        }
+      })
     });
 
     // @ts-ignore
@@ -395,10 +393,10 @@ describe("Subscription Initialization Phase", () => {
         fields: {
           foo: {
             type: GraphQLString,
-            subscribe: () => "test",
-          },
-        },
-      }),
+            subscribe: () => "test"
+          }
+        }
+      })
     });
 
     const document = parse("subscription { foo }");
@@ -415,9 +413,9 @@ describe("Subscription Initialization Phase", () => {
         subscription: new GraphQLObjectType({
           name: "Subscription",
           fields: {
-            foo: { type: GraphQLString, subscribe: subscribeFn },
-          },
-        }),
+            foo: { type: GraphQLString, subscribe: subscribeFn }
+          }
+        })
       });
       const document = parse("subscription { foo }");
       const result = await subscribe({ schema, document });
@@ -430,9 +428,9 @@ describe("Subscription Initialization Phase", () => {
         {
           message: "test error",
           locations: [{ line: 1, column: 16 }],
-          path: ["foo"],
-        },
-      ],
+          path: ["foo"]
+        }
+      ]
     };
 
     expect(
@@ -466,10 +464,10 @@ describe("Subscription Initialization Phase", () => {
         fields: {
           foo: {
             type: GraphQLString,
-            args: { arg: { type: GraphQLInt } },
-          },
-        },
-      }),
+            args: { arg: { type: GraphQLInt } }
+          }
+        }
+      })
     });
 
     const variableValues = { arg: "meow" };
@@ -486,10 +484,11 @@ describe("Subscription Initialization Phase", () => {
       errors: [
         {
           message:
+            // DIFF: 'Variable "$arg" got invalid value "meow"; Int cannot represent non-integer value: "meow"',
             'Variable "$arg" got invalid value "meow"; Expected type Int; Int cannot represent non-integer value: "meow"',
-          locations: [{ line: 2, column: 21 }],
-        },
-      ],
+          locations: [{ line: 2, column: 21 }]
+        }
+      ]
     });
   });
 });
@@ -499,10 +498,14 @@ describe("Subscription Publish Phase", () => {
   it("produces a payload for multiple subscribe in same subscription", async () => {
     const pubsub = new SimplePubSub();
 
-    const subscription = await createSubscription(pubsub) as AsyncIterableIterator<ExecutionResult>;
+    const subscription = (await createSubscription(
+      pubsub
+    )) as AsyncIterableIterator<ExecutionResult>;
     expect(isAsyncIterable(subscription)).toBeTruthy();
 
-    const secondSubscription = await createSubscription(pubsub) as AsyncIterableIterator<ExecutionResult>;
+    const secondSubscription = (await createSubscription(
+      pubsub
+    )) as AsyncIterableIterator<ExecutionResult>;
     expect(isAsyncIterable(secondSubscription)).toBeTruthy();
 
     const payload1 = subscription.next();
@@ -513,7 +516,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
-        unread: true,
+        unread: true
       })
     ).toBe(true);
 
@@ -524,15 +527,15 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Alright",
+              subject: "Alright"
             },
             inbox: {
               unread: 1,
-              total: 2,
-            },
-          },
-        },
-      },
+              total: 2
+            }
+          }
+        }
+      }
     };
 
     expect(await payload1).toEqual(expectedPayload);
@@ -541,7 +544,9 @@ describe("Subscription Publish Phase", () => {
 
   it("produces a payload per subscription event", async () => {
     const pubsub = new SimplePubSub();
-    const subscription = await createSubscription(pubsub) as AsyncIterableIterator<ExecutionResult>;
+    const subscription = (await createSubscription(
+      pubsub
+    )) as AsyncIterableIterator<ExecutionResult>;
     expect(isAsyncIterable(subscription)).toBeTruthy();
 
     // Wait for the next subscription payload.
@@ -553,7 +558,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
-        unread: true,
+        unread: true
       })
     ).toBe(true);
 
@@ -565,15 +570,15 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Alright",
+              subject: "Alright"
             },
             inbox: {
               unread: 1,
-              total: 2,
-            },
-          },
-        },
-      },
+              total: 2
+            }
+          }
+        }
+      }
     });
 
     // Another new email arrives, before subscription.next() is called.
@@ -582,7 +587,7 @@ describe("Subscription Publish Phase", () => {
         from: "hyo@graphql.org",
         subject: "Tools",
         message: "I <3 making things",
-        unread: true,
+        unread: true
       })
     ).toBe(true);
 
@@ -594,21 +599,21 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "hyo@graphql.org",
-              subject: "Tools",
+              subject: "Tools"
             },
             inbox: {
               unread: 2,
-              total: 3,
-            },
-          },
-        },
-      },
+              total: 3
+            }
+          }
+        }
+      }
     });
 
     // The client decides to disconnect.
-    expect(await subscription.return()).toEqual({
+    expect(await subscription.return!()).toEqual({
       done: true,
-      value: undefined,
+      value: undefined
     });
 
     // Which may result in disconnecting upstream services as well.
@@ -617,20 +622,22 @@ describe("Subscription Publish Phase", () => {
         from: "adam@graphql.org",
         subject: "Important",
         message: "Read me please",
-        unread: true,
+        unread: true
       })
     ).toBe(false); // No more listeners.
 
     // Awaiting a subscription after closing it results in completed results.
     expect(await subscription.next()).toEqual({
       done: true,
-      value: undefined,
+      value: undefined
     });
   });
 
   it("produces a payload when there are multiple events", async () => {
     const pubsub = new SimplePubSub();
-    const subscription = await createSubscription(pubsub) as AsyncIterableIterator<ExecutionResult>;
+    const subscription = (await createSubscription(
+      pubsub
+    )) as AsyncIterableIterator<ExecutionResult>;
     expect(isAsyncIterable(subscription)).toBeTruthy();
 
     let payload = subscription.next();
@@ -641,7 +648,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
-        unread: true,
+        unread: true
       })
     ).toBe(true);
 
@@ -652,15 +659,15 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Alright",
+              subject: "Alright"
             },
             inbox: {
               unread: 1,
-              total: 2,
-            },
-          },
-        },
-      },
+              total: 2
+            }
+          }
+        }
+      }
     });
 
     payload = subscription.next();
@@ -671,7 +678,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright 2",
         message: "Tests are good 2",
-        unread: true,
+        unread: true
       })
     ).toBe(true);
 
@@ -682,21 +689,23 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Alright 2",
+              subject: "Alright 2"
             },
             inbox: {
               unread: 2,
-              total: 3,
-            },
-          },
-        },
-      },
+              total: 3
+            }
+          }
+        }
+      }
     });
   });
 
   it("should not trigger when subscription is already done", async () => {
     const pubsub = new SimplePubSub();
-    const subscription = await createSubscription(pubsub) as AsyncIterableIterator<ExecutionResult>;
+    const subscription = (await createSubscription(
+      pubsub
+    )) as AsyncIterableIterator<ExecutionResult>;
     expect(isAsyncIterable(subscription)).toBeTruthy();
 
     let payload = subscription.next();
@@ -707,7 +716,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
-        unread: true,
+        unread: true
       })
     ).toBe(true);
 
@@ -718,19 +727,19 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Alright",
+              subject: "Alright"
             },
             inbox: {
               unread: 1,
-              total: 2,
-            },
-          },
-        },
-      },
+              total: 2
+            }
+          }
+        }
+      }
     });
 
     payload = subscription.next();
-    await subscription.return();
+    await subscription.return!();
 
     // A new email arrives!
     expect(
@@ -738,19 +747,21 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright 2",
         message: "Tests are good 2",
-        unread: true,
+        unread: true
       })
     ).toBe(false);
 
     expect(await payload).toEqual({
       done: true,
-      value: undefined,
+      value: undefined
     });
   });
 
   it("should not trigger when subscription is thrown", async () => {
     const pubsub = new SimplePubSub();
-    const subscription = await createSubscription(pubsub) as AsyncIterableIterator<ExecutionResult>;
+    const subscription = (await createSubscription(
+      pubsub
+    )) as AsyncIterableIterator<ExecutionResult>;
     expect(isAsyncIterable(subscription)).toBeTruthy();
 
     let payload = subscription.next();
@@ -761,7 +772,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Alright",
         message: "Tests are good",
-        unread: true,
+        unread: true
       })
     ).toBe(true);
 
@@ -772,15 +783,15 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Alright",
+              subject: "Alright"
             },
             inbox: {
               unread: 1,
-              total: 2,
-            },
-          },
-        },
-      },
+              total: 2
+            }
+          }
+        }
+      }
     });
 
     payload = subscription.next();
@@ -788,7 +799,7 @@ describe("Subscription Publish Phase", () => {
     // Throw error
     let caughtError;
     try {
-      await subscription.throw("ouch");
+      await subscription.throw!("ouch");
     } catch (e) {
       caughtError = e;
     }
@@ -796,13 +807,15 @@ describe("Subscription Publish Phase", () => {
 
     expect(await payload).toEqual({
       done: true,
-      value: undefined,
+      value: undefined
     });
   });
 
   it("event order is correct for multiple publishes", async () => {
     const pubsub = new SimplePubSub();
-    const subscription = await createSubscription(pubsub) as AsyncIterableIterator<ExecutionResult>;
+    const subscription = (await createSubscription(
+      pubsub
+    )) as AsyncIterableIterator<ExecutionResult>;
     expect(isAsyncIterable(subscription)).toBeTruthy();
 
     let payload = subscription.next();
@@ -813,7 +826,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Message",
         message: "Tests are good",
-        unread: true,
+        unread: true
       })
     ).toBe(true);
 
@@ -823,7 +836,7 @@ describe("Subscription Publish Phase", () => {
         from: "yuzhi@graphql.org",
         subject: "Message 2",
         message: "Tests are good 2",
-        unread: true,
+        unread: true
       })
     ).toBe(true);
 
@@ -834,15 +847,15 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Message",
+              subject: "Message"
             },
             inbox: {
               unread: 2,
-              total: 3,
-            },
-          },
-        },
-      },
+              total: 3
+            }
+          }
+        }
+      }
     });
 
     payload = subscription.next();
@@ -854,15 +867,15 @@ describe("Subscription Publish Phase", () => {
           importantEmail: {
             email: {
               from: "yuzhi@graphql.org",
-              subject: "Message 2",
+              subject: "Message 2"
             },
             inbox: {
               unread: 2,
-              total: 3,
-            },
-          },
-        },
-      },
+              total: 3
+            }
+          }
+        }
+      }
     });
   });
 
@@ -886,21 +899,24 @@ describe("Subscription Publish Phase", () => {
                 throw new Error("Never leave.");
               }
               return message;
-            },
-          },
-        },
-      }),
+            }
+          }
+        }
+      })
     });
 
     const document = parse("subscription { newMessage }");
-    const subscription = await subscribe({ schema, document }) as AsyncIterableIterator<ExecutionResult>;
+    const subscription = (await subscribe({
+      schema,
+      document
+    })) as AsyncIterableIterator<ExecutionResult>;
     expect(isAsyncIterable(subscription)).toBeTruthy();
 
     expect(await subscription.next()).toEqual({
       done: false,
       value: {
-        data: { newMessage: "Hello" },
-      },
+        data: { newMessage: "Hello" }
+      }
     });
 
     // An error in execution is presented as such.
@@ -912,10 +928,10 @@ describe("Subscription Publish Phase", () => {
           {
             message: "Never leave.",
             locations: [{ line: 1, column: 16 }],
-            path: ["newMessage"],
-          },
-        ],
-      },
+            path: ["newMessage"]
+          }
+        ]
+      }
     });
 
     // However that does not close the response event stream.
@@ -923,8 +939,8 @@ describe("Subscription Publish Phase", () => {
     expect(await subscription.next()).toEqual({
       done: false,
       value: {
-        data: { newMessage: "Bonjour" },
-      },
+        data: { newMessage: "Bonjour" }
+      }
     });
   });
 
@@ -941,33 +957,35 @@ describe("Subscription Publish Phase", () => {
         fields: {
           newMessage: {
             type: GraphQLString,
-            resolve: (message) => message,
-            subscribe: generateMessages,
-          },
-        },
-      }),
+            resolve: message => message,
+            subscribe: generateMessages
+          }
+        }
+      })
     });
 
     const document = parse("subscription { newMessage }");
-    const subscription = await subscribe({ schema, document }) as AsyncIterableIterator<ExecutionResult>;
+    const subscription = (await subscribe({
+      schema,
+      document
+    })) as AsyncIterableIterator<ExecutionResult>;
     expect(isAsyncIterable(subscription)).toBeTruthy();
 
     expect(await subscription.next()).toEqual({
       done: false,
       value: {
-        data: { newMessage: "Hello" },
-      },
+        data: { newMessage: "Hello" }
+      }
     });
 
     (await expectPromise(subscription.next())).toRejectWith("test error");
 
     expect(await subscription.next()).toEqual({
       done: true,
-      value: undefined,
+      value: undefined
     });
   });
 });
-
 
 class SimplePubSub<T = any> {
   _subscribers: Set<(value: T) => void>;
@@ -985,7 +1003,7 @@ class SimplePubSub<T = any> {
 
   getSubscriber<R>(transform: (value: T) => R): AsyncGenerator<R, void, void> {
     const pullQueue: Array<(result: IteratorResult<R, void>) => void> = [];
-    const pushQueue = [];
+    const pushQueue: any[] = [];
     let listening = true;
     this._subscribers.add(pushValue);
 
@@ -1008,7 +1026,7 @@ class SimplePubSub<T = any> {
         if (pushQueue.length > 0) {
           return Promise.resolve({ value: pushQueue.shift(), done: false });
         }
-        return new Promise((resolve) => pullQueue.push(resolve));
+        return new Promise(resolve => pullQueue.push(resolve));
       },
       return(): Promise<IteratorResult<R, void>> {
         emptyQueue();
@@ -1020,13 +1038,13 @@ class SimplePubSub<T = any> {
       },
       [Symbol.asyncIterator]() {
         return this;
-      },
+      }
     };
 
     function pushValue(event: T): void {
       const value: R = transform(event);
       if (pullQueue.length > 0) {
-        pullQueue.shift()({ value, done: false });
+        pullQueue.shift()!({ value, done: false });
       } else {
         pushQueue.push(value);
       }
