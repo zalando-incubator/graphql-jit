@@ -1,5 +1,6 @@
 /**
  * Based on https://github.com/graphql/graphql-js/blob/main/src/subscription/__tests__/subscribe-test.js
+ * (commit 39b69da863fca34f0e921bb9ac6a1b99797e17cf)
  * This test suite includes certain deviations from the original:
  * graphql-jit does not support the root resolver pattern that this test uses
  * so the part must be rewritten to include that root resolver in `subscribe` of
@@ -17,7 +18,7 @@ import {
   parse,
   SubscriptionArgs
 } from "graphql";
-import { compileQuery, isCompiledQuery } from "../execution";
+import { compileQuery, isAsyncIterable, isCompiledQuery } from "../execution";
 
 type Email = {
   from: string,
@@ -51,34 +52,12 @@ const InboxType = new GraphQLObjectType({
   },
 });
 
-const QueryType = new GraphQLObjectType({
-  name: "Query",
-  fields: {
-    inbox: { type: InboxType },
-  },
-});
-
 const EmailEventType = new GraphQLObjectType({
   name: "EmailEvent",
   fields: {
     email: { type: EmailType },
     inbox: { type: InboxType },
   },
-});
-
-const emailSchema = new GraphQLSchema({
-  query: QueryType,
-  subscription: new GraphQLObjectType({
-    name: "Subscription",
-    fields: {
-      importantEmail: {
-        type: EmailEventType,
-        args: {
-          priority: { type: GraphQLInt },
-        },
-      },
-    },
-  }),
 });
 
 async function subscribe({
@@ -121,26 +100,48 @@ function createSubscription(pubsub: SimplePubSub<Email>) {
     },
   ];
 
-  const data = {
-    inbox: { emails },
-    // FIXME: we shouldn't use mapAsyncIterator here since it makes tests way more complex
-    importantEmail: pubsub.getSubscriber((newEmail) => {
-      emails.push(newEmail);
+  const inbox = { emails };
 
-      return {
+  const QueryType = new GraphQLObjectType({
+    name: "Query",
+    fields: {
+      inbox: { type: InboxType, resolve: () => emails },
+    },
+  });
+
+  const emailSchema = new GraphQLSchema({
+    query: QueryType,
+    subscription: new GraphQLObjectType({
+      name: "Subscription",
+      fields: {
         importantEmail: {
-          email: newEmail,
-          inbox: data.inbox,
-        },
-      };
-    }),
-  };
+          type: EmailEventType,
+          args: {
+            priority: { type: GraphQLInt },
+          },
+          // FIXME: we shouldn't use mapAsyncIterator here since it makes tests way more complex
+          subscribe() {
+            return pubsub.getSubscriber((newEmail) => {
+              emails.push(newEmail);
 
-  return subscribe({ schema: emailSchema, document, rootValue: data });
+              return {
+                importantEmail: {
+                  email: newEmail,
+                  inbox,
+                },
+              };
+            })
+          }
+        },
+      },
+    }),
+  });
+
+  return subscribe({ schema: emailSchema, document });
 }
 
 async function expectPromise(promise: Promise<any>) {
-  let caughtError;
+  let caughtError: any;
 
   try {
     await promise;
@@ -153,7 +154,7 @@ async function expectPromise(promise: Promise<any>) {
     toReject() {
       expect(caughtError).toBeInstanceOf(Error);
     },
-    toRejectWith(message) {
+    toRejectWith(message: string) {
       expect(caughtError).toBeInstanceOf(Error);
       expect(caughtError).toHaveProperty("message", message);
     },
@@ -170,25 +171,24 @@ const DummyQueryType = new GraphQLObjectType({
 // Check all error cases when initializing the subscription.
 describe("Subscription Initialization Phase", () => {
   it("accepts multiple subscription fields defined in schema", async () => {
+    async function* fooGenerator() {
+      yield { foo: "FooValue" };
+    }
+
     const schema = new GraphQLSchema({
       query: DummyQueryType,
       subscription: new GraphQLObjectType({
         name: "Subscription",
         fields: {
-          foo: { type: GraphQLString },
+          foo: { type: GraphQLString, subscribe: fooGenerator },
           bar: { type: GraphQLString },
         },
       }),
     });
 
-    async function* fooGenerator() {
-      yield { foo: "FooValue" };
-    }
-
     const subscription = await subscribe({
       schema,
       document: parse("subscription { foo }"),
-      rootValue: { foo: fooGenerator },
     }) as AsyncIterableIterator<ExecutionResult>;
     expect(isAsyncIterable(subscription)).toBeTruthy();
 
@@ -486,7 +486,7 @@ describe("Subscription Initialization Phase", () => {
       errors: [
         {
           message:
-            'Variable "$arg" got invalid value "meow"; Int cannot represent non-integer value: "meow"',
+            'Variable "$arg" got invalid value "meow"; Expected type Int; Int cannot represent non-integer value: "meow"',
           locations: [{ line: 2, column: 21 }],
         },
       ],
@@ -1032,10 +1032,6 @@ class SimplePubSub<T = any> {
       }
     }
   }
-}
-
-function isAsyncIterable(maybeAsyncIterable) {
-  return typeof maybeAsyncIterable?.[Symbol.asyncIterator] === 'function';
 }
 
 function resolveOnNextTick(): Promise<void> {
