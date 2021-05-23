@@ -33,7 +33,6 @@ import {
 import { ExecutionContext as GraphQLContext } from "graphql/execution/execute";
 import { pathToArray } from "graphql/jsutils/Path";
 import { FieldNode, OperationDefinitionNode } from "graphql/language/ast";
-import mapAsyncIterator from "graphql/subscription/mapAsyncIterator";
 import { GraphQLTypeResolver } from "graphql/type/definition";
 import {
   addPath,
@@ -200,7 +199,7 @@ export function compileQuery(
     throw new Error(`Expected ${schema} to be a GraphQL schema.`);
   }
   if (!document) {
-    throw new Error("Must provide document");
+    throw new Error("Must provide document.");
   }
 
   if (
@@ -1670,41 +1669,7 @@ function getJsFieldName(fieldName: string) {
   return `${LOCAL_JS_FIELD_NAME_PREFIX}${fieldName}`;
 }
 
-/**
- * Subscription
- * Implements the "CreateSourceEventStream" algorithm described in the
- * GraphQL specification, resolving the subscription source event stream.
- *
- * Returns a Promise which resolves to either an AsyncIterable (if successful)
- * or an ExecutionResult (error). The promise will be rejected if the schema or
- * other arguments to this function are invalid, or if the resolved event stream
- * is not an async iterable.
- *
- * If the client-provided arguments to this function do not result in a
- * compliant subscription, a GraphQL Response (ExecutionResult) with
- * descriptive errors and no data will be returned.
- *
- * If the the source stream could not be created due to faulty subscription
- * resolver logic or underlying systems, the promise will resolve to a single
- * ExecutionResult containing `errors` and no `data`.
- *
- * If the operation succeeded, the promise resolves to the AsyncIterable for the
- * event stream returned by the resolver.
- *
- * A Source Event Stream represents a sequence of events, each of which triggers
- * a GraphQL execution for that event.
- *
- * This may be useful when hosting the stateful subscription service in a
- * different process or machine than the stateless GraphQL execution engine,
- * or otherwise separating these two steps. For more on this, see the
- * "Supporting Subscriptions at Scale" information in the GraphQL specification.
- *
- * Since createSourceEventStream only builds execution context and reports errors
- * in doing so, which we did, we simply call directly the later called
- * executeSubscription.
- */
-
-function isAsyncIterable<T = unknown>(
+export function isAsyncIterable<T = unknown>(
   val: unknown
 ): val is AsyncIterableIterator<T> {
   return typeof Object(val)[Symbol.asyncIterator] === "function";
@@ -1716,15 +1681,6 @@ function compileSubscriptionOperation(
   fieldMap: FieldsAndNodes,
   queryFn: CompiledQuery["query"]
 ) {
-  function reportGraphQLError(error: any): ExecutionResult {
-    if (error instanceof GraphQLError) {
-      return {
-        errors: [error]
-      };
-    }
-    throw error;
-  }
-
   const fieldNodes = Object.values(fieldMap)[0];
   const fieldNode = fieldNodes[0];
   const fieldName = fieldNode.name.value;
@@ -1741,47 +1697,63 @@ function compileSubscriptionOperation(
   const responsePath = addPath(undefined, fieldName);
   const resolveInfoName = createResolveInfoName(responsePath);
 
-  // Call the `subscribe()` resolver or the default resolver to produce an
-  // AsyncIterable yielding raw payloads.
   const subscriber = field.subscribe;
 
-  return async function subscribe(executionContext: ExecutionContext) {
+  async function executeSubscription(executionContext: ExecutionContext) {
     const resolveInfo = executionContext.resolveInfos[resolveInfoName](
       executionContext.rootValue,
       executionContext.variables,
       responsePath
     );
 
-    let resultOrStream: AsyncIterableIterator<any>;
-
     try {
-      try {
-        resultOrStream =
-          subscriber &&
-          (await subscriber(
-            executionContext.rootValue,
-            executionContext.variables,
-            executionContext.context,
-            resolveInfo
-          ));
-        if (resultOrStream instanceof Error) {
-          throw resultOrStream;
-        }
-      } catch (error) {
-        throw locatedError(
-          error,
-          resolveInfo.fieldNodes,
-          pathToArray(resolveInfo.path)
-        );
+      const eventStream = await subscriber!(
+        executionContext.rootValue,
+        executionContext.variables,
+        executionContext.context,
+        resolveInfo
+      );
+      if (eventStream instanceof Error) {
+        throw eventStream;
       }
-      if (!isAsyncIterable(resultOrStream)) {
+      return eventStream;
+    } catch (error) {
+      throw locatedError(
+        error,
+        resolveInfo.fieldNodes,
+        pathToArray(resolveInfo.path)
+      );
+    }
+  }
+
+  async function createSourceEventStream(executionContext: ExecutionContext) {
+    try {
+      const eventStream = await executeSubscription(executionContext);
+
+      // Assert field returned an event stream, otherwise yield an error.
+      if (!isAsyncIterable(eventStream)) {
         throw new Error(
           "Subscription field must return Async Iterable. " +
-            `Received: ${inspect(resultOrStream)}.`
+            `Received: ${inspect(eventStream)}.`
         );
       }
-    } catch (e) {
-      return reportGraphQLError(e);
+
+      return eventStream;
+    } catch (error) {
+      // If it is a GraphQLError, report it as an ExecutionResult, containing only errors and no data.
+      // Otherwise treat the error as a system-class error and re-throw it.
+      if (error instanceof GraphQLError) {
+        return { errors: [error] };
+      }
+      throw error;
+    }
+  }
+
+  return async function subscribe(executionContext: ExecutionContext) {
+    const resultOrStream = await createSourceEventStream(executionContext);
+
+    if (!isAsyncIterable(resultOrStream)) {
+      return resultOrStream;
     }
 
     // For each payload yielded from a subscription, map it over the normal
@@ -1794,11 +1766,7 @@ function compileSubscriptionOperation(
     const mapSourceToResponse = (payload: any) =>
       queryFn(payload, executionContext.context, executionContext.variables);
 
-    return mapAsyncIterator(
-      resultOrStream,
-      mapSourceToResponse,
-      reportGraphQLError
-    );
+    return mapAsyncIterator(resultOrStream, mapSourceToResponse);
   };
 }
 
@@ -1859,4 +1827,55 @@ function createBoundSubscribe(
   };
 
   return ret[fnName];
+}
+
+/**
+ * Given an AsyncIterable and a callback function, return an AsyncIterator
+ * which produces values mapped via calling the callback function.
+ */
+function mapAsyncIterator<T, U, R = undefined>(
+  iterable: AsyncGenerator<T, R, undefined> | AsyncIterable<T>,
+  callback: (value: T) => U | Promise<U>
+): AsyncGenerator<U, R, undefined> {
+  const iterator = iterable[Symbol.asyncIterator]();
+
+  async function mapResult(
+    result: IteratorResult<T, R>
+  ): Promise<IteratorResult<U, R>> {
+    if (result.done) {
+      return result;
+    }
+
+    try {
+      return { value: await callback(result.value), done: false };
+    } catch (error) {
+      if (typeof iterator.return === "function") {
+        try {
+          await iterator.return();
+        } catch (e) {
+          /* ignore error */
+        }
+      }
+      throw error;
+    }
+  }
+
+  return {
+    async next() {
+      return mapResult(await iterator.next());
+    },
+    async return(): Promise<IteratorResult<U, R>> {
+      return typeof iterator.return === "function"
+        ? mapResult(await iterator.return())
+        : { value: (undefined as unknown) as R, done: true };
+    },
+    async throw(error?: Error) {
+      return typeof iterator.throw === "function"
+        ? mapResult(await iterator.throw(error))
+        : Promise.reject(error);
+    },
+    [Symbol.asyncIterator]() {
+      return this;
+    }
+  };
 }
