@@ -348,6 +348,123 @@ describe("Execute: handles directives", () => {
         }
       }
     });
+    test("it does not throw [RangeError: invalid String length] or OOM", async () => {
+        const schema = makeExecutableSchema({
+          typeDefs: `
+        type Query {
+          firstLevel: FirstLevel
+        }
+        type FirstLevel {
+          secondLevel: SecondLevel
+        }
+        type SecondLevel {
+          thirdLevel: ThirdLevel
+        }
+        type ThirdLevel {
+          fourthLevel: FourthLevel
+        }
+        type FourthLevel {
+          c: String
+          d: String
+        }
+      `,
+          resolvers: {
+            Query: {
+              firstLevel: () => ({ b: 42 })
+            },
+            FirstLevel: {
+              secondLevel() {
+                return {};
+              }
+            },
+            SecondLevel: {
+              thirdLevel() {
+                return {};
+              }
+            },
+            ThirdLevel: {
+              fourthLevel() {
+                return {
+                  c: "ccc",
+                  d: "ddd"
+                };
+              }
+            }
+          }
+        });
+
+        let fragmentSpreadQuery = `query (
+            $includeVar: Boolean!,
+            $includeVar2: Boolean!,
+            $includeVar3: Boolean!,
+            $includeVar4: Boolean!,
+            $skipVar: Boolean!,
+            $fieldVar:Boolean!
+            ) {
+            `;
+
+        for (let i = 0; i < 500; i++) {
+          fragmentSpreadQuery += `
+         iteration${i}:firstLevel @skip(if: $skipVar) @include(if: $includeVar) {
+            secondLevel @include(if: $includeVar) @skip(if: $skipVar){
+              thirdLevel @include(if: $includeVar2) @skip(if: $skipVar){
+                fourthLevel @include(if: $includeVar3) @skip(if: $skipVar){
+                  ... on FourthLevel @include(if: $includeVar4) @skip(if: $skipVar){
+                    ...leafLevel @include(if: $includeVar4) @skip(if: $skipVar)
+                  }
+                }
+              }
+            }
+          }`;
+        }
+
+        fragmentSpreadQuery += `
+            }
+            fragment leafLevel on FourthLevel {
+            ... on FourthLevel @include(if: $includeVar) @skip(if: $skipVar){
+              ...c @include(if: $fieldVar) @include(if: $includeVar)  @skip(if: $skipVar)
+              ...d @include(if: $fieldVar) @include(if: $includeVar)  @skip(if: $skipVar)
+            }
+
+            }
+            fragment c on FourthLevel {
+             ... on FourthLevel @include(if: $includeVar)  @skip(if: $skipVar) {
+              c @include(if: $fieldVar) @include(if: $includeVar)  @skip(if: $skipVar)
+             }
+
+            }
+            fragment d on FourthLevel {
+              ... on FourthLevel @include(if: $includeVar)  @skip(if: $skipVar){
+                d @include(if: $fieldVar) @include(if: $includeVar)  @skip(if: $skipVar)
+              }
+            }
+      `;
+
+        function execFragmentSpread(
+          skipVar: boolean,
+          includeVar: boolean,
+          includeVar2: boolean,
+          includeVar3: boolean,
+          includeVar4: boolean,
+          fieldVar: boolean
+        ) {
+          return executeTestQuery(
+            fragmentSpreadQuery,
+            {
+              includeVar,
+              includeVar2,
+              includeVar3,
+              includeVar4,
+              skipVar,
+              fieldVar
+            },
+            schema
+          );
+        }
+
+        const result = execFragmentSpread(false, true, true, true, true, true);
+        expect(() => result).not.toThrow();
+      });
 
     test("skip on field", async () => {
       const query = `
