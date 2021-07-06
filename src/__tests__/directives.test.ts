@@ -349,8 +349,8 @@ describe("Execute: handles directives", () => {
       }
     });
     test("it does not throw [RangeError: invalid String length] or OOM", async () => {
-        const schema = makeExecutableSchema({
-          typeDefs: `
+      const schema = makeExecutableSchema({
+        typeDefs: `
         type Query {
           firstLevel: FirstLevel
         }
@@ -368,32 +368,32 @@ describe("Execute: handles directives", () => {
           d: String
         }
       `,
-          resolvers: {
-            Query: {
-              firstLevel: () => ({ b: 42 })
-            },
-            FirstLevel: {
-              secondLevel() {
-                return {};
-              }
-            },
-            SecondLevel: {
-              thirdLevel() {
-                return {};
-              }
-            },
-            ThirdLevel: {
-              fourthLevel() {
-                return {
-                  c: "ccc",
-                  d: "ddd"
-                };
-              }
+        resolvers: {
+          Query: {
+            firstLevel: () => ({ b: 42 })
+          },
+          FirstLevel: {
+            secondLevel() {
+              return {};
+            }
+          },
+          SecondLevel: {
+            thirdLevel() {
+              return {};
+            }
+          },
+          ThirdLevel: {
+            fourthLevel() {
+              return {
+                c: "ccc",
+                d: "ddd"
+              };
             }
           }
-        });
+        }
+      });
 
-        let fragmentSpreadQuery = `query (
+      let fragmentSpreadQuery = `query (
             $includeVar: Boolean!,
             $includeVar2: Boolean!,
             $includeVar3: Boolean!,
@@ -403,8 +403,8 @@ describe("Execute: handles directives", () => {
             ) {
             `;
 
-        for (let i = 0; i < 500; i++) {
-          fragmentSpreadQuery += `
+      for (let i = 0; i < 500; i++) {
+        fragmentSpreadQuery += `
          iteration${i}:firstLevel @skip(if: $skipVar) @include(if: $includeVar) {
             secondLevel @include(if: $includeVar) @skip(if: $skipVar){
               thirdLevel @include(if: $includeVar2) @skip(if: $skipVar){
@@ -416,9 +416,9 @@ describe("Execute: handles directives", () => {
               }
             }
           }`;
-        }
+      }
 
-        fragmentSpreadQuery += `
+      fragmentSpreadQuery += `
             }
             fragment leafLevel on FourthLevel {
             ... on FourthLevel @include(if: $includeVar) @skip(if: $skipVar){
@@ -440,31 +440,31 @@ describe("Execute: handles directives", () => {
             }
       `;
 
-        function execFragmentSpread(
-          skipVar: boolean,
-          includeVar: boolean,
-          includeVar2: boolean,
-          includeVar3: boolean,
-          includeVar4: boolean,
-          fieldVar: boolean
-        ) {
-          return executeTestQuery(
-            fragmentSpreadQuery,
-            {
-              includeVar,
-              includeVar2,
-              includeVar3,
-              includeVar4,
-              skipVar,
-              fieldVar
-            },
-            schema
-          );
-        }
+      function execFragmentSpread(
+        skipVar: boolean,
+        includeVar: boolean,
+        includeVar2: boolean,
+        includeVar3: boolean,
+        includeVar4: boolean,
+        fieldVar: boolean
+      ) {
+        return executeTestQuery(
+          fragmentSpreadQuery,
+          {
+            includeVar,
+            includeVar2,
+            includeVar3,
+            includeVar4,
+            skipVar,
+            fieldVar
+          },
+          schema
+        );
+      }
 
-        const result = execFragmentSpread(false, true, true, true, true, true);
-        expect(() => result).not.toThrow();
-      });
+      const result = execFragmentSpread(false, true, true, true, true, true);
+      expect(() => result).not.toThrow();
+    });
 
     test("skip on field", async () => {
       const query = `
