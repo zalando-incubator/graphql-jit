@@ -299,10 +299,14 @@ function augmentFieldNodeTree(
  * @param compilations
  */
 function joinShouldIncludeCompilations(...compilations: string[]) {
+  // remove empty strings
   let filteredCompilations = compilations.filter(it => it);
+
+  // Split conditions by && and flatten it
   filteredCompilations = ([] as string[]).concat(
     ...filteredCompilations.map(e => e.split(" && "))
   );
+  // Deduplicate items
   filteredCompilations = Array.from(new Set(filteredCompilations));
   return filteredCompilations.join(" && ");
 }

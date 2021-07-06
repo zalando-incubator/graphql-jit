@@ -349,6 +349,7 @@ describe("Execute: handles directives", () => {
       }
     });
     test("it does not throw [RangeError: invalid String length] or OOM", async () => {
+      // Specifically for `[RangeError: invalid String length]` https://github.com/zalando-incubator/graphql-jit/issues/117
       const schema = makeExecutableSchema({
         typeDefs: `
         type Query {
