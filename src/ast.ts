@@ -299,12 +299,23 @@ function augmentFieldNodeTree(
  * @param compilations
  */
 function joinShouldIncludeCompilations(...compilations: string[]) {
+  // remove "true" since we are joining with '&&' as `true && X` = `X`
+  // This prevents an explosion of `&& true` which could break
+  // V8's internal size limit for string.
+  //
+  // Note: the `true` appears if a field does not have a skip/include directive
+  // So, the more nested the query is, the more of unnecessary `&& true`
+  // we get.
+  //
+  // Failing to do this results in [RangeError: invalid array length]
+  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Invalid_array_length
+
   // remove empty strings
   let filteredCompilations = compilations.filter(it => it);
 
   // Split conditions by && and flatten it
   filteredCompilations = ([] as string[]).concat(
-    ...filteredCompilations.map(e => e.split(" && "))
+    ...filteredCompilations.map(e => e.split(" && ").map(it => it.trim()))
   );
   // Deduplicate items
   filteredCompilations = Array.from(new Set(filteredCompilations));
