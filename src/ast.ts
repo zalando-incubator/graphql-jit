@@ -299,11 +299,6 @@ function augmentFieldNodeTree(
  * @param compilations
  */
 function joinShouldIncludeCompilations(...compilations: string[]) {
-  // remove empty strings
-  let filteredCompilations = compilations.filter(it => it);
-
-  // FIXME(boopathi): Maybe, find a better fix?
-  //
   // remove "true" since we are joining with '&&' as `true && X` = `X`
   // This prevents an explosion of `&& true` which could break
   // V8's internal size limit for string.
@@ -314,19 +309,16 @@ function joinShouldIncludeCompilations(...compilations: string[]) {
   //
   // Failing to do this results in [RangeError: invalid array length]
   // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Invalid_array_length
-  filteredCompilations = filteredCompilations.filter(
-    it => it.trim() !== "true"
+
+  // remove empty strings
+  let filteredCompilations = compilations.filter(it => it);
+
+  // Split conditions by && and flatten it
+  filteredCompilations = ([] as string[]).concat(
+    ...filteredCompilations.map(e => e.split(" && ").map(it => it.trim()))
   );
-
-  /**
-   * If we have filtered out everything in the list, it means, we
-   * called this with a join(true, true, etc...) - returning empty string
-   * is wrong, so we return a single true
-   */
-  if (filteredCompilations.length < 1) {
-    return "true";
-  }
-
+  // Deduplicate items
+  filteredCompilations = Array.from(new Set(filteredCompilations));
   return filteredCompilations.join(" && ");
 }
 
