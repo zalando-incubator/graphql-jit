@@ -489,6 +489,7 @@ describe("Execute: handles directives", () => {
             d @include(if: $fieldVar)
           }
         `;
+
         const fragmentInlineQuery = `
           query (
             $includeVar: Boolean!,
@@ -508,6 +509,29 @@ describe("Execute: handles directives", () => {
                   d @include(if: $fieldVar)
                 }
               }
+            }
+          }
+        `;
+
+        const fragmentNestedInlineQuery = `
+          query (
+            $includeFirstCondition: Boolean!,
+            $includeSecondCondition: Boolean!,
+            $fieldVar:Boolean!
+            ) {
+            foo{
+              bar1:bar @include(if: $includeFirstCondition){
+                ...barFragment
+              }
+              bar2:bar @include(if: $includeSecondCondition){
+                ...barFragment
+              }
+            }
+          }
+          fragment barFragment on Bar {
+            ... on Bar {
+              c
+              d @include(if: $fieldVar)
             }
           }
         `;
@@ -532,6 +556,18 @@ describe("Execute: handles directives", () => {
           return executeTestQuery(
             fragmentInlineQuery,
             { includeVar, skipVar, fieldVar },
+            schema
+          );
+        }
+
+        function execNestedInlineFragment(
+          includeFirstCondition: boolean,
+          includeSecondCondition: boolean,
+          fieldVar: boolean
+        ) {
+          return executeTestQuery(
+            fragmentNestedInlineQuery,
+            { includeFirstCondition, includeSecondCondition, fieldVar },
             schema
           );
         }
@@ -761,6 +797,114 @@ describe("Execute: handles directives", () => {
                     d: "ddd"
                   }
                 }
+              }
+            });
+          });
+        });
+
+        describe("on nested inline fragments", () => {
+          test("first fragment included, second fragment included, second field included", async () => {
+            const result = execNestedInlineFragment(true, true, true);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar1: {
+                    c: "ccc",
+                    d: "ddd"
+                  },
+                  bar2: {
+                    c: "ccc",
+                    d: "ddd"
+                  }
+                }
+              }
+            });
+          });
+
+          test("first fragment included, second fragment included, second field not included", async () => {
+            const result = execNestedInlineFragment(true, true, false);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar1: {
+                    c: "ccc"
+                  },
+                  bar2: {
+                    c: "ccc"
+                  }
+                }
+              }
+            });
+          });
+
+          test("first fragment included, second fragment not included, second field included", async () => {
+            const result = execNestedInlineFragment(true, false, true);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar1: {
+                    c: "ccc",
+                    d: "ddd"
+                  }
+                }
+              }
+            });
+          });
+
+          test("first fragment included, second fragment not included, second field not included", async () => {
+            const result = execNestedInlineFragment(true, false, false);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar1: {
+                    c: "ccc"
+                  }
+                }
+              }
+            });
+          });
+
+          test("first fragment not included, second fragment included, second field included", async () => {
+            const result = execNestedInlineFragment(false, true, true);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar2: {
+                    c: "ccc",
+                    d: "ddd"
+                  }
+                }
+              }
+            });
+          });
+
+          test("first fragment not included, second fragment included, second field not included", async () => {
+            const result = execNestedInlineFragment(false, true, false);
+            expect(result).toEqual({
+              data: {
+                foo: {
+                  bar2: {
+                    c: "ccc"
+                  }
+                }
+              }
+            });
+          });
+
+          test("first fragment not included, second fragment not included, second field included", async () => {
+            const result = execNestedInlineFragment(false, false, true);
+            expect(result).toEqual({
+              data: {
+                foo: {}
+              }
+            });
+          });
+
+          test("first fragment not included, second fragment not included, second field not included", async () => {
+            const result = execNestedInlineFragment(false, false, false);
+            expect(result).toEqual({
+              data: {
+                foo: {}
               }
             });
           });

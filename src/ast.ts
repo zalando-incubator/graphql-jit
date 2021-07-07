@@ -261,7 +261,7 @@ function augmentFieldNodeTree(
       }
       case Kind.INLINE_FRAGMENT: {
         for (const subSelection of selection.selectionSet.selections) {
-          handle(parentFieldNode, subSelection);
+          handle(parentFieldNode, subSelection, true);
         }
         break;
       }
