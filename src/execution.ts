@@ -27,9 +27,11 @@ import {
   isObjectType,
   isSpecifiedScalarType,
   Kind,
+  locatedError,
   TypeNameMetaFieldDef
 } from "graphql";
 import { ExecutionContext as GraphQLContext } from "graphql/execution/execute";
+import { pathToArray } from "graphql/jsutils/Path";
 import { FieldNode, OperationDefinitionNode } from "graphql/language/ast";
 import { GraphQLTypeResolver } from "graphql/type/definition";
 import {
@@ -167,6 +169,11 @@ export interface CompiledQuery {
     context: any,
     variables: Maybe<{ [key: string]: any }>
   ) => Promise<ExecutionResult> | ExecutionResult;
+  subscribe?: (
+    root: any,
+    context: any,
+    variables: Maybe<{ [key: string]: any }>
+  ) => Promise<AsyncIterableIterator<ExecutionResult> | ExecutionResult>;
   stringify: (v: any) => string;
 }
 
@@ -192,7 +199,7 @@ export function compileQuery(
     throw new Error(`Expected ${schema} to be a GraphQL schema.`);
   }
   if (!document) {
-    throw new Error("Must provide document");
+    throw new Error("Must provide document.");
   }
 
   if (
@@ -232,7 +239,17 @@ export function compileQuery(
       context.operation.variableDefinitions || []
     );
 
-    const functionBody = compileOperation(context);
+    const type = getOperationRootType(context.schema, context.operation);
+    const fieldMap = collectFields(
+      context,
+      type,
+      context.operation.selectionSet,
+      Object.create(null),
+      Object.create(null)
+    );
+
+    const functionBody = compileOperation(context, type, fieldMap);
+
     const compiledQuery: InternalCompiledQuery = {
       query: createBoundQuery(
         context,
@@ -245,6 +262,24 @@ export function compileQuery(
       ),
       stringify
     };
+
+    if (context.operation.operation === "subscription") {
+      compiledQuery.subscribe = createBoundSubscribe(
+        context,
+        document,
+        compileSubscriptionOperation(
+          context,
+          type,
+          fieldMap,
+          compiledQuery.query
+        ),
+        getVariables,
+        context.operation.name != null
+          ? context.operation.name.value
+          : undefined
+      );
+    }
+
     if ((options as any).debug) {
       // result of the compilation useful for debugging issues
       // and visualization tools like try-jit.
@@ -369,16 +404,12 @@ function postProcessResult({
  * @param {CompilationContext} context compilation context with the execution context
  * @returns {string} a function body to be instantiated together with the header, footer
  */
-function compileOperation(context: CompilationContext) {
-  const type = getOperationRootType(context.schema, context.operation);
+function compileOperation(
+  context: CompilationContext,
+  type: GraphQLObjectType,
+  fieldMap: FieldsAndNodes
+) {
   const serialExecution = context.operation.operation === "mutation";
-  const fieldMap = collectFields(
-    context,
-    type,
-    context.operation.selectionSet,
-    Object.create(null),
-    Object.create(null)
-  );
   const topLevel = compileObjectType(
     context,
     type,
@@ -1636,4 +1667,215 @@ function getParentArgIndexes(context: CompilationContext) {
 
 function getJsFieldName(fieldName: string) {
   return `${LOCAL_JS_FIELD_NAME_PREFIX}${fieldName}`;
+}
+
+export function isAsyncIterable<T = unknown>(
+  val: unknown
+): val is AsyncIterableIterator<T> {
+  return typeof Object(val)[Symbol.asyncIterator] === "function";
+}
+
+function compileSubscriptionOperation(
+  context: CompilationContext,
+  type: GraphQLObjectType,
+  fieldMap: FieldsAndNodes,
+  queryFn: CompiledQuery["query"]
+) {
+  const fieldNodes = Object.values(fieldMap)[0];
+  const fieldNode = fieldNodes[0];
+  const fieldName = fieldNode.name.value;
+
+  const field = resolveFieldDef(context, type, fieldNodes);
+
+  if (!field) {
+    throw new GraphQLError(
+      `The subscription field "${fieldName}" is not defined.`,
+      fieldNodes
+    );
+  }
+
+  const responsePath = addPath(undefined, fieldName);
+  const resolveInfoName = createResolveInfoName(responsePath);
+
+  const subscriber = field.subscribe;
+
+  async function executeSubscription(executionContext: ExecutionContext) {
+    const resolveInfo = executionContext.resolveInfos[resolveInfoName](
+      executionContext.rootValue,
+      executionContext.variables,
+      responsePath
+    );
+
+    try {
+      const eventStream = await subscriber!(
+        executionContext.rootValue,
+        executionContext.variables,
+        executionContext.context,
+        resolveInfo
+      );
+      if (eventStream instanceof Error) {
+        throw eventStream;
+      }
+      return eventStream;
+    } catch (error) {
+      throw locatedError(
+        error,
+        resolveInfo.fieldNodes,
+        pathToArray(resolveInfo.path)
+      );
+    }
+  }
+
+  async function createSourceEventStream(executionContext: ExecutionContext) {
+    try {
+      const eventStream = await executeSubscription(executionContext);
+
+      // Assert field returned an event stream, otherwise yield an error.
+      if (!isAsyncIterable(eventStream)) {
+        throw new Error(
+          "Subscription field must return Async Iterable. " +
+            `Received: ${inspect(eventStream)}.`
+        );
+      }
+
+      return eventStream;
+    } catch (error) {
+      // If it is a GraphQLError, report it as an ExecutionResult, containing only errors and no data.
+      // Otherwise treat the error as a system-class error and re-throw it.
+      if (error instanceof GraphQLError) {
+        return { errors: [error] };
+      }
+      throw error;
+    }
+  }
+
+  return async function subscribe(executionContext: ExecutionContext) {
+    const resultOrStream = await createSourceEventStream(executionContext);
+
+    if (!isAsyncIterable(resultOrStream)) {
+      return resultOrStream;
+    }
+
+    // For each payload yielded from a subscription, map it over the normal
+    // GraphQL `execute` function, with `payload` as the rootValue.
+    // This implements the "MapSourceToResponseEvent" algorithm described in
+    // the GraphQL specification. The `execute` function provides the
+    // "ExecuteSubscriptionEvent" algorithm, as it is nearly identical to the
+    // "ExecuteQuery" algorithm, for which `execute` is also used.
+    // We use our `query` function in place of `execute`
+    const mapSourceToResponse = (payload: any) =>
+      queryFn(payload, executionContext.context, executionContext.variables);
+
+    return mapAsyncIterator(resultOrStream, mapSourceToResponse);
+  };
+}
+
+function createBoundSubscribe(
+  compilationContext: CompilationContext,
+  document: DocumentNode,
+  func: (
+    context: ExecutionContext
+  ) => Promise<AsyncIterableIterator<ExecutionResult> | ExecutionResult>,
+  getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
+  operationName: string | undefined
+): CompiledQuery["subscribe"] {
+  const {
+    resolvers,
+    typeResolvers,
+    isTypeOfs,
+    serializers,
+    resolveInfos
+  } = compilationContext;
+  const trimmer = createNullTrimmer(compilationContext);
+  const fnName = operationName ? operationName : "subscribe";
+
+  const ret = {
+    async [fnName](
+      rootValue: any,
+      context: any,
+      variables: Maybe<{ [key: string]: any }>
+    ): Promise<AsyncIterableIterator<ExecutionResult> | ExecutionResult> {
+      // this can be shared across in a batch request
+      const parsedVariables = getVariableValues(variables || {});
+
+      // Return early errors if variable coercing failed.
+      if (failToParseVariables(parsedVariables)) {
+        return { errors: parsedVariables.errors };
+      }
+
+      const executionContext: ExecutionContext = {
+        rootValue,
+        context,
+        variables: parsedVariables.coerced,
+        safeMap,
+        inspect,
+        GraphQLError: GraphqlJitError,
+        resolvers,
+        typeResolvers,
+        isTypeOfs,
+        serializers,
+        resolveInfos,
+        trimmer,
+        promiseCounter: 0,
+        nullErrors: [],
+        errors: [],
+        data: {}
+      };
+
+      return func.call(null, executionContext);
+    }
+  };
+
+  return ret[fnName];
+}
+
+/**
+ * Given an AsyncIterable and a callback function, return an AsyncIterator
+ * which produces values mapped via calling the callback function.
+ */
+function mapAsyncIterator<T, U, R = undefined>(
+  iterable: AsyncGenerator<T, R, undefined> | AsyncIterable<T>,
+  callback: (value: T) => U | Promise<U>
+): AsyncGenerator<U, R, undefined> {
+  const iterator = iterable[Symbol.asyncIterator]();
+
+  async function mapResult(
+    result: IteratorResult<T, R>
+  ): Promise<IteratorResult<U, R>> {
+    if (result.done) {
+      return result;
+    }
+
+    try {
+      return { value: await callback(result.value), done: false };
+    } catch (error) {
+      if (typeof iterator.return === "function") {
+        try {
+          await iterator.return();
+        } catch (e) {
+          /* ignore error */
+        }
+      }
+      throw error;
+    }
+  }
+
+  return {
+    async next() {
+      return mapResult(await iterator.next());
+    },
+    async return(): Promise<IteratorResult<U, R>> {
+      return typeof iterator.return === "function"
+        ? mapResult(await iterator.return())
+        : { value: (undefined as unknown) as R, done: true };
+    },
+    async throw(error?: Error) {
+      return typeof iterator.throw === "function"
+        ? mapResult(await iterator.throw(error))
+        : Promise.reject(error);
+    },
+    [Symbol.asyncIterator]() {
+      return this;
+    }
+  };
 }

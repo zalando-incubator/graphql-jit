@@ -2,6 +2,7 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/execution-test.js
  */
 
+import { makeExecutableSchema } from "@graphql-tools/schema";
 import {
   DocumentNode,
   ExecutableDefinitionNode,
@@ -16,7 +17,6 @@ import {
   parse
 } from "graphql";
 import { CompiledQuery, compileQuery, isCompiledQuery } from "../execution";
-import { makeExecutableSchema } from "@graphql-tools/schema";
 
 function executeArgs(args: any) {
   const {
@@ -67,7 +67,7 @@ describe("Execute: Handles basic execution tasks", () => {
       })
     });
 
-    expect(() => executeQuery(schema)).toThrow("Must provide document");
+    expect(() => executeQuery(schema)).toThrow("Must provide document.");
   });
   test("throws if no resolve info enricher is not a function", async () => {
     const schema = new GraphQLSchema({
