@@ -287,7 +287,7 @@ export function compileQuery<TResult = { [key: string]: any }, TVariables = { [k
       compiledQuery.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation = functionBody;
     }
     return compiledQuery as CompiledQuery<TResult, TVariables>;
-  } catch (err: any) {
+  } catch (err) {
     return {
       errors: normalizeErrors(err)
     };
@@ -1446,7 +1446,7 @@ function getSerializer(
         return null;
       }
       return value;
-    } catch (e: any) {
+    } catch (e) {
       onError(
         context,
         (e && e.message) ||
