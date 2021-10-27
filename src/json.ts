@@ -14,9 +14,8 @@ import {
   isObjectType,
   isScalarType
 } from "graphql";
-import { collectFields, ExecutionContext } from "graphql/execution/execute";
 import { JSONSchema6, JSONSchema6TypeName } from "json-schema";
-import { collectSubfields, resolveFieldDef } from "./ast";
+import { collectFields, collectSubfields, resolveFieldDef } from "./ast";
 import { CompilationContext } from "./execution";
 
 const PRIMITIVES: { [key: string]: JSONSchema6TypeName } = {
@@ -147,7 +146,7 @@ function transformNode(
   if (isNonNullType(type)) {
     const nullable = transformNode(compilationContext, fieldNodes, type.ofType);
     if (nullable.type && Array.isArray(nullable.type)) {
-      const nonNullable = nullable.type.filter(x => x !== "null");
+      const nonNullable = nullable.type.filter((x) => x !== "null");
       return {
         ...nullable,
         type: nonNullable.length === 1 ? nonNullable[0] : nonNullable

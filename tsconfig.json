@@ -16,11 +16,5 @@
     "outDir": "./dist",
     "lib": ["esnext.asynciterable", "es2018"],
     "typeRoots": ["./types", "./node_modules/@types"]
-  },
-  "include": ["src/", "types/"],
-  "exclude": [
-    "**/__mocks__/*.ts",
-    "**/__benchmarks__/*.ts",
-    "**/__tests__/*.ts"
-  ]
+  }
 }

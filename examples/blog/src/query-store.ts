@@ -13,6 +13,7 @@ class ValidationError extends Error {
  */
 export default class QueryStore {
   private store = new Map<string, CompiledQuery>();
+  // eslint-disable-next-line no-useless-constructor
   constructor(private schema: GraphQLSchema) {}
 
   get(id: string): CompiledQuery | undefined {
@@ -27,6 +28,7 @@ export default class QueryStore {
 
     const compiledQuery = compileQuery(this.schema, parse(query));
     if (!isCompiledQuery(compiledQuery)) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       throw new ValidationError(compiledQuery.errors!);
     }
 

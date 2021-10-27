@@ -25,18 +25,21 @@ function graphql(schema: GraphQLSchema, query: string) {
 }
 
 class Dog {
+  // eslint-disable-next-line no-useless-constructor
   constructor(public name: string, public woofs: boolean, public other?: any) {}
 }
 
 class Cat {
+  // eslint-disable-next-line no-useless-constructor
   constructor(public name: string, public meows: boolean) {}
 }
 
 class Human {
+  // eslint-disable-next-line no-useless-constructor
   constructor(public name: string, public pets?: any) {}
 }
 
-// tslint:disable-next-line
+// eslint-disable-next-line
 describe("Execute: Handles execution of abstract types", () => {
   test("isTypeOf used to resolve runtime type for Interface", () => {
     const PetType = new GraphQLInterfaceType({
@@ -49,7 +52,7 @@ describe("Execute: Handles execution of abstract types", () => {
     const DogType = new GraphQLObjectType({
       name: "Dog",
       interfaces: [PetType],
-      isTypeOf: obj => obj instanceof Dog,
+      isTypeOf: (obj) => obj instanceof Dog,
       fields: {
         name: { type: GraphQLString },
         woofs: { type: GraphQLBoolean }
@@ -59,7 +62,7 @@ describe("Execute: Handles execution of abstract types", () => {
     const CatType = new GraphQLObjectType({
       name: "Cat",
       interfaces: [PetType],
-      isTypeOf: obj => obj instanceof Cat,
+      isTypeOf: (obj) => obj instanceof Cat,
       fields: {
         name: { type: GraphQLString },
         meows: { type: GraphQLBoolean }
@@ -114,7 +117,7 @@ describe("Execute: Handles execution of abstract types", () => {
   test("isTypeOf used to resolve runtime type for Union", () => {
     const DogType = new GraphQLObjectType({
       name: "Dog",
-      isTypeOf: obj => obj instanceof Dog,
+      isTypeOf: (obj) => obj instanceof Dog,
       fields: {
         name: { type: GraphQLString },
         woofs: { type: GraphQLBoolean }
@@ -123,7 +126,7 @@ describe("Execute: Handles execution of abstract types", () => {
 
     const CatType = new GraphQLObjectType({
       name: "Cat",
-      isTypeOf: obj => obj instanceof Cat,
+      isTypeOf: (obj) => obj instanceof Cat,
       fields: {
         name: { type: GraphQLString },
         meows: { type: GraphQLBoolean }
@@ -185,12 +188,12 @@ describe("Execute: Handles execution of abstract types", () => {
       name: "Pet",
       resolveType(obj) {
         return obj instanceof Dog
-          ? DogType
+          ? DogType.toString()
           : obj instanceof Cat
-          ? CatType
+          ? CatType.toString()
           : obj instanceof Human
-          ? HumanType
-          : null;
+          ? HumanType.toString()
+          : undefined;
       },
       fields: {
         name: { type: GraphQLString }
@@ -255,7 +258,7 @@ describe("Execute: Handles execution of abstract types", () => {
 
     const result = graphql(schema, query);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       data: {
         pets: [
           {
@@ -306,15 +309,15 @@ describe("Execute: Handles execution of abstract types", () => {
 
     const PetType = new GraphQLUnionType({
       name: "Pet",
-      // tslint:disable-next-line
+      // eslint-disable-next-line
       resolveType(obj) {
         return obj instanceof Dog
-          ? DogType
+          ? DogType.toString()
           : obj instanceof Cat
-          ? CatType
+          ? CatType.toString()
           : obj instanceof Human
-          ? HumanType
-          : null;
+          ? HumanType.toString()
+          : undefined;
       },
       types: [DogType, CatType]
     });
@@ -325,7 +328,7 @@ describe("Execute: Handles execution of abstract types", () => {
         fields: {
           pets: {
             type: new GraphQLList(PetType),
-            // tslint:disable-next-line
+            // eslint-disable-next-line
             resolve() {
               return [
                 new Dog("Odie", true),
@@ -353,7 +356,7 @@ describe("Execute: Handles execution of abstract types", () => {
 
     const result = graphql(schema, query);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       data: {
         pets: [
           {
@@ -406,7 +409,7 @@ describe("Execute: Handles execution of abstract types", () => {
 
     const result = graphql(schema, "{ foo { bar } }");
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       data: { foo: null },
       errors: [
         {
@@ -426,7 +429,11 @@ describe("Execute: Handles execution of abstract types", () => {
     const PetType = new GraphQLInterfaceType({
       name: "Pet",
       resolveType(obj) {
-        return obj instanceof Dog ? "Dog" : obj instanceof Cat ? "Cat" : null;
+        return obj instanceof Dog
+          ? "Dog"
+          : obj instanceof Cat
+          ? "Cat"
+          : undefined;
       },
       fields: {
         name: { type: GraphQLString }
@@ -528,15 +535,15 @@ describe("Execute: Handles execution of abstract types", () => {
                     friend: {
                       type: new GraphQLUnionType({
                         name: "DogFriend",
-                        // tslint:disable-next-line
+                        // eslint-disable-next-line
                         resolveType(obj) {
                           return obj instanceof Dog
-                            ? DogType
+                            ? DogType.toString()
                             : obj instanceof Cat
-                            ? CatType
+                            ? CatType.toString()
                             : obj instanceof Human
-                            ? HumanType
-                            : null;
+                            ? HumanType.toString()
+                            : undefined;
                         },
                         types: [CatType]
                       })
@@ -552,15 +559,15 @@ describe("Execute: Handles execution of abstract types", () => {
 
     const PetType = new GraphQLUnionType({
       name: "Pet",
-      // tslint:disable-next-line
+      // eslint-disable-next-line
       resolveType(obj) {
         return obj instanceof Dog
-          ? DogType
+          ? DogType.toString()
           : obj instanceof Cat
-          ? CatType
+          ? CatType.toString()
           : obj instanceof Human
-          ? HumanType
-          : null;
+          ? HumanType.toString()
+          : undefined;
       },
       types: [DogType, CatType]
     });
@@ -621,7 +628,7 @@ describe("Execute: Handles execution of abstract types", () => {
 
     const result = await graphql(schema, query);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       data: {
         owner: {
           pets: [

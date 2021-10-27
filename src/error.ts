@@ -2,11 +2,7 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/error/GraphQLError.js
  */
 
-import {
-  GraphQLError as UpstreamGraphQLError,
-  printError,
-  SourceLocation
-} from "graphql";
+import { GraphQLError as UpstreamGraphQLError, SourceLocation } from "graphql";
 
 export function GraphQLError(
   message: string,
@@ -64,11 +60,6 @@ export function GraphQLError(
   UpstreamGraphQLError.prototype,
   {
     constructor: { value: GraphQLError },
-    name: { value: "GraphQLError" },
-    toString: {
-      value: function toString() {
-        return printError(this);
-      }
-    }
+    name: { value: "GraphQLError" }
   }
 );

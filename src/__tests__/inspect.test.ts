@@ -37,6 +37,7 @@ describe("inspect", () => {
   it("function", () => {
     expect(inspect(() => 0)).toEqual("[function]");
 
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
     function testFunc() {}
     expect(inspect(testFunc)).toEqual("[function testFunc]");
   });

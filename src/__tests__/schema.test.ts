@@ -2,9 +2,11 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/schema-test.js
  */
 
-/* tslint:disable:no-big-function */
+/* eslint-disable max-lines-per-function */
 import {
+  buildClientSchema,
   DocumentNode,
+  ExecutionResult,
   getIntrospectionQuery,
   GraphQLBoolean,
   GraphQLID,
@@ -14,7 +16,10 @@ import {
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
-  parse
+  IntrospectionQuery,
+  parse,
+  printSchema,
+  versionInfo
 } from "graphql";
 import { compileQuery, isCompiledQuery } from "../index";
 
@@ -57,7 +62,7 @@ const BlogArticle: GraphQLObjectType = new GraphQLObjectType({
     author: { type: BlogAuthor },
     title: {
       type: GraphQLString,
-      resolve: article => Promise.resolve(article && article.title)
+      resolve: (article) => Promise.resolve(article && article.title)
     },
     body: { type: GraphQLString },
     keywords: { type: new GraphQLList(GraphQLString) }
@@ -398,7 +403,14 @@ describe("Execute: Handles execution with a complex schema", () => {
 
   test("executes IntrospectionQuery", () => {
     const queryAST = parse(getIntrospectionQuery({ descriptions: true }));
-    const result = executeQuery(BlogSchema, queryAST);
-    expect(result).toMatchSnapshot();
+    const result = executeQuery(
+      BlogSchema,
+      queryAST
+    ) as ExecutionResult<IntrospectionQuery>;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const schemaFromIntrospection = buildClientSchema(result.data!);
+    expect(printSchema(schemaFromIntrospection)).toEqual(
+      printSchema(BlogSchema)
+    );
   });
 });

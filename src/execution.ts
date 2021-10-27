@@ -83,6 +83,45 @@ export interface CompilerOptions {
   resolverInfoEnricher?: (inp: ResolveInfoEnricherInput) => object;
 }
 
+interface ExecutionContext {
+  promiseCounter: number;
+  data: any;
+  errors: GraphQLError[];
+  nullErrors: GraphQLError[];
+  resolve?: () => void;
+  inspect: typeof inspect;
+  variables: { [key: string]: any };
+  context: any;
+  rootValue: any;
+  safeMap: typeof safeMap;
+  GraphQLError: typeof GraphqlJitError;
+  resolvers: { [key: string]: GraphQLFieldResolver<any, any, any> };
+  trimmer: NullTrimmer;
+  serializers: {
+    [key: string]: (
+      c: ExecutionContext,
+      v: any,
+      onError: (c: ExecutionContext, msg: string) => void
+    ) => any;
+  };
+  typeResolvers: { [key: string]: GraphQLTypeResolver<any, any> };
+  isTypeOfs: { [key: string]: GraphQLIsTypeOfFn<any, any> };
+  resolveInfos: { [key: string]: any };
+}
+
+interface DeferredField {
+  name: string;
+  responsePath: ObjectPath;
+  originPaths: string[];
+  destinationPaths: string[];
+  parentType: GraphQLObjectType;
+  fieldName: string;
+  jsFieldName: string;
+  fieldType: GraphQLOutputType;
+  fieldNodes: FieldNode[];
+  args: Arguments;
+}
+
 /**
  * The context used during compilation.
  *
@@ -123,45 +162,6 @@ const GRAPHQL_ERROR = "__context.GraphQLError";
 const GLOBAL_RESOLVE = "__context.resolve";
 const GLOBAL_PARENT_NAME = "__parent";
 const LOCAL_JS_FIELD_NAME_PREFIX = "__field";
-
-interface ExecutionContext {
-  promiseCounter: number;
-  data: any;
-  errors: GraphQLError[];
-  nullErrors: GraphQLError[];
-  resolve?: () => void;
-  inspect: typeof inspect;
-  variables: { [key: string]: any };
-  context: any;
-  rootValue: any;
-  safeMap: typeof safeMap;
-  GraphQLError: typeof GraphqlJitError;
-  resolvers: { [key: string]: GraphQLFieldResolver<any, any, any> };
-  trimmer: NullTrimmer;
-  serializers: {
-    [key: string]: (
-      c: ExecutionContext,
-      v: any,
-      onError: (c: ExecutionContext, msg: string) => void
-    ) => any;
-  };
-  typeResolvers: { [key: string]: GraphQLTypeResolver<any, any> };
-  isTypeOfs: { [key: string]: GraphQLIsTypeOfFn<any, any> };
-  resolveInfos: { [key: string]: any };
-}
-
-interface DeferredField {
-  name: string;
-  responsePath: ObjectPath;
-  originPaths: string[];
-  destinationPaths: string[];
-  parentType: GraphQLObjectType;
-  fieldName: string;
-  jsFieldName: string;
-  fieldType: GraphQLOutputType;
-  fieldNodes: FieldNode[];
-  args: Arguments;
-}
 
 export interface CompiledQuery<
   TResult = { [key: string]: any },
@@ -263,6 +263,7 @@ export function compileQuery<
       query: createBoundQuery(
         context,
         document,
+        // eslint-disable-next-line no-new-func
         new Function("return " + functionBody)(),
         getVariables,
         context.operation.name != null
@@ -292,10 +293,11 @@ export function compileQuery<
     if ((options as any).debug) {
       // result of the compilation useful for debugging issues
       // and visualization tools like try-jit.
-      compiledQuery.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation = functionBody;
+      compiledQuery.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation =
+        functionBody;
     }
     return compiledQuery as CompiledQuery<TResult, TVariables>;
-  } catch (err) {
+  } catch (err: any) {
     return {
       errors: normalizeErrors(err)
     };
@@ -317,17 +319,12 @@ export function createBoundQuery(
   getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
   operationName?: string
 ) {
-  const {
-    resolvers,
-    typeResolvers,
-    isTypeOfs,
-    serializers,
-    resolveInfos
-  } = compilationContext;
+  const { resolvers, typeResolvers, isTypeOfs, serializers, resolveInfos } =
+    compilationContext;
   const trimmer = createNullTrimmer(compilationContext);
-  const fnName = operationName ? operationName : "query";
+  const fnName = operationName || "query";
 
-  /* tslint:disable */
+  /* eslint-disable */
   /**
    * In-order to assign a debuggable name to the bound query function,
    * we create an intermediate object with a method named as the
@@ -338,7 +335,7 @@ export function createBoundQuery(
    *
    * section: 14.3.9.3 - calls SetFunctionName
    */
-  /* tslint:enable */
+  /* eslint-enable */
   const ret = {
     [fnName](
       rootValue: any,
@@ -370,6 +367,7 @@ export function createBoundQuery(
         nullErrors: [],
         errors: []
       };
+      // eslint-disable-next-line no-useless-call
       const result = func.call(null, executionContext);
       if (isPromise(result)) {
         return result.then(postProcessResult);
@@ -592,7 +590,7 @@ function compileDeferredField(
       ${generateUniqueDeclarations(subContext)}
       ${GLOBAL_PARENT_NAME}.${name} = ${nodeBody};
       ${compileDeferredFields(subContext)}
-      ${appendix ? appendix : ""}
+      ${appendix || ""}
     }
   `);
   return body;
@@ -600,7 +598,7 @@ function compileDeferredField(
 
 function compileDeferredFieldsSerially(context: CompilationContext): string {
   let body = "";
-  context.deferred.forEach(deferredField => {
+  context.deferred.forEach((deferredField) => {
     const { name, fieldName, parentType } = deferredField;
     const resolverName = getResolverName(parentType.name, fieldName);
     const mutationHandler = getHoistedFunctionName(
@@ -852,10 +850,12 @@ function compileObjectType(
      */
     body(`
       (
-        ${fieldNodes
-          .map(it => it.__internalShouldInclude)
-          .filter(it => it)
-          .join(" || ") || /* if(true) - default */ "true"}
+        ${
+          fieldNodes
+            .map((it) => it.__internalShouldInclude)
+            .filter((it) => it)
+            .join(" || ") || /* if(true) - default */ "true"
+        }
       )
     `);
 
@@ -871,7 +871,7 @@ function compileObjectType(
     let resolver = field.resolve;
     if (!resolver && alwaysDefer) {
       const fieldName = field.name;
-      resolver = parent => parent && parent[fieldName];
+      resolver = (parent) => parent && parent[fieldName];
     }
     if (resolver) {
       context.deferred.push({
@@ -948,7 +948,7 @@ function compileAbstractType(
   context.typeResolvers[typeResolverName] = resolveType;
   const collectedTypes = context.schema
     .getPossibleTypes(type)
-    .map(objectType => {
+    .map((objectType) => {
       const subContext = createSubCompilationContext(context);
       const object = compileType(
         subContext,
@@ -969,8 +969,9 @@ function compileAbstractType(
     .join("\n");
   const finalTypeName = "finalType";
   const nullTypeError = `"Runtime Object type is not a possible type for \\"${type.name}\\"."`;
-  // tslint:disable:max-line-length
+  /* eslint-disable max-len */
   const notPossibleTypeError =
+    // eslint-disable-next-line no-template-curly-in-string
     '`Runtime Object type "${nodeType}" is not a possible type for "' +
     type.name +
     '".`';
@@ -981,7 +982,7 @@ function compileAbstractType(
   }.${getFieldNodesName(fieldNodes)}. Either the ${
     type.name
   } type should provide a \\"resolveType\\" function or each possible types should provide an \\"isTypeOf\\" function."`;
-  // tslint:enable:max-line-length
+  /* eslint-enable max-len */
   return `((nodeType, err) =>
   {
     if (err != null) {
@@ -1282,9 +1283,7 @@ function compileArguments(
     if (variable.argument && isNonNullType(variable.argument.definition.type)) {
       const message = `'Argument "${
         variable.argument.definition.name
-      }" of non-null type "${inspect(
-        variable.argument.definition.type
-      )}" must not be null.'`;
+      }" of non-null type "${variable.argument.definition.type.toString()}" must not be null.'`;
       body += `if (${GLOBAL_VARIABLES_NAME}['${
         variable.valueNode.name.value
       }'] == null) {
@@ -1311,9 +1310,7 @@ function compileArguments(
     ) {
       const message = `'Argument "${
         variable.argument.definition.name
-      }" of required type "${inspect(
-        variable.argument.definition.type
-      )}" was provided the variable "$${varName}" which was not provided a runtime value.'`;
+      }" of required type "${variable.argument.definition.type.toString()}" was provided the variable "$${varName}" which was not provided a runtime value.'`;
       body += ` else {
       ${errorDestination}.push(${createErrorObject(
         context,
@@ -1340,7 +1337,7 @@ function compileArguments(
  */
 function generateUniqueDeclarations(
   context: CompilationContext,
-  defaultValue: boolean = false
+  defaultValue = false
 ) {
   return context.deferred
     .map(
@@ -1398,7 +1395,7 @@ function getErrorDestination(type: GraphQLType): string {
 function createResolveInfoName(path: ObjectPath) {
   return (
     flattenPath(path)
-      .map(p => p.key)
+      .map((p) => p.key)
       .join("_") + "Info"
   );
 }
@@ -1434,9 +1431,7 @@ function getSerializer(
   customSerializer?: GraphQLScalarSerializer<any>
 ) {
   const { name } = scalar;
-  const serialize = customSerializer
-    ? customSerializer
-    : (val: any) => scalar.serialize(val);
+  const serialize = customSerializer || ((val: any) => scalar.serialize(val));
   return function leafSerializer(
     context: ExecutionContext,
     v: any,
@@ -1454,7 +1449,7 @@ function getSerializer(
         return null;
       }
       return value;
-    } catch (e) {
+    } catch (e: any) {
       onError(
         context,
         (e && e.message) ||
@@ -1474,14 +1469,14 @@ function getSerializer(
  * @param contextValue
  * @param {GraphQLResolveInfo} info
  * @param {GraphQLAbstractType} abstractType
- * @returns {string | GraphQLObjectType}
+ * @returns {string}
  */
 function defaultResolveTypeFn(
   value: any,
   contextValue: any,
   info: GraphQLResolveInfo,
   abstractType: GraphQLAbstractType
-): string | GraphQLObjectType {
+): string {
   // First, look for `__typename`.
   if (
     value != null &&
@@ -1502,7 +1497,7 @@ function defaultResolveTypeFn(
           `Promises are not supported for resolving type of ${value}`
         );
       } else if (isTypeOfResult) {
-        return type;
+        return type.name;
       }
     }
   }
@@ -1525,9 +1520,8 @@ function buildCompilationContext(
   const errors: GraphQLError[] = [];
   let operation: OperationDefinitionNode | void;
   let hasMultipleAssumedOperations = false;
-  const fragments: { [key: string]: FragmentDefinitionNode } = Object.create(
-    null
-  );
+  const fragments: { [key: string]: FragmentDefinitionNode } =
+    Object.create(null);
   for (const definition of document.definitions) {
     switch (definition.kind) {
       case Kind.OPERATION_DEFINITION:
@@ -1575,9 +1569,8 @@ function buildCompilationContext(
     deferred: [],
     depth: -1,
     variableValues: {},
-    fieldResolver: undefined as any,
-    errors: errors as any
-  };
+    errors
+  } as unknown as CompilationContext;
 }
 
 function getFieldNodesName(nodes: FieldNode[]) {
@@ -1606,7 +1599,7 @@ function createErrorObject(
   return `new ${GRAPHQL_ERROR}(${message},
     ${JSON.stringify(computeLocations(nodes))},
       ${serializeResponsePathAsArray(path)},
-      ${originalError ? originalError : "undefined"},
+      ${originalError || "undefined"},
       ${context.options.disablingCapturingStackErrors ? "true" : "false"})`;
 }
 
@@ -1640,7 +1633,7 @@ function promiseDone() {
 
 function normalizeErrors(err: Error[] | Error): GraphQLError[] {
   if (Array.isArray(err)) {
-    return err.map(e => normalizeError(e));
+    return err.map((e) => normalizeError(e));
   }
   return [normalizeError(err)];
 }
@@ -1660,6 +1653,7 @@ function normalizeError(err: Error): GraphQLError {
  * Returns true if a value is undefined, or NaN.
  */
 function isInvalid(value: any): boolean {
+  // eslint-disable-next-line no-self-compare
   return value === undefined || value !== value;
 }
 
@@ -1716,7 +1710,7 @@ function compileSubscriptionOperation(
     );
 
     try {
-      const eventStream = await subscriber!(
+      const eventStream = await subscriber?.(
         executionContext.rootValue,
         executionContext.variables,
         executionContext.context,
@@ -1788,15 +1782,10 @@ function createBoundSubscribe(
   getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
   operationName: string | undefined
 ): CompiledQuery["subscribe"] {
-  const {
-    resolvers,
-    typeResolvers,
-    isTypeOfs,
-    serializers,
-    resolveInfos
-  } = compilationContext;
+  const { resolvers, typeResolvers, isTypeOfs, serializers, resolveInfos } =
+    compilationContext;
   const trimmer = createNullTrimmer(compilationContext);
-  const fnName = operationName ? operationName : "subscribe";
+  const fnName = operationName || "subscribe";
 
   const ret = {
     async [fnName](
@@ -1831,6 +1820,7 @@ function createBoundSubscribe(
         data: {}
       };
 
+      // eslint-disable-next-line no-useless-call
       return func.call(null, executionContext);
     }
   };
@@ -1876,7 +1866,7 @@ function mapAsyncIterator<T, U, R = undefined>(
     async return(): Promise<IteratorResult<U, R>> {
       return typeof iterator.return === "function"
         ? mapResult(await iterator.return())
-        : { value: (undefined as unknown) as R, done: true };
+        : { value: undefined as unknown as R, done: true };
     },
     async throw(error?: Error) {
       return typeof iterator.throw === "function"

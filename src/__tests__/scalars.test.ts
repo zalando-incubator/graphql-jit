@@ -1,4 +1,4 @@
-/* tslint:disable:no-big-function */
+/* eslint-disable max-lines-per-function */
 import {
   DocumentNode,
   GraphQLObjectType,
@@ -77,7 +77,7 @@ describe("Scalars: Is able to serialize custom scalar", () => {
         ),
         parse(request)
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: {
           scalar: null
         },
@@ -109,7 +109,7 @@ describe("Scalars: Is able to serialize custom scalar", () => {
         ),
         parse(request)
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: {
           scalar: null
         },
@@ -141,7 +141,7 @@ describe("Scalars: Is able to serialize custom scalar", () => {
         ),
         parse(request)
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: {
           scalar: null
         },

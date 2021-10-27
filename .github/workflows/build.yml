@@ -12,8 +12,9 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [10, 12, 14, 15]
+        node-version: [12, 14, 16]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+        graphql-version: [15, 16]
 
     steps:
       - uses: actions/checkout@v2
@@ -33,17 +34,20 @@ jobs:
         id: yarn-cache
         with:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          key: ${{ runner.os }}-${{matrix.node-version}}-${{matrix.graphql-version}}-yarn-${{ hashFiles('yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-
+            ${{ runner.os }}-${{matrix.node-version}}-${{matrix.graphql-version}}-yarn-
+
+      - name: Use GraphQL v${{matrix.graphql-version}}
+        run: node ./scripts/match-graphql.js ${{matrix.graphql-version}}
 
       - name: Install from network when no cache hit
         if: steps.yarn-cache.outputs.cache-hit != 'true'
-        run: yarn install --frozen-lockfile --ignore-optional --prefer-offline
+        run: yarn install --ignore-optional --prefer-offline
 
       - name: Install from cache on cache-hit
         if: steps.yarn-cache.outputs.cache-hit == 'true'
-        run: yarn install --frozen-lockfile --ignore-optional --offline
+        run: yarn install --ignore-optional --offline
 
       - name: Format and Lint check
         run: yarn check-format && yarn lint

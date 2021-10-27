@@ -41,19 +41,20 @@ export interface ResolveInfoEnricherInput {
 export interface FieldExpansion {
   // The possible return types that the field can return
   // It includes all the types in the Schema that intersect with the actual return type
+  // eslint-disable-next-line no-use-before-define
   [returnType: string]: TypeExpansion;
-}
-
-export interface TypeExpansion {
-  // The fields that are requested in the Query for a particular type
-  // `true` indicates a leaf node
-  [fieldName: string]: FieldExpansion | LeafField;
 }
 
 const LeafFieldSymbol = Symbol("LeafFieldSymbol");
 
 export interface LeafField {
   [LeafFieldSymbol]: true;
+}
+
+export interface TypeExpansion {
+  // The fields that are requested in the Query for a particular type
+  // `true` indicates a leaf node
+  [fieldName: string]: FieldExpansion | LeafField;
 }
 
 function createLeafField<T extends object>(props: T): T & LeafField {
@@ -123,10 +124,11 @@ export function createResolveInfoThunk<T>(
           rootValue,
           operation,
           variableValues,`);
-  Object.keys(enrichedInfo).forEach(key => {
+  Object.keys(enrichedInfo).forEach((key) => {
     gen(`${key}: enrichedInfo["${key}"],\n`);
   });
   gen(`};};`);
+  // eslint-disable-next-line
   return new Function(
     "fieldName",
     "fieldNodes",
@@ -329,7 +331,7 @@ function hasField(typ: GraphQLObjectLike, fieldName: string) {
 // This is because lodash does not support merging keys
 // which are symbols. We require them for leaf fields
 function deepMerge<TObject, TSource>(obj: TObject, src: TSource) {
-  mergeWith(obj, src, (objValue, srcValue) => {
+  mergeWith(obj, src, (objValue, srcValue): LeafField | undefined => {
     if (isLeafField(objValue)) {
       if (isLeafField(srcValue)) {
         return {
@@ -343,6 +345,6 @@ function deepMerge<TObject, TSource>(obj: TObject, src: TSource) {
       return srcValue;
     }
 
-    return;
+    return undefined;
   });
 }
