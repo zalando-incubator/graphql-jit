@@ -1718,7 +1718,7 @@ function compileSubscriptionOperation(
         throw eventStream;
       }
       return eventStream;
-    } catch (error: any) {
+    } catch (error) {
       throw locatedError(
         error,
         resolveInfo.fieldNodes,
