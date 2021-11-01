@@ -4,11 +4,14 @@ import {
   GraphQLError,
   GraphQLFloat,
   GraphQLID,
+  GraphQLInputObjectType,
   GraphQLInputType,
   GraphQLInt,
+  GraphQLList,
   GraphQLSchema,
   GraphQLString,
   isEnumType,
+  isInputObjectType,
   isInputType,
   isListType,
   isNonNullType,
@@ -19,7 +22,7 @@ import {
   valueFromAST,
   VariableDefinitionNode
 } from "graphql";
-import { addPath, computeLocations, ObjectPath } from "./ast";
+import { addPath, computeLocations, flattenPath, ObjectPath } from "./ast";
 import { GraphQLError as GraphQLJITError } from "./error";
 import createInspect from "./inspect";
 
@@ -39,13 +42,31 @@ export function failToParseVariables(x: any): x is FailedVariableCoercion {
   return x.errors;
 }
 
+export interface VariablesCompilerOptions {
+  /**
+   * If true, the generated code for variables compilation validates
+   * that there are no circular references (at runtime). For most cases,
+   * the variables are the result of JSON.parse and in these cases, we
+   * do not need this. Enable this if the variables passed to the execute
+   * function may contain circular references.
+   *
+   * When enabled, the code checks for circular references in the
+   * variables input, and throws an error when found.
+   *
+   * Default: false (set in execution.ts)
+   */
+  variablesCircularReferenceCheck: boolean;
+}
+
 interface CompilationContext {
+  options: VariablesCompilerOptions;
   inputPath: ObjectPath;
   responsePath: ObjectPath;
   depth: number;
   varDefNode: VariableDefinitionNode;
   dependencies: Map<string, (...args: any[]) => any>;
   errorMessage?: string;
+  hoistedFunctions: Map<string, string>;
 }
 
 function createSubCompilationContext(
@@ -53,8 +74,10 @@ function createSubCompilationContext(
 ): CompilationContext {
   return { ...context };
 }
+
 export function compileVariableParsing(
   schema: GraphQLSchema,
+  options: VariablesCompilerOptions,
   varDefNodes: ReadonlyArray<VariableDefinitionNode>
 ): (inputs: { [key: string]: any }) => CoercedVariableValues {
   const errors = [];
@@ -62,13 +85,16 @@ export function compileVariableParsing(
 
   let mainBody = "";
   const dependencies = new Map();
+  const hoistedFunctions = new Map();
   for (const varDefNode of varDefNodes) {
     const context: CompilationContext = {
+      options,
       varDefNode,
       depth: 0,
       inputPath: addPath(undefined, "input"),
       responsePath: addPath(undefined, "coerced"),
-      dependencies
+      dependencies,
+      hoistedFunctions
     };
     const varName = varDefNode.variable.name.value;
     const varType = typeFromAST(schema, varDefNode.type as any);
@@ -98,7 +124,15 @@ export function compileVariableParsing(
     )}, "${varName}");\n`;
     context.inputPath = addPath(context.inputPath, varName);
     context.responsePath = addPath(context.responsePath, varName);
-    mainBody += generateInput(context, varType, varName, hasValueName, false);
+    mainBody += generateInput({
+      context,
+      varType,
+      varName,
+      hasValueName,
+      wrapInList: false,
+      useInputPath: false,
+      useResponsePath: false
+    });
   }
 
   if (errors.length > 0) {
@@ -107,6 +141,32 @@ export function compileVariableParsing(
 
   const gen = genFn();
   gen(`
+    const visitedInputValues = new Set();
+
+    function getPath(o, path) {
+      let current = o;
+      for (const part of path) {
+        current = current[part];
+      }
+      return current;
+    }
+
+    function setPath(o, path, value) {
+      let current = o;
+      for (let i = 0; i < path.length - 1; i++) {
+        current = current[path[i]];
+      }
+      current[path[path.length - 1]] = value;
+    }
+
+    function isObjectLike(o) {
+      return o != null && typeof o === "object";
+    }
+
+    ${Array.from(hoistedFunctions)
+      .map(([, value]) => value)
+      .join("\n")}
+
     return function getVariables(input) {
       const errors = [];
       const coerced = ${JSON.stringify(coercedValues)}
@@ -118,11 +178,13 @@ export function compileVariableParsing(
     }
   `);
 
+  const generatedFn = gen.toString();
+
   return Function.apply(
     null,
     ["GraphQLJITError", "inspect"]
       .concat(Array.from(dependencies.keys()))
-      .concat(gen.toString())
+      .concat(generatedFn)
   ).apply(
     null,
     [GraphQLJITError, inspect].concat(Array.from(dependencies.values()))
@@ -134,15 +196,32 @@ export function compileVariableParsing(
 const MAX_32BIT_INT = 2147483647;
 const MIN_32BIT_INT = -2147483648;
 
-function generateInput(
-  context: CompilationContext,
-  varType: GraphQLInputType,
-  varName: string,
-  hasValueName: string,
-  wrapInList: boolean
-) {
+interface GenerateInputParams {
+  context: CompilationContext;
+  varType: GraphQLInputType;
+  varName: string;
+  hasValueName: string;
+  wrapInList: boolean;
+  useInputPath: boolean;
+  useResponsePath: boolean;
+}
+
+function generateInput({
+  context,
+  varType,
+  varName,
+  hasValueName,
+  wrapInList,
+  useInputPath,
+  useResponsePath
+}: GenerateInputParams) {
   const currentOutput = getObjectPath(context.responsePath);
-  const currentInput = getObjectPath(context.inputPath);
+  const responsePath = useResponsePath
+    ? "responsePath"
+    : pathToExpression(context.responsePath);
+  const currentInput = useInputPath
+    ? `getPath(input, inputPath)`
+    : getObjectPath(context.inputPath);
   const errorLocation = printErrorLocation(
     computeLocations([context.varDefNode])
   );
@@ -169,7 +248,7 @@ function generateInput(
     `);
   } else {
     gen(`
-      if (${hasValueName}) { ${currentOutput} = null; }
+      if (${hasValueName}) { setPath(coerced, ${responsePath}, null); }
     `);
   }
   gen(`} else {`);
@@ -178,9 +257,9 @@ function generateInput(
       case GraphQLID.name:
         gen(`
           if (typeof ${currentInput} === "string") {
-            ${currentOutput} = ${currentInput};
+            setPath(coerced, ${responsePath}, ${currentInput});
           } else if (Number.isInteger(${currentInput})) {
-            ${currentOutput} = ${currentInput}.toString();
+            setPath(coerced, ${responsePath}, ${currentInput}.toString());
           } else {
             errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
               inspect(${currentInput}) + "; " +
@@ -194,7 +273,7 @@ function generateInput(
       case GraphQLString.name:
         gen(`
           if (typeof ${currentInput} === "string") {
-              ${currentOutput} = ${currentInput};
+            setPath(coerced, ${responsePath}, ${currentInput});
           } else {
             errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
               inspect(${currentInput}) + "; " +
@@ -208,7 +287,7 @@ function generateInput(
       case GraphQLBoolean.name:
         gen(`
         if (typeof ${currentInput} === "boolean") {
-            ${currentOutput} = ${currentInput};
+          setPath(coerced, ${responsePath}, ${currentInput});
         } else {
           errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
           inspect(${currentInput}) + "; " +
@@ -228,7 +307,7 @@ function generateInput(
             '${varType.name} cannot represent non 32-bit signed integer value: ' +
             inspect(${currentInput}), ${errorLocation}));
           } else {
-            ${currentOutput} = ${currentInput};
+            setPath(coerced, ${responsePath}, ${currentInput});
           }
         } else {
           errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
@@ -243,7 +322,7 @@ function generateInput(
       case GraphQLFloat.name:
         gen(`
         if (Number.isFinite(${currentInput})) {
-            ${currentOutput} = ${currentInput};
+          setPath(coerced, ${responsePath}, ${currentInput});
         } else {
           errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
             inspect(${currentInput}) + "; " +
@@ -267,7 +346,7 @@ function generateInput(
               inspect(${currentInput}) + "; " +
               'Expected type ${varType.name}.', ${errorLocation}));
             }
-            ${currentOutput} = parseResult;
+            setPath(coerced, ${responsePath}, parseResult);
           } catch (error) {
             errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
               inspect(${currentInput}) + "; " +
@@ -285,7 +364,7 @@ function generateInput(
       if (typeof ${currentInput} === "string") {
         const enumValue = ${varType.name}getValue(${currentInput});
         if (enumValue) {
-          ${currentOutput} = enumValue.value;
+          setPath(coerced, ${responsePath}, enumValue.value);
         } else {
           errors.push(
             new GraphQLJITError('Variable "$${varName}" got invalid value ' +
@@ -302,92 +381,293 @@ function generateInput(
       }
       `);
   } else if (isListType(varType)) {
-    context.errorMessage = `'Variable "$${varName}" got invalid value ' + inspect(${currentInput}) + '; '`;
-    const hasValueName = hasValue(context.inputPath);
-    const index = `idx${context.depth}`;
-
-    const subContext = createSubCompilationContext(context);
-    subContext.responsePath = addPath(
-      subContext.responsePath,
-      index,
-      "variable"
+    gen(
+      compileInputListType(
+        context,
+        varType,
+        varName,
+        useInputPath,
+        useResponsePath
+      )
     );
-    subContext.inputPath = addPath(subContext.inputPath, index, "variable");
-    subContext.depth++;
-    gen(`
-      if (Array.isArray(${currentInput})) {
-        ${currentOutput} = [];
-        for (let ${index} = 0; ${index} < ${currentInput}.length; ++${index}) {
-          const ${hasValueName} =
-          ${getObjectPath(subContext.inputPath)} !== undefined;
-          ${generateInput(
-            subContext,
-            varType.ofType,
-            varName,
-            hasValueName,
-            false
-          )}
-        }
-      } else {
-        ${generateInput(context, varType.ofType, varName, hasValueName, true)}
-      }
-    `);
-  } else if (isInputType(varType)) {
-    gen(`
-      if (typeof ${currentInput} !== 'object') {
-        errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
-        inspect(${currentInput}) + "; " +
-        'Expected type ${varType.name} to be an object.', ${errorLocation}));
-      } else {
-        ${currentOutput} = {};
-    `);
-    const fields = varType.getFields();
-    const allowedFields = [];
-    for (const field of Object.values(fields)) {
-      const subContext = createSubCompilationContext(context);
-      allowedFields.push(field.name);
-      const hasValueName = hasValue(addPath(subContext.inputPath, field.name));
-      gen(`
-        const ${hasValueName} = Object.prototype.hasOwnProperty.call(
-          ${getObjectPath(subContext.inputPath)}, "${field.name}"
-        );
-      `);
-      subContext.inputPath = addPath(subContext.inputPath, field.name);
-      subContext.responsePath = addPath(subContext.responsePath, field.name);
-      subContext.errorMessage = `'Variable "$${varName}" got invalid value ' + inspect(${currentInput}) + '; '`;
-      gen(`
-        ${generateInput(
-          subContext,
-          field.type,
-          field.name,
-          hasValueName,
-          false
-        )}
-      `);
-    }
-
-    gen(`
-      const allowedFields = ${JSON.stringify(allowedFields)};
-      for (const fieldName of Object.keys(${currentInput})) {
-        if (!allowedFields.includes(fieldName)) {
-          errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
-            inspect(${currentInput}) + "; " +
-            'Field "' + fieldName + '" is not defined by type ${
-              varType.name
-            }.', ${errorLocation}));
-          break;
-        }
-      }
-    }`);
+  } else if (isInputObjectType(varType)) {
+    gen(
+      compileInputObjectType(
+        context,
+        varType,
+        varName,
+        useInputPath,
+        useResponsePath
+      )
+    );
   } else {
     /* istanbul ignore next line */
     throw new Error(`unknown type: ${varType}`);
   }
   if (wrapInList) {
-    gen(`${currentOutput} = [${currentOutput}];`);
+    gen(
+      `setPath(coerced, ${responsePath}, [getPath(coerced, ${responsePath})]);`
+    );
   }
   gen(`}`);
   return gen.toString();
+}
+
+function compileInputListType(
+  context: CompilationContext,
+  varType: GraphQLList<GraphQLInputType>,
+  varName: string,
+  useInputPath: boolean,
+  useResponsePath: boolean
+) {
+  const inputPath = useInputPath
+    ? `inputPath`
+    : pathToExpression(context.inputPath);
+  const responsePath = useResponsePath
+    ? "responsePath"
+    : pathToExpression(context.responsePath);
+  const currentInput = useInputPath
+    ? `getPath(input, inputPath)`
+    : getObjectPath(context.inputPath);
+  const errorLocation = printErrorLocation(
+    computeLocations([context.varDefNode])
+  );
+
+  const gen = genFn();
+
+  context.errorMessage = `'Variable "$${varName}" got invalid value ' + inspect(${currentInput}) + '; '`;
+  const hasValueName = hasValue(context.inputPath);
+  const index = `idx${context.depth}`;
+
+  const subContext = createSubCompilationContext(context);
+  subContext.responsePath = addPath(subContext.responsePath, index, "variable");
+  subContext.inputPath = addPath(subContext.inputPath, index, "variable");
+  subContext.depth++;
+
+  gen(`
+    if (Array.isArray(${currentInput})) {
+      setPath(coerced, ${responsePath}, []);
+      const previousInputPath = ${inputPath};
+      const previousResponsePath = ${responsePath};
+      for (let ${index} = 0; ${index} < ${currentInput}.length; ++${index}) {
+        const inputPath = previousInputPath.concat(${index});
+        const responsePath = previousResponsePath.concat(${index});
+
+        const __inputListValue = getPath(input, inputPath);
+
+        ${generateCircularReferenceCheck(
+          context,
+          "__inputListValue",
+          "inputPath",
+          errorLocation,
+          false
+        )}
+
+        const ${hasValueName} = __inputListValue !== undefined;
+
+        ${generateInput({
+          context: subContext,
+          varType: varType.ofType,
+          varName,
+          hasValueName,
+          wrapInList: false,
+          useInputPath,
+          useResponsePath
+        })}
+      }
+    } else {
+      ${generateInput({
+        context,
+        varType: varType.ofType,
+        varName,
+        hasValueName,
+        wrapInList: true,
+        useInputPath,
+        useResponsePath
+      })}
+    }
+  `);
+
+  return gen.toString();
+}
+
+function compileInputObjectType(
+  context: CompilationContext,
+  varType: GraphQLInputObjectType,
+  varName: string,
+  useInputPath: boolean,
+  useResponsePath: boolean
+) {
+  const responsePath = useResponsePath
+    ? "responsePath"
+    : pathToExpression(context.responsePath);
+  const currentInput = useInputPath
+    ? `getPath(input, inputPath)`
+    : getObjectPath(context.inputPath);
+  const errorLocation = printErrorLocation(
+    computeLocations([context.varDefNode])
+  );
+
+  const gen = genFn();
+
+  gen(`
+    if (typeof ${currentInput} !== 'object') {
+      errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
+      inspect(${currentInput}) + "; " +
+      'Expected type ${varType.name} to be an object.', ${errorLocation}));
+    } else {
+      setPath(coerced, ${responsePath}, {});
+  `);
+
+  const fields = varType.getFields();
+  const allowedFields = [];
+  for (const field of Object.values(fields)) {
+    const subContext = createSubCompilationContext(context);
+    allowedFields.push(field.name);
+    const hasValueName = hasValue(addPath(subContext.inputPath, field.name));
+
+    gen(`
+      const ${hasValueName} = Object.prototype.hasOwnProperty.call(
+        ${currentInput}, "${field.name}"
+      );
+    `);
+
+    subContext.inputPath = addPath(subContext.inputPath, field.name);
+    subContext.responsePath = addPath(subContext.responsePath, field.name);
+    subContext.errorMessage = `'Variable "$${varName}" got invalid value ' + inspect(${currentInput}) + '; '`;
+
+    const varTypeParserName = "__fieldParser" + varType.name + field.name;
+
+    const nextInputPath = useInputPath
+      ? `inputPath.concat("${field.name}")`
+      : pathToExpression(subContext.inputPath);
+
+    const nextResponsePath = useResponsePath
+      ? `responsePath.concat("${field.name}")`
+      : pathToExpression(subContext.responsePath);
+
+    gen(`
+      ${varTypeParserName}(
+        input,
+        ${nextInputPath},
+        coerced,
+        ${nextResponsePath},
+        errors,
+        ${hasValueName}
+      );
+    `);
+
+    if (!context.hoistedFunctions.has(varTypeParserName)) {
+      context.hoistedFunctions.set(varTypeParserName, "");
+      context.hoistedFunctions.set(
+        varTypeParserName,
+        `
+          function ${varTypeParserName} (
+            input,
+            inputPath,
+            coerced,
+            responsePath,
+            errors,
+            ${hasValueName}
+          ) {
+            const __inputValue = getPath(input, inputPath);
+
+            ${generateCircularReferenceCheck(
+              context,
+              "__inputValue",
+              "inputPath",
+              errorLocation,
+              true
+            )}
+
+            ${generateInput({
+              context: subContext,
+              varType: field.type,
+              varName: field.name,
+              hasValueName,
+              wrapInList: false,
+              useInputPath: true,
+              useResponsePath: true
+            })}
+          }
+        `
+      );
+    }
+  }
+
+  gen(`
+    const allowedFields = ${JSON.stringify(allowedFields)};
+    for (const fieldName of Object.keys(${currentInput})) {
+      if (!allowedFields.includes(fieldName)) {
+        errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
+          inspect(${currentInput}) + "; " +
+          'Field "' + fieldName + '" is not defined by type ${
+            varType.name
+          }.', ${errorLocation}));
+        break;
+      }
+    }
+  `);
+
+  gen(`}`);
+
+  return gen.toString();
+}
+
+function generateCircularReferenceCheck(
+  context: CompilationContext,
+  inputValueName: string,
+  inputPathName: string,
+  errorLocation: string,
+  shouldReturn: boolean
+) {
+  /**
+   * If the variablesCircularReferenceCheck is `false`, do not generate
+   * code to verify circular references.
+   */
+  if (!context.options.variablesCircularReferenceCheck) {
+    return "";
+  }
+
+  const gen = genFn();
+  gen(`if (visitedInputValues.has(${inputValueName})) {`);
+  gen(`
+    errors.push(
+      new GraphQLJITError(
+        "Circular reference detected in input variable '$"
+          + ${inputPathName}[0]
+          + "' at "
+          + ${inputPathName}.slice(1).join("."),
+        [${errorLocation}]
+      )
+    );
+  `);
+
+  if (shouldReturn) {
+    gen(`return;`);
+  }
+
+  gen(`}`);
+  gen(`
+    if (isObjectLike(${inputValueName})) {
+      visitedInputValues.add(${inputValueName});
+    }
+  `);
+
+  return gen.toString();
+}
+
+function pathToExpression(path: ObjectPath) {
+  const expr = flattenPath(path)
+    // object access pattern - flatten returns in reverse order from leaf to root
+    .reverse()
+    // remove the variable name (input/coerced - are the cases in this file)
+    .slice(1)
+    // serialize
+    .map(({ key, type }) => (type === "literal" ? `"${key}"` : key))
+    .join(",");
+
+  return `[${expr}]`;
 }
 
 function hasValue(path: ObjectPath) {

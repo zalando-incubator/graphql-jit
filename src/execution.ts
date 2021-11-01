@@ -80,6 +80,20 @@ export interface CompilerOptions {
   // the key should be the name passed to the Scalar or Enum type
   customSerializers: { [key: string]: (v: any) => any };
 
+  /**
+   * If true, the generated code for variables compilation validates
+   * that there are no circular references (at runtime). For most cases,
+   * the variables are the result of JSON.parse and in these cases, we
+   * do not need this. Enable this if the variables passed to the execute
+   * function may contain circular references.
+   *
+   * When enabled, the code checks for circular references in the
+   * variables input, and throws an error when found.
+   *
+   * Default: false
+   */
+  variablesCircularReferenceCheck: boolean;
+
   resolverInfoEnricher?: (inp: ResolveInfoEnricherInput) => object;
 }
 
@@ -224,6 +238,7 @@ export function compileQuery<
       customJSONSerializer: false,
       disableLeafSerialization: false,
       customSerializers: {},
+      variablesCircularReferenceCheck: false,
       ...partialOptions
     };
 
@@ -245,6 +260,9 @@ export function compileQuery<
     }
     const getVariables = compileVariableParsing(
       schema,
+      {
+        variablesCircularReferenceCheck: options.variablesCircularReferenceCheck
+      },
       context.operation.variableDefinitions || []
     );
 
