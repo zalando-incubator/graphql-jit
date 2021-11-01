@@ -1,3 +1,4 @@
+import { TypedDocumentNode } from "@graphql-typed-document-node/core";
 import fastJson from "fast-json-stringify";
 import genFn from "generate-function";
 import {
@@ -162,18 +163,23 @@ interface DeferredField {
   args: Arguments;
 }
 
-export interface CompiledQuery {
+export interface CompiledQuery<
+  TResult = { [key: string]: any },
+  TVariables = { [key: string]: any }
+> {
   operationName?: string;
   query: (
     root: any,
     context: any,
-    variables: Maybe<{ [key: string]: any }>
-  ) => Promise<ExecutionResult> | ExecutionResult;
+    variables: Maybe<TVariables>
+  ) => Promise<ExecutionResult<TResult>> | ExecutionResult<TResult>;
   subscribe?: (
     root: any,
     context: any,
-    variables: Maybe<{ [key: string]: any }>
-  ) => Promise<AsyncIterableIterator<ExecutionResult> | ExecutionResult>;
+    variables: Maybe<TVariables>
+  ) => Promise<
+    AsyncIterableIterator<ExecutionResult<TResult>> | ExecutionResult<TResult>
+  >;
   stringify: (v: any) => string;
 }
 
@@ -189,12 +195,15 @@ interface InternalCompiledQuery extends CompiledQuery {
  * @param partialOptions compilation options to tune the compiler features
  * @returns {CompiledQuery} the cacheable result
  */
-export function compileQuery(
+export function compileQuery<
+  TResult = { [key: string]: any },
+  TVariables = { [key: string]: any }
+>(
   schema: GraphQLSchema,
-  document: DocumentNode,
+  document: TypedDocumentNode<TResult, TVariables>,
   operationName?: string,
   partialOptions?: Partial<CompilerOptions>
-): CompiledQuery | ExecutionResult {
+): CompiledQuery<TResult, TVariables> | ExecutionResult<TResult> {
   if (!schema) {
     throw new Error(`Expected ${schema} to be a GraphQL schema.`);
   }
@@ -285,7 +294,7 @@ export function compileQuery(
       // and visualization tools like try-jit.
       compiledQuery.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation = functionBody;
     }
-    return compiledQuery;
+    return compiledQuery as CompiledQuery<TResult, TVariables>;
   } catch (err) {
     return {
       errors: normalizeErrors(err)
