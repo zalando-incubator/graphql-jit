@@ -1,3 +1,4 @@
+import { TypedDocumentNode } from "@graphql-typed-document-node/core";
 import fastJson from "fast-json-stringify";
 import genFn from "generate-function";
 import {
@@ -61,7 +62,6 @@ import {
   compileVariableParsing,
   failToParseVariables
 } from "./variables";
-import { TypedDocumentNode } from "@graphql-typed-document-node/core";
 
 const inspect = createInspect();
 
@@ -163,7 +163,10 @@ interface DeferredField {
   args: Arguments;
 }
 
-export interface CompiledQuery<TResult = { [key: string]: any }, TVariables = { [key: string]: any }> {
+export interface CompiledQuery<
+  TResult = { [key: string]: any },
+  TVariables = { [key: string]: any }
+> {
   operationName?: string;
   query: (
     root: any,
@@ -174,7 +177,9 @@ export interface CompiledQuery<TResult = { [key: string]: any }, TVariables = { 
     root: any,
     context: any,
     variables: Maybe<TVariables>
-  ) => Promise<AsyncIterableIterator<ExecutionResult<TResult>> | ExecutionResult<TResult>>;
+  ) => Promise<
+    AsyncIterableIterator<ExecutionResult<TResult>> | ExecutionResult<TResult>
+  >;
   stringify: (v: any) => string;
 }
 
@@ -190,7 +195,10 @@ interface InternalCompiledQuery extends CompiledQuery {
  * @param partialOptions compilation options to tune the compiler features
  * @returns {CompiledQuery} the cacheable result
  */
-export function compileQuery<TResult = { [key: string]: any }, TVariables = { [key: string]: any }>(
+export function compileQuery<
+  TResult = { [key: string]: any },
+  TVariables = { [key: string]: any }
+>(
   schema: GraphQLSchema,
   document: TypedDocumentNode<TResult, TVariables>,
   operationName?: string,
