@@ -36,7 +36,7 @@ function executeTestQuery(query: string, variables = {}, schema = testSchema) {
   return compiled.query(data, undefined, variables);
 }
 
-// tslint:disable-next-line
+// eslint-disable-next-line
 describe("Execute: handles directives", () => {
   describe("works without directives", () => {
     test("basic query works", () => {
@@ -49,7 +49,7 @@ describe("Execute: handles directives", () => {
   });
 
   describe("works on scalars", () => {
-    // tslint:disable-next-line
+    // eslint-disable-next-line
     test("if true includes scalar", () => {
       const result = executeTestQuery("{ a, b @include(if: true) }");
 
@@ -66,7 +66,7 @@ describe("Execute: handles directives", () => {
       });
     });
 
-    // tslint:disable-next-line
+    // eslint-disable-next-line
     test("unless false includes scalar", () => {
       const result = executeTestQuery("{ a, b @skip(if: false) }");
 
@@ -75,7 +75,7 @@ describe("Execute: handles directives", () => {
       });
     });
 
-    // tslint:disable-next-line
+    // eslint-disable-next-line
     test("unless true omits scalar", () => {
       const result = executeTestQuery("{ a, b @skip(if: true) }");
 
@@ -1188,7 +1188,7 @@ describe("Execute: handles directives", () => {
           }
         `;
         const result = await executeTestQuery(query, { skip: true }, schema);
-        expect(result).toEqual({
+        expect(result).toMatchObject({
           errors: [
             expect.objectContaining({
               message: "Directive 'skip' is missing required arguments: 'if'"
@@ -1206,7 +1206,7 @@ describe("Execute: handles directives", () => {
           }
         `;
         const result = await executeTestQuery(query, { skip: 0 }, schema);
-        expect(result).toEqual({
+        expect(result).toMatchObject({
           errors: [
             expect.objectContaining({
               message:
@@ -1225,7 +1225,7 @@ describe("Execute: handles directives", () => {
           }
         `;
         const result = await executeTestQuery(query, { skip: 0 }, schema);
-        expect(result).toEqual({
+        expect(result).toMatchObject({
           errors: [
             expect.objectContaining({
               message: `Variable 'skip' is not defined`
@@ -1243,7 +1243,7 @@ describe("Execute: handles directives", () => {
           }
         `;
         const result = await executeTestQuery(query, { skip: 0 }, schema);
-        expect(result).toEqual({
+        expect(result).toMatchObject({
           errors: [
             expect.objectContaining({
               message: `Variable 'skip' of type 'Int!' used in position expecting type 'Boolean!'`
@@ -1261,7 +1261,7 @@ describe("Execute: handles directives", () => {
           }
         `;
         const result = await executeTestQuery(query, { skip: [0] }, schema);
-        expect(result).toEqual({
+        expect(result).toMatchObject({
           errors: [
             expect.objectContaining({
               message: `Variable 'skip' of type '[Int!]!' used in position expecting type 'Boolean!'`

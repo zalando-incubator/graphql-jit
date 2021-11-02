@@ -64,6 +64,7 @@ describe("Execute: resolve function", () => {
     });
 
     class Adder {
+      // eslint-disable-next-line no-useless-constructor
       constructor(private num: number) {}
 
       test({ addend1 }: any, context: any) {

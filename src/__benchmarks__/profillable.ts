@@ -9,6 +9,7 @@ if (isCompiledQuery(compiled)) {
   const now = Date.now();
   let operations = 0;
   const timelimit = getTimelimit();
+  // eslint-disable-next-line no-inner-declarations
   function benchmark() {
     if (Date.now() - now > timelimit) {
       console.log(`Ran ${operations} operations in ${timelimit / 1000}s`);

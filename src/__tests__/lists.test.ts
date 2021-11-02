@@ -1,3 +1,4 @@
+/* eslint-disable prefer-promise-reject-errors */
 /**
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/lists-test.js
  */
@@ -8,9 +9,9 @@ import {
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
+  GraphQLOutputType,
   GraphQLSchema,
   GraphQLString,
-  GraphQLType,
   parse
 } from "graphql";
 import { compileQuery, isCompiledQuery } from "../index";
@@ -46,7 +47,7 @@ function check(testType: any, testData: any, expected: any) {
       throw prepared;
     }
     const response = await prepared.query(data, undefined, {});
-    expect(response).toEqual(expected);
+    expect(response).toMatchObject(expected);
   };
 }
 
@@ -117,7 +118,7 @@ describe("Execute: Accepts any iterable as list value", () => {
 const containsValues = "Contains values";
 const containsNull = "Contains null";
 
-// tslint:disable-next-line
+// eslint-disable-next-line
 describe("Execute: Handles list nullability", () => {
   describe("[T]", () => {
     const type = new GraphQLList(GraphQLInt);
@@ -276,7 +277,7 @@ describe("Execute: Handles list nullability", () => {
       );
     });
 
-    // tslint:disable-next-line
+    // eslint-disable-next-line
     describe("Array<Promise<T>>", () => {
       test(
         containsValues,
@@ -545,7 +546,7 @@ describe("Execute: Handles list nullability", () => {
 
 describe("Execute: Handles nested lists", () => {
   function check(
-    testType: GraphQLType,
+    testType: GraphQLOutputType,
     query: string | undefined,
     testData: any,
     expected: any
@@ -567,7 +568,7 @@ describe("Execute: Handles nested lists", () => {
         throw prepared;
       }
       const response = await prepared.query(testData, undefined, {});
-      expect(response).toEqual(expected);
+      expect(response).toMatchObject(expected);
     };
   }
 
@@ -737,7 +738,7 @@ describe("resolved fields in object list", () => {
     const article: GraphQLObjectType = new GraphQLObjectType({
       name: "Article",
       fields: {
-        id: { type: new GraphQLNonNull(GraphQLID), resolve: obj => obj.id }
+        id: { type: new GraphQLNonNull(GraphQLID), resolve: (obj) => obj.id }
       }
     });
 
@@ -811,7 +812,7 @@ describe("resolved fields in object list", () => {
       ""
     );
     const response = await prepared.query(undefined, undefined, {});
-    expect(response).toEqual({
+    expect(response).toMatchObject({
       data: {
         feed: [{ id: "123" }, null]
       },

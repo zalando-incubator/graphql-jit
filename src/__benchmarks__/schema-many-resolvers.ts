@@ -16,15 +16,15 @@ export function schema() {
     fields: {
       url: {
         type: GraphQLString,
-        resolve: image => Promise.resolve(image.url)
+        resolve: (image) => Promise.resolve(image.url)
       },
       width: {
         type: GraphQLInt,
-        resolve: image => Promise.resolve(image.width)
+        resolve: (image) => Promise.resolve(image.width)
       },
       height: {
         type: GraphQLInt,
-        resolve: image => Promise.resolve(image.height)
+        resolve: (image) => Promise.resolve(image.height)
       }
     }
   });
@@ -34,11 +34,11 @@ export function schema() {
     fields: () => ({
       id: {
         type: GraphQLString,
-        resolve: author => Promise.resolve(author.id)
+        resolve: (author) => Promise.resolve(author.id)
       },
       name: {
         type: GraphQLString,
-        resolve: author => Promise.resolve(author.name)
+        resolve: (author) => Promise.resolve(author.name)
       },
       pic: {
         args: { width: { type: GraphQLInt }, height: { type: GraphQLInt } },
@@ -47,7 +47,7 @@ export function schema() {
       },
       recentArticle: {
         type: BlogArticle,
-        resolve: author => Promise.resolve(author.recentArticle)
+        resolve: (author) => Promise.resolve(author.recentArticle)
       }
     })
   });
@@ -57,24 +57,24 @@ export function schema() {
     fields: {
       id: {
         type: new GraphQLNonNull(GraphQLID),
-        resolve: article => Promise.resolve(article.id)
+        resolve: (article) => Promise.resolve(article.id)
       },
       isPublished: {
         type: GraphQLBoolean,
-        resolve: article => Promise.resolve(article.isPublished)
+        resolve: (article) => Promise.resolve(article.isPublished)
       },
       author: { type: BlogAuthor },
       title: {
         type: GraphQLString,
-        resolve: article => Promise.resolve(article && article.title)
+        resolve: (article) => Promise.resolve(article && article.title)
       },
       body: {
         type: GraphQLString,
-        resolve: article => Promise.resolve(article.body)
+        resolve: (article) => Promise.resolve(article.body)
       },
       keywords: {
         type: new GraphQLList(GraphQLString),
-        resolve: article => Promise.resolve(article.keywords)
+        resolve: (article) => Promise.resolve(article.keywords)
       }
     }
   });

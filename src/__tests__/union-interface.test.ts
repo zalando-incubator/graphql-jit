@@ -1,3 +1,4 @@
+/* eslint-disable no-useless-constructor */
 /**
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/union-interface-test.js
  */
@@ -55,7 +56,7 @@ const DogType = new GraphQLObjectType({
     name: { type: GraphQLString },
     barks: { type: GraphQLBoolean }
   },
-  isTypeOf: value => value instanceof Dog
+  isTypeOf: (value) => value instanceof Dog
 });
 
 const CatType = new GraphQLObjectType({
@@ -65,7 +66,7 @@ const CatType = new GraphQLObjectType({
     name: { type: GraphQLString },
     meows: { type: GraphQLBoolean }
   },
-  isTypeOf: value => value instanceof Cat
+  isTypeOf: (value) => value instanceof Cat
 });
 
 const PetType = new GraphQLUnionType({
@@ -73,12 +74,12 @@ const PetType = new GraphQLUnionType({
   types: [DogType, CatType],
   resolveType(value) {
     if (value instanceof Dog) {
-      return DogType;
+      return DogType.toString();
     }
     if (value instanceof Cat) {
-      return CatType;
+      return CatType.toString();
     }
-    return null;
+    return undefined;
   }
 });
 
@@ -90,7 +91,7 @@ const PersonType = new GraphQLObjectType({
     pets: { type: new GraphQLList(PetType) },
     friends: { type: new GraphQLList(NamedType) }
   },
-  isTypeOf: value => value instanceof Person
+  isTypeOf: (value) => value instanceof Person
 });
 
 const schema = new GraphQLSchema({
@@ -103,7 +104,7 @@ const odie = new Dog("Odie", true);
 const liz = new Person("Liz");
 const john = new Person("John", [garfield, odie], [liz, odie]);
 
-// tslint:disable-next-line
+// eslint-disable-next-line
 describe("Execute: Union and intersection types", () => {
   test("can introspect on union and intersection types", () => {
     const ast = parse(`
@@ -279,7 +280,7 @@ describe("Execute: Union and intersection types", () => {
         encounteredContext = context;
         encounteredSchema = receivedSchema;
         encounteredRootValue = rootValue;
-        return PersonType2;
+        return PersonType2.toString();
       }
     });
 

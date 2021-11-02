@@ -1,3 +1,4 @@
+/* eslint-disable prefer-promise-reject-errors */
 /**
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/execution-test.js
  */
@@ -360,7 +361,7 @@ describe("Execute: Handles basic execution tasks", () => {
           throw new Error("Error getting asyncError");
         });
       },
-      // tslint:disable-next-line
+      // eslint-disable-next-line
       asyncRawError() {
         return new Promise(() => {
           /* eslint-disable */
@@ -470,7 +471,7 @@ describe("Execute: Handles basic execution tasks", () => {
 
     const result = await executeQuery(schema, ast, data);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       data: {
         sync: "sync",
         syncError: null,
@@ -585,7 +586,7 @@ describe("Execute: Handles basic execution tasks", () => {
     const ast = parse(query);
     const result = await executeQuery(schema, ast);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       data: {
         foods: null
       },
@@ -652,7 +653,7 @@ describe("Execute: Handles basic execution tasks", () => {
     `;
 
     const result = await executeQuery(schema, parse(query));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       data: {
         nullableA: {
           aliasedA: null
@@ -686,7 +687,7 @@ describe("Execute: Handles basic execution tasks", () => {
     expect(result).toEqual({ data: { a: "b" } });
   });
 
-  // tslint:disable-next-line
+  // eslint-disable-next-line
   test("uses the only operation if no operation name is provided", async () => {
     const doc = "query Example { a }";
     const data = { a: "b" };
@@ -743,12 +744,12 @@ describe("Execute: Handles basic execution tasks", () => {
       })
     });
 
-    expect(executeQuery(schema, ast, data)).toEqual({
+    expect(executeQuery(schema, ast, data)).toMatchObject({
       errors: [{ message: "Must provide an operation." }]
     });
   });
 
-  // tslint:disable-next-line
+  // eslint-disable-next-line
   test("errors if no op name is provided with multiple operations", async () => {
     const doc = "query Example { a } query OtherExample { a }";
     const data = { a: "b" };
@@ -762,7 +763,7 @@ describe("Execute: Handles basic execution tasks", () => {
       })
     });
 
-    expect(executeQuery(schema, ast, data)).toEqual({
+    expect(executeQuery(schema, ast, data)).toMatchObject({
       errors: [
         {
           message:
@@ -790,7 +791,7 @@ describe("Execute: Handles basic execution tasks", () => {
         document: ast,
         operationName: "UnknownExample"
       })
-    ).toEqual({
+    ).toMatchObject({
       errors: [{ message: 'Unknown operation named "UnknownExample".' }]
     });
   });
@@ -1049,10 +1050,12 @@ describe("Execute: Handles basic execution tasks", () => {
 
   it("fails when an isTypeOf check is not met", async () => {
     class Special {
+      // eslint-disable-next-line no-useless-constructor
       constructor(public value: any) {}
     }
 
     class NotSpecial {
+      // eslint-disable-next-line no-useless-constructor
       constructor(public value: any) {}
     }
 
@@ -1072,11 +1075,11 @@ describe("Execute: Handles basic execution tasks", () => {
         fields: {
           special: {
             type: SpecialType,
-            resolve: rootValue => rootValue.special
+            resolve: (rootValue) => rootValue.special
           },
           specials: {
             type: new GraphQLList(SpecialType),
-            resolve: rootValue => rootValue.specials
+            resolve: (rootValue) => rootValue.specials
           }
         }
       })
@@ -1089,7 +1092,7 @@ describe("Execute: Handles basic execution tasks", () => {
     };
     const result = await executeQuery(schema, query, value);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       data: {
         special: null,
         specials: [{ value: "foo" }, null]
@@ -1236,7 +1239,7 @@ describe("Checks if the output of the compilation was a compiled query", () => {
   test("returns true for a compiled query object", () => {
     expect(
       isCompiledQuery({
-        query: (jest.fn() as unknown) as CompiledQuery["query"],
+        query: jest.fn() as unknown as CompiledQuery["query"],
         stringify: JSON.stringify
       })
     ).toBeTruthy();

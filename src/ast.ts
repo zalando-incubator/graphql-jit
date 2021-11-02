@@ -26,7 +26,8 @@ import {
   typeFromAST,
   valueFromASTUntyped,
   ValueNode,
-  VariableNode
+  VariableNode,
+  versionInfo
 } from "graphql";
 import { getFieldDef } from "graphql/execution/execute";
 import { Kind, SelectionNode, TypeNode } from "graphql/language";
@@ -83,7 +84,7 @@ function collectFieldsImpl(
 ): FieldsAndNodes {
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
-      case Kind.FIELD:
+      case Kind.FIELD: {
         const name = getFieldEntryKey(selection);
         if (!fields[name]) {
           fields[name] = [];
@@ -123,6 +124,7 @@ function collectFieldsImpl(
 
         fields[name].push(fieldNode);
         break;
+      }
 
       case Kind.INLINE_FRAGMENT:
         if (
@@ -149,7 +151,7 @@ function collectFieldsImpl(
         );
         break;
 
-      case Kind.FRAGMENT_SPREAD:
+      case Kind.FRAGMENT_SPREAD: {
         const fragName = selection.name.value;
         if (visitedFragmentNames[fragName]) {
           continue;
@@ -176,6 +178,7 @@ function collectFieldsImpl(
           )
         );
         break;
+      }
     }
   }
   return fields;
@@ -242,7 +245,7 @@ function augmentFieldNodeTree(
   function handle(
     parentFieldNode: JitFieldNode,
     selection: SelectionNode,
-    comesFromFragmentSpread: boolean = false
+    comesFromFragmentSpread = false
   ) {
     switch (selection.kind) {
       case Kind.FIELD: {
@@ -311,11 +314,11 @@ function joinShouldIncludeCompilations(...compilations: string[]) {
   // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Invalid_array_length
 
   // remove empty strings
-  let filteredCompilations = compilations.filter(it => it);
+  let filteredCompilations = compilations.filter((it) => it);
 
   // Split conditions by && and flatten it
   filteredCompilations = ([] as string[]).concat(
-    ...filteredCompilations.map(e => e.split(" && ").map(it => it.trim()))
+    ...filteredCompilations.map((e) => e.split(" && ").map((it) => it.trim()))
   );
   // Deduplicate items
   filteredCompilations = Array.from(new Set(filteredCompilations));
@@ -375,10 +378,10 @@ function compileSkipIncludeDirectiveValues(
   node: SelectionNode
 ) {
   const skipDirective = node.directives?.find(
-    it => it.name.value === GraphQLSkipDirective.name
+    (it) => it.name.value === GraphQLSkipDirective.name
   );
   const includeDirective = node.directives?.find(
-    it => it.name.value === GraphQLIncludeDirective.name
+    (it) => it.name.value === GraphQLIncludeDirective.name
   );
 
   const skipValue = skipDirective
@@ -407,7 +410,7 @@ function compileSkipIncludeDirective(
   compilationContext: CompilationContext,
   directive: DirectiveNode
 ) {
-  const ifNode = directive.arguments?.find(it => it.name.value === "if");
+  const ifNode = directive.arguments?.find((it) => it.name.value === "if");
   if (ifNode == null) {
     throw new GraphQLError(
       `Directive '${directive.name.value}' is missing required arguments: 'if'`,
@@ -446,9 +449,10 @@ function validateSkipIncludeVariableType(
   compilationContext: CompilationContext,
   variable: VariableNode
 ) {
-  const variableDefinition = compilationContext.operation.variableDefinitions?.find(
-    it => it.variable.name.value === variable.name.value
-  );
+  const variableDefinition =
+    compilationContext.operation.variableDefinitions?.find(
+      (it) => it.variable.name.value === variable.name.value
+    );
   if (variableDefinition == null) {
     throw new GraphQLError(`Variable '${variable.name.value}' is not defined`, [
       variable
@@ -510,7 +514,7 @@ function doesFragmentConditionMatch(
     return false;
   }
   if (isAbstractType(conditionalType)) {
-    return compilationContext.schema.isPossibleType(conditionalType, type);
+    return compilationContext.schema.isSubType(conditionalType, type);
   }
   return false;
 }
@@ -534,9 +538,13 @@ export function resolveFieldDef(
   fieldNodes: FieldNode[]
 ): Maybe<GraphQLField<any, any>> {
   const fieldNode = fieldNodes[0];
-  const fieldName = fieldNode.name.value;
 
-  return getFieldDef(compilationContext.schema, parentType, fieldName);
+  if (versionInfo.major < 16) {
+    const fieldName = fieldNode.name.value;
+    return getFieldDef(compilationContext.schema, parentType, fieldName as any);
+  }
+
+  return getFieldDef(compilationContext.schema, parentType, fieldNode as any);
 }
 
 /**
@@ -603,12 +611,31 @@ function memoize3(
       cache2 = new WeakMap();
       cache1.set(a2, cache2);
     }
+    // eslint-disable-next-line prefer-rest-params
     const newValue = (fn as any)(...arguments);
     cache2.set(a3, newValue);
     return newValue;
   }
 
   return memoized;
+}
+
+// response path is used for identifying
+// the info resolver function as well as the path in errros,
+// the meta type is used for elements that are only to be used for
+// the function name
+type ResponsePathType = "variable" | "literal" | "meta";
+
+export interface ObjectPath {
+  prev: ObjectPath | undefined;
+  key: string;
+  type: ResponsePathType;
+}
+
+interface MissingVariablePath {
+  valueNode: VariableNode;
+  path?: ObjectPath;
+  argument?: { definition: GraphQLArgument; node: ArgumentNode };
 }
 
 export interface Arguments {
@@ -632,7 +659,7 @@ export function getArgumentDefs(
   const missing: MissingVariablePath[] = [];
   const argDefs = def.args;
   const argNodes = node.arguments || [];
-  const argNodeMap = keyMap(argNodes, arg => arg.name.value);
+  const argNodeMap = keyMap(argNodes, (arg) => arg.name.value);
   for (const argDef of argDefs) {
     const name = argDef.name;
     if (argDef.defaultValue !== undefined) {
@@ -656,7 +683,7 @@ export function getArgumentDefs(
         // execution. This is a runtime check to ensure execution does not
         // continue with an invalid argument value.
         throw new GraphQLError(
-          `Argument "${name}" of type \"${argType}\" has invalid value ${print(
+          `Argument "${name}" of type "${argType}" has invalid value ${print(
             argumentNode.value
           )}.`,
           argumentNode.value
@@ -687,12 +714,6 @@ export function getArgumentDefs(
     }
   }
   return { values, missing };
-}
-
-interface MissingVariablePath {
-  valueNode: VariableNode;
-  path?: ObjectPath;
-  argument?: { definition: GraphQLArgument; node: ArgumentNode };
 }
 
 interface ASTValueWithVariables {
@@ -785,7 +806,7 @@ export function valueFromAST(
     }
     const coercedObj = Object.create(null);
     const variables: MissingVariablePath[] = [];
-    const fieldNodes = keyMap(valueNode.fields, field => field.name.value);
+    const fieldNodes = keyMap(valueNode.fields, (field) => field.name.value);
     const fields = Object.values(type.getFields());
     for (const field of fields) {
       if (field.defaultValue !== undefined) {
@@ -827,10 +848,10 @@ export function valueFromAST(
     // Scalars fulfill parsing a literal value via parseLiteral().
     // Invalid values represent a failure to parse correctly, in which case
     // no value is returned.
-    let result;
+    let result: any;
     try {
       if (type.parseLiteral.length > 1) {
-        // tslint:disable-next-line
+        // eslint-disable-next-line
         console.error(
           "Scalar with variable inputs detected for parsing AST literals. This is not supported."
         );
@@ -878,6 +899,7 @@ function keyMap<T>(
   keyFn: (item: T) => string
 ): { [key: string]: T } {
   return list.reduce(
+    // eslint-disable-next-line no-sequences
     (map, item) => ((map[keyFn(item)] = item), map),
     Object.create(null)
   );
@@ -891,18 +913,6 @@ export function computeLocations(nodes: ASTNode[]): SourceLocation[] {
     return list;
   }, [] as SourceLocation[]);
 }
-
-export interface ObjectPath {
-  prev: ObjectPath | undefined;
-  key: string;
-  type: ResponsePathType;
-}
-
-// response path is used for identifying
-// the info resolver function as well as the path in errros,
-// the meta type is used for elements that are only to be used for
-// the function name
-type ResponsePathType = "variable" | "literal" | "meta";
 
 export function addPath(
   responsePath: ObjectPath | undefined,
@@ -925,5 +935,6 @@ export function flattenPath(
 }
 
 function isInvalid(value: any): boolean {
+  // eslint-disable-next-line no-self-compare
   return value === undefined || value !== value;
 }

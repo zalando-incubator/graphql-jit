@@ -49,7 +49,6 @@ function uncurry4<A, B, C, D, R>(
 export function memoize2<T extends Fn>(fn: T): T {
   type A = Args2<T>[0];
   type B = Args2<T>[1];
-  type R = Args2<T>["return"];
 
   return uncurry2(memoize((a: A) => memoize((b: B) => fn(a, b)))) as T;
 }
@@ -58,7 +57,6 @@ export function memoize3<T extends Fn>(fn: T): T {
   type A = Args3<T>[0];
   type B = Args3<T>[1];
   type C = Args3<T>[2];
-  type R = Args2<T>["return"];
 
   return uncurry3(
     memoize((a: A) => memoize((b: B) => memoize((c: C) => fn(a, b, c))))
@@ -70,7 +68,6 @@ export function memoize4<T extends Fn>(fn: T): T {
   type B = Args4<T>[1];
   type C = Args4<T>[2];
   type D = Args4<T>[3];
-  type R = Args2<T>["return"];
 
   return uncurry4(
     memoize((a: A) =>

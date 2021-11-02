@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 /**
  * Based on https://github.com/graphql/graphql-js/blob/main/src/subscription/__tests__/subscribe-test.js
  * This test suite includes certain deviations from the original:
@@ -41,11 +42,12 @@ const InboxType = new GraphQLObjectType({
   fields: {
     total: {
       type: GraphQLInt,
-      resolve: inbox => inbox.emails.length
+      resolve: (inbox) => inbox.emails.length
     },
     unread: {
       type: GraphQLInt,
-      resolve: inbox => inbox.emails.filter((email: any) => email.unread).length
+      resolve: (inbox) =>
+        inbox.emails.filter((email: any) => email.unread).length
     },
     emails: { type: new GraphQLList(EmailType) }
   }
@@ -71,6 +73,7 @@ async function subscribe({
 > {
   const prepared = compileQuery(schema, document, operationName || "");
   if (!isCompiledQuery(prepared)) return prepared;
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   return prepared.subscribe!(rootValue, contextValue, variableValues);
 }
 
@@ -120,7 +123,7 @@ function createSubscription(pubsub: SimplePubSub<Email>) {
           },
           // FIXME: we shouldn't use mapAsyncIterator here since it makes tests way more complex
           subscribe() {
-            return pubsub.getSubscriber(newEmail => {
+            return pubsub.getSubscriber((newEmail) => {
               emails.push(newEmail);
 
               return {
@@ -197,7 +200,7 @@ describe("Subscription Initialization Phase", () => {
     });
 
     // Close subscription
-    await subscription.return!();
+    await subscription.return?.();
   });
 
   it("accepts type definition with sync subscribe function", async () => {
@@ -230,7 +233,7 @@ describe("Subscription Initialization Phase", () => {
     });
 
     // Close subscription
-    await subscription.return!();
+    await subscription.return?.();
   });
 
   it("accepts type definition with async subscribe function", async () => {
@@ -266,7 +269,7 @@ describe("Subscription Initialization Phase", () => {
     });
 
     // Close subscription
-    await subscription.return!();
+    await subscription.return?.();
   });
 
   it("should only resolve the first field of invalid multi-field", async () => {
@@ -311,7 +314,7 @@ describe("Subscription Initialization Phase", () => {
     expect(await subscription.next()).toHaveProperty("done", false);
 
     // Close subscription
-    await subscription.return!();
+    await subscription.return?.();
   });
 
   it("throws an error if some of required arguments are missing", async () => {
@@ -360,7 +363,7 @@ describe("Subscription Initialization Phase", () => {
     const document = parse("subscription { unknownField }");
 
     const result = await subscribe({ schema, document });
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       errors: [
         {
           message: 'The subscription field "unknownField" is not defined.',
@@ -436,24 +439,24 @@ describe("Subscription Initialization Phase", () => {
     expect(
       // Returning an error
       await subscribeWithFn(() => new Error("test error"))
-    ).toEqual(expectedResult);
+    ).toMatchObject(expectedResult);
 
     expect(
       // Throwing an error
       await subscribeWithFn(() => {
         throw new Error("test error");
       })
-    ).toEqual(expectedResult);
+    ).toMatchObject(expectedResult);
 
     expect(
       // Resolving to an error
       await subscribeWithFn(() => Promise.resolve(new Error("test error")))
-    ).toEqual(expectedResult);
+    ).toMatchObject(expectedResult);
 
     expect(
       // Rejecting with an error
       await subscribeWithFn(() => Promise.reject(new Error("test error")))
-    ).toEqual(expectedResult);
+    ).toMatchObject(expectedResult);
   });
 
   it("resolves to an error if variables were wrong type", async () => {
@@ -480,7 +483,7 @@ describe("Subscription Initialization Phase", () => {
     // If we receive variables that cannot be coerced correctly, subscribe() will
     // resolve to an ExecutionResult that contains an informative error description.
     const result = await subscribe({ schema, document, variableValues });
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       errors: [
         {
           message:
@@ -611,7 +614,7 @@ describe("Subscription Publish Phase", () => {
     });
 
     // The client decides to disconnect.
-    expect(await subscription.return!()).toEqual({
+    expect(await subscription.return?.()).toEqual({
       done: true,
       value: undefined
     });
@@ -739,7 +742,7 @@ describe("Subscription Publish Phase", () => {
     });
 
     payload = subscription.next();
-    await subscription.return!();
+    await subscription.return?.();
 
     // A new email arrives!
     expect(
@@ -799,7 +802,7 @@ describe("Subscription Publish Phase", () => {
     // Throw error
     let caughtError;
     try {
-      await subscription.throw!("ouch");
+      await subscription.throw?.("ouch");
     } catch (e) {
       caughtError = e;
     }
@@ -920,7 +923,7 @@ describe("Subscription Publish Phase", () => {
     });
 
     // An error in execution is presented as such.
-    expect(await subscription.next()).toEqual({
+    expect(await subscription.next()).toMatchObject({
       done: false,
       value: {
         data: { newMessage: null },
@@ -957,7 +960,7 @@ describe("Subscription Publish Phase", () => {
         fields: {
           newMessage: {
             type: GraphQLString,
-            resolve: message => message,
+            resolve: (message) => message,
             subscribe: generateMessages
           }
         }
@@ -1026,7 +1029,7 @@ class SimplePubSub<T = any> {
         if (pushQueue.length > 0) {
           return Promise.resolve({ value: pushQueue.shift(), done: false });
         }
-        return new Promise(resolve => pullQueue.push(resolve));
+        return new Promise((resolve) => pullQueue.push(resolve));
       },
       return(): Promise<IteratorResult<R, void>> {
         emptyQueue();
@@ -1044,7 +1047,7 @@ class SimplePubSub<T = any> {
     function pushValue(event: T): void {
       const value: R = transform(event);
       if (pullQueue.length > 0) {
-        pullQueue.shift()!({ value, done: false });
+        pullQueue.shift()?.({ value, done: false });
       } else {
         pushQueue.push(value);
       }

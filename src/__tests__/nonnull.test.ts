@@ -151,16 +151,16 @@ function patch(data: any) {
   );
 }
 
-// tslint:disable-next-line
+// eslint-disable-next-line
 async function executeSyncAndAsync(query: string, rootValue: any) {
   const syncResult = await executeQuery(query, rootValue);
   const asyncResult = await executeQuery(patch(query), rootValue);
 
-  expect(asyncResult).toEqual(patch(syncResult));
+  expect(asyncResult).toMatchObject(patch(syncResult));
   return syncResult;
 }
 
-// tslint:disable-next-line
+// eslint-disable-next-line
 describe("Execute: handles non-nullable types", () => {
   describe("nulls a nullable field", () => {
     const query = `
@@ -178,7 +178,7 @@ describe("Execute: handles non-nullable types", () => {
 
     test("that throws", async () => {
       const result = await executeSyncAndAsync(query, throwingData);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: { sync: null },
         errors: [
           {
@@ -202,7 +202,7 @@ describe("Execute: handles non-nullable types", () => {
 
     test("that returns null", async () => {
       const result = await executeSyncAndAsync(query, nullingData);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: { syncNest: null },
         errors: [
           {
@@ -217,7 +217,7 @@ describe("Execute: handles non-nullable types", () => {
 
     test("that throws", async () => {
       const result = await executeSyncAndAsync(query, throwingData);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: { syncNest: null },
         errors: [
           {
@@ -241,7 +241,7 @@ describe("Execute: handles non-nullable types", () => {
 
     test("that returns null", async () => {
       const result = await executeSyncAndAsync(query, nullingData);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: { promiseNest: null },
         errors: [
           {
@@ -256,7 +256,7 @@ describe("Execute: handles non-nullable types", () => {
 
     test("that throws", async () => {
       const result = await executeSyncAndAsync(query, throwingData);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: { promiseNest: null },
         errors: [
           {
@@ -308,7 +308,7 @@ describe("Execute: handles non-nullable types", () => {
 
     test("that throws", async () => {
       const result = await executeQuery(query, throwingData);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data,
         errors: [
           {
@@ -434,7 +434,7 @@ describe("Execute: handles non-nullable types", () => {
 
     test("that returns null", async () => {
       const result = await executeQuery(query, nullingData);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data,
         errors: [
           {
@@ -495,7 +495,7 @@ describe("Execute: handles non-nullable types", () => {
 
     test("that throws", async () => {
       const result = await executeQuery(query, throwingData);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data,
         errors: [
           {
@@ -560,7 +560,7 @@ describe("Execute: handles non-nullable types", () => {
 
     test("that returns null", async () => {
       const result = await executeSyncAndAsync(query, nullingData);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: null,
         errors: [
           {
@@ -575,7 +575,7 @@ describe("Execute: handles non-nullable types", () => {
 
     test("that throws", async () => {
       const result = await executeSyncAndAsync(query, throwingData);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: null,
         errors: [
           {
@@ -600,11 +600,10 @@ describe("Execute: handles non-nullable types", () => {
                 type: new GraphQLNonNull(GraphQLString)
               }
             },
-            resolve: (_, args) => {
+            resolve: (_, args): any => {
               if (typeof args.cannotBeNull === "string") {
                 return "Passed: " + args.cannotBeNull;
               }
-              return;
             }
           }
         }
@@ -680,7 +679,7 @@ describe("Execute: handles non-nullable types", () => {
         `)
       });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             locations: [{ column: 13, line: 3 }],
@@ -703,7 +702,7 @@ describe("Execute: handles non-nullable types", () => {
           }
         `)
       });
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             locations: [{ column: 42, line: 3 }],
@@ -730,7 +729,7 @@ describe("Execute: handles non-nullable types", () => {
         }
       });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: {
           withNonNullArg: null
         },
@@ -759,7 +758,7 @@ describe("Execute: handles non-nullable types", () => {
         }
       });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: {
           withNonNullArg: null
         },

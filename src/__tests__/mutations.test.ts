@@ -32,7 +32,7 @@ class Root {
   }
 
   promiseToChangeTheNumber(newNumber: number): Promise<NumberHolder> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       process.nextTick(() => {
         resolve(this.immediatelyChangeTheNumber(newNumber));
       });
@@ -44,6 +44,7 @@ class Root {
   }
 
   promiseAndFailToChangeTheNumber(): Promise<NumberHolder> {
+    // eslint-disable-next-line promise/param-names
     return new Promise((_, reject) => {
       process.nextTick(() => {
         reject(new Error("Cannot change the number"));
@@ -169,7 +170,7 @@ describe("Execute: Handles mutation execution ordering", () => {
 
     const result = await executeQuery(schema, parse(doc), new Root(6));
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       data: {
         first: { theNumber: 1 },
         second: { theNumber: 2 },

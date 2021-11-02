@@ -2,7 +2,7 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/variables-test.js
  */
 
-/* tslint:disable:no-big-function */
+/* eslint-disable max-lines-per-function */
 import {
   GraphQLBoolean,
   GraphQLEnumType,
@@ -32,7 +32,7 @@ const TestComplexScalar = new GraphQLScalarType({
     }
     return null;
   },
-  // tslint:disable-next-line
+  // eslint-disable-next-line
   parseValue(value: any) {
     if (value === "SerializedValue") {
       return "DeserializedValue";
@@ -104,6 +104,7 @@ function fieldWithInputArg(inputArg: GraphQLArgumentConfig) {
     type: GraphQLString,
     args: { input: inputArg },
     resolve(_: any, args: any) {
+      // eslint-disable-next-line no-prototype-builtins
       if (args.hasOwnProperty("input")) {
         return inspect(args.input);
       }
@@ -249,7 +250,7 @@ describe("Execute: Handles inputs", () => {
           }
         `);
 
-        expect(result).toEqual({
+        expect(result).toMatchObject({
           errors: [
             {
               message:
@@ -267,7 +268,7 @@ describe("Execute: Handles inputs", () => {
           }
         `);
 
-        expect(result).toEqual({
+        expect(result).toMatchObject({
           errors: [
             {
               message:
@@ -522,7 +523,7 @@ describe("Execute: Handles inputs", () => {
           params
         );
 
-        expect(result).toEqual({
+        expect(result).toMatchObject({
           errors: [
             {
               message:
@@ -540,7 +541,7 @@ describe("Execute: Handles inputs", () => {
         const params = { input: { a: "foo", b: "bar", c: null } };
         const result = await executeQuery(doc, params);
 
-        expect(result).toEqual({
+        expect(result).toMatchObject({
           errors: [
             {
               message:
@@ -555,7 +556,7 @@ describe("Execute: Handles inputs", () => {
       test("errors on incorrect type", async () => {
         const result = await executeQuery(doc, { input: "foo bar" });
 
-        expect(result).toEqual({
+        expect(result).toMatchObject({
           errors: [
             {
               message:
@@ -572,7 +573,7 @@ describe("Execute: Handles inputs", () => {
           input: { a: "foo", b: "bar" }
         });
 
-        expect(result).toEqual({
+        expect(result).toMatchObject({
           errors: [
             {
               message:
@@ -590,7 +591,7 @@ describe("Execute: Handles inputs", () => {
         };
         const result = await executeQuery(doc, params);
 
-        expect(result).toEqual({
+        expect(result).toMatchObject({
           errors: [
             {
               message:
@@ -634,7 +635,7 @@ describe("Execute: Handles inputs", () => {
         }
       `);
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             locations: [
@@ -657,7 +658,7 @@ describe("Execute: Handles inputs", () => {
         }
       `);
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             locations: [
@@ -783,7 +784,7 @@ describe("Execute: Handles inputs", () => {
       test("errors on incorrect type", async () => {
         const result = await executeQuery(doc, { input: "foo bar" });
 
-        expect(result).toEqual({
+        expect(result).toMatchObject({
           errors: [
             {
               message:
@@ -973,7 +974,7 @@ describe("Execute: Handles inputs", () => {
         { int: Number.MAX_SAFE_INTEGER + 1 }
       );
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             locations: [
@@ -999,7 +1000,7 @@ describe("Execute: Handles inputs", () => {
         boolean: "hello"
       });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             locations: [
@@ -1088,7 +1089,7 @@ describe("Execute: Handles inputs", () => {
     test("does not allow non-nullable inputs to be omitted in a variable", async () => {
       const result = await executeQuery(doc);
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             locations: [{ line: 2, column: 16 }],
@@ -1146,7 +1147,7 @@ describe("Execute: Handles inputs", () => {
         boolean: null
       });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             locations: [
@@ -1245,7 +1246,7 @@ describe("Execute: Handles inputs", () => {
     test("reports error for missing non-nullable inputs", async () => {
       const result = await executeQuery("{ fieldWithNonNullableStringInput }");
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             message:
@@ -1264,7 +1265,7 @@ describe("Execute: Handles inputs", () => {
       `;
       const result = await executeQuery(doc, { value: [1, 2, 3] });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             message:
@@ -1289,7 +1290,7 @@ describe("Execute: Handles inputs", () => {
         }
       `);
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: {
           fieldWithNonNullableStringInput: null
         },
@@ -1363,7 +1364,7 @@ describe("Execute: Handles inputs", () => {
       `;
       const result = await executeQuery(doc);
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             locations: [
@@ -1386,7 +1387,7 @@ describe("Execute: Handles inputs", () => {
       `;
       const result = await executeQuery(doc);
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             locations: [
@@ -1410,7 +1411,7 @@ describe("Execute: Handles inputs", () => {
       `;
       const result = await executeQuery(doc, { input: null });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             message:
@@ -1473,7 +1474,7 @@ describe("Execute: Handles inputs", () => {
       `;
       const result = await executeQuery(doc, { input: ["A", null, "B"] });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             message:
@@ -1493,7 +1494,7 @@ describe("Execute: Handles inputs", () => {
       `;
       const result = await executeQuery(doc, { input: null });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             message:
@@ -1523,7 +1524,7 @@ describe("Execute: Handles inputs", () => {
       `;
       const result = await executeQuery(doc, { input: ["A", null, "B"] });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             message:
@@ -1543,7 +1544,7 @@ describe("Execute: Handles inputs", () => {
       `;
       const result = await executeQuery(doc, { input: { list: ["A", "B"] } });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             message:
@@ -1563,7 +1564,7 @@ describe("Execute: Handles inputs", () => {
       `;
       const result = await executeQuery(doc, { input: "whoknows" });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             message:
@@ -1608,7 +1609,7 @@ describe("Execute: Handles inputs", () => {
         }
       `);
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         errors: [
           {
             message:
@@ -1643,7 +1644,7 @@ describe("Execute: Handles inputs", () => {
         { optional: null }
       );
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: {
           fieldWithNonNullableStringInputAndDefaultArgumentValue: null
         },

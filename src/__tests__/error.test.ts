@@ -69,7 +69,7 @@ describe("error generation", () => {
     });
     test("fallbacks if Error.captureStackTrace is not defined", () => {
       const captureStackTrace = Error.captureStackTrace;
-      Error.captureStackTrace = (null as unknown) as any;
+      Error.captureStackTrace = null as unknown as any;
       const resp = executeTestQuery("{ b }", false, { b: "error" });
       expect(resp.errors[0].stack).toBeDefined();
       Error.captureStackTrace = captureStackTrace;

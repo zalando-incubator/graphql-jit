@@ -25,8 +25,6 @@ import createInspect from "./inspect";
 
 const inspect = createInspect();
 
-export type CoercedVariableValues = FailedVariableCoercion | VariableValues;
-
 interface FailedVariableCoercion {
   errors: ReadonlyArray<GraphQLError>;
 }
@@ -34,6 +32,8 @@ interface FailedVariableCoercion {
 interface VariableValues {
   coerced: { [key: string]: any };
 }
+
+export type CoercedVariableValues = FailedVariableCoercion | VariableValues;
 
 export function failToParseVariables(x: any): x is FailedVariableCoercion {
   return x.errors;
@@ -79,7 +79,7 @@ export function compileVariableParsing(
         new (GraphQLJITError as any)(
           `Variable "$${varName}" expected value of type ` +
             `"${
-              varType ? varType : print(varDefNode.type)
+              varType || print(varDefNode.type)
             }" which cannot be used as an input type.`,
           computeLocations([varDefNode.type])
         )
@@ -118,6 +118,7 @@ export function compileVariableParsing(
     }
   `);
 
+  // eslint-disable-next-line
   return Function.apply(
     null,
     ["GraphQLJITError", "inspect"]

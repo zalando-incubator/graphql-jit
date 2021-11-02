@@ -13,11 +13,11 @@
   "scripts": {
     "precommit": "lint-staged",
     "prepublishOnly": "yarn && yarn build",
-    "format": "prettier --no-config --write 'src/**/*.ts' '*.js'",
-    "check-format": "prettier --no-config -l 'src/**/*.ts' '*.js'",
-    "lint": "tslint --project .",
-    "lint-fix": "tslint --project . --fix",
-    "build": "tsc",
+    "format": "prettier --write 'src/**/*.ts' '*.js'",
+    "check-format": "prettier -l 'src/**/*.ts' '*.js'",
+    "lint": "eslint --ext .ts .",
+    "lint-fix": "eslint --ext .ts . --fix",
+    "build": "tsc --project tsconfig.build.json",
     "test": "jest",
     "mutation-test": "stryker run",
     "codecov": "codecov",
@@ -61,18 +61,24 @@
     "@types/lodash.merge": "^4.6.6",
     "@types/lodash.mergewith": "^4.6.6",
     "@types/node": "^10.17.26",
+    "@typescript-eslint/eslint-plugin": "5.2.0",
+    "@typescript-eslint/parser": "5.2.0",
     "benchmark": "^2.1.4",
     "codecov": "^3.3.0",
-    "graphql": "^15.1.0",
+    "eslint": "^8.1.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-config-standard": "^16.0.3",
+    "eslint-plugin-import": "^2.25.2",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^5.1.1",
+    "eslint-plugin-standard": "^5.0.0",
+     "graphql": "^16.0.0",
     "jest": "^24.7.1",
     "lint-staged": "^8.1.5",
-    "prettier": "^1.19.1",
+    "prettier": "^2.4.1",
     "ts-jest": "^24.0.2",
     "ts-node": "^8.0.3",
-    "tslint": "^5.15.0",
-    "tslint-config-prettier": "^1.18.0",
-    "tslint-plugin-prettier": "^2.0.1",
-    "typescript": "^3.9.5"
+    "typescript": "^4.4.4"
   },
   "dependencies": {
     "@graphql-typed-document-node/core": "3.1.0",
@@ -86,7 +92,7 @@
   "lint-staged": {
     "linters": {
       "*.ts": [
-        "tslint -c tslint.json -p tsconfig.json --fix",
+        "eslint --fix",
         "prettier --no-config --write",
         "git add"
       ],

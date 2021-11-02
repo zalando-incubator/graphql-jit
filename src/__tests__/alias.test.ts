@@ -1,4 +1,4 @@
-/* tslint:disable:no-big-function */
+/* eslint-disable max-lines-per-function */
 import {
   DocumentNode,
   GraphQLBoolean,
@@ -167,13 +167,13 @@ describe("alias resolveinfo", () => {
     await executeQuery(schema, ast, rootValue, { var: 123 });
     // we don't rely on the order of execution
     expect(
-      infos.find(info => info.fieldNodes[0].alias.value === "a")
+      infos.find((info) => info.fieldNodes[0].alias.value === "a")
     ).toBeDefined();
     expect(
-      infos.find(info => info.fieldNodes[0].alias.value === "b")
+      infos.find((info) => info.fieldNodes[0].alias.value === "b")
     ).toBeDefined();
     expect(
-      infos.find(info => info.fieldNodes[0].alias.value === "c")
+      infos.find((info) => info.fieldNodes[0].alias.value === "c")
     ).toBeDefined();
   });
 

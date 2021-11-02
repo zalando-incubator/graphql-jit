@@ -71,7 +71,7 @@ export default function createInspect(
       return "[" + getObjectTag(object) + "]";
     }
 
-    const properties = keys.map(key => {
+    const properties = keys.map((key) => {
       const value = formatValue(object[key], seenValues);
       return key + ": " + value;
     });
