@@ -71,6 +71,14 @@ const TestInputObject = new GraphQLInputObjectType({
   }
 });
 
+const TestInputObjectWithDefaultValue = new GraphQLInputObjectType({
+  name: "TestInputObjectWithDefaultValue",
+  fields: {
+    a: { type: GraphQLString },
+    b: { type: GraphQLString, defaultValue: "default" },
+  }
+});
+
 const TestThrowingInputObject = new GraphQLInputObjectType({
   name: "TestThrowingInputObject",
   fields: {
@@ -120,6 +128,7 @@ const TestType = new GraphQLObjectType({
     fieldWithNonNullableEnumInput: fieldWithInputArg({
       type: new GraphQLNonNull(TestEnum)
     }),
+    fieldWithDefaultInputValue: fieldWithInputArg({ type: TestInputObjectWithDefaultValue }),
     fieldWithObjectInput: fieldWithInputArg({ type: TestInputObject }),
     fieldWithObjectThrowingInput: fieldWithInputArg({
       type: TestThrowingInputObject
@@ -1576,6 +1585,36 @@ describe("Execute: Handles inputs", () => {
       });
     });
   });
+
+  describe("Handles default values", () => {
+    test("allows inputs with default values to be omitted", async () => {
+      const result = await executeQuery(`
+        query {
+          fieldWithDefaultInputValue(input: { a: "test" })
+        }
+      `);
+
+      expect(result).toEqual({
+        data: {
+          fieldWithDefaultInputValue: '{ a: "test", b: "default" }'
+        }
+      });
+    });
+
+    test("allows inputs with default values to be ommited from variable", async () => {
+      const result = await executeQuery(`
+        query ($value: TestInputObjectWithDefaultValue!) {
+          fieldWithDefaultInputValue(input: $value)
+        }
+      `, { value: { a: "test" } });
+
+      expect(result).toEqual({
+        data: {
+          fieldWithDefaultInputValue: '{ a: "test", b: "default" }'
+        }
+      });
+    });
+  })
 
   describe("Execute: Uses argument default values", () => {
     test("when no argument provided", async () => {
