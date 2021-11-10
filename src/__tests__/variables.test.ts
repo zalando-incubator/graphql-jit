@@ -1603,7 +1603,7 @@ describe("Execute: Handles inputs", () => {
       });
     });
 
-    test("allows inputs with default values to be ommited from variable", async () => {
+    test.skip("allows inputs with default values to be ommited from variable", async () => {
       const result = await executeQuery(
         `
         query ($value: TestInputObjectWithDefaultValue!) {
