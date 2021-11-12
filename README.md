@@ -49,9 +49,9 @@ For complete working examples, check the [examples/](examples) directory
 #### Create a schema
 
 ```js
-const typedefs = `
+const typeDefs = `
 type Query {
-  hello: string
+  hello: String
 }
 `;
 const resolvers = {
@@ -62,8 +62,8 @@ const resolvers = {
   }
 };
 
-const { makeExecutableSchema } = require("graphql");
-const schema = makeExecutableSchema({ typedefs, resolvers });
+const { makeExecutableSchema } = require("@graphql-tools/schema");
+const schema = makeExecutableSchema({ typeDefs, resolvers });
 ```
 
 #### Compile a Query
