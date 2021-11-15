@@ -86,19 +86,23 @@ export function compileVariableParsing(
       );
       continue;
     }
-    if (varDefNode.defaultValue) {
-      // If no value was provided to a variable with a default value,
-      // use the default value.
-      coercedValues[varName] = valueFromAST(varDefNode.defaultValue, varType);
-    }
 
+    // Ensure a constant shape of the input map
+    coercedValues[varName] = undefined;
     const hasValueName = hasValue(addPath(context.inputPath, varName));
     mainBody += `const ${hasValueName} = Object.prototype.hasOwnProperty.call(${getObjectPath(
       context.inputPath
     )}, "${varName}");\n`;
     context.inputPath = addPath(context.inputPath, varName);
     context.responsePath = addPath(context.responsePath, varName);
-    mainBody += generateInput(context, varType, varName, hasValueName, false);
+    mainBody += generateInput(
+      context,
+      varType,
+      varName,
+      hasValueName,
+      valueFromAST(varDefNode.defaultValue, varType),
+      false
+    );
   }
 
   if (errors.length > 0) {
@@ -140,6 +144,7 @@ function generateInput(
   varType: GraphQLInputType,
   varName: string,
   hasValueName: string,
+  defaultValue: unknown | undefined,
   wrapInList: boolean
 ) {
   const currentOutput = getObjectPath(context.responsePath);
@@ -172,6 +177,9 @@ function generateInput(
     gen(`
       if (${hasValueName}) { ${currentOutput} = null; }
     `);
+    if (defaultValue !== undefined) {
+      gen(`else { ${currentOutput} = ${JSON.stringify(defaultValue)} }`);
+    }
   }
   gen(`} else {`);
   if (isScalarType(varType)) {
@@ -326,11 +334,19 @@ function generateInput(
             varType.ofType,
             varName,
             hasValueName,
+            undefined,
             false
           )}
         }
       } else {
-        ${generateInput(context, varType.ofType, varName, hasValueName, true)}
+        ${generateInput(
+          context,
+          varType.ofType,
+          varName,
+          hasValueName,
+          undefined,
+          true
+        )}
       }
     `);
   } else if (isInputType(varType)) {
@@ -362,6 +378,7 @@ function generateInput(
           field.type,
           field.name,
           hasValueName,
+          field.defaultValue,
           false
         )}
       `);

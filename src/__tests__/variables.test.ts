@@ -188,7 +188,7 @@ const schema = new GraphQLSchema({ query: TestType });
 
 function executeQuery(query: string, variableValues?: any, s = schema) {
   const document = parse(query);
-  const prepared: any = compileQuery(s, document, "");
+  const prepared = compileQuery(s, document, "");
   if (!isCompiledQuery(prepared)) {
     return prepared;
   }
@@ -543,7 +543,7 @@ describe("Execute: Handles inputs", () => {
             }
           ]
         });
-        expect(result.errors[0].originalError.message).toBe(
+        expect(result.errors![0].originalError?.message).toBe(
           "complex-scalar-error"
         );
       });
@@ -1603,7 +1603,7 @@ describe("Execute: Handles inputs", () => {
       });
     });
 
-    test.skip("allows inputs with default values to be ommited from variable", async () => {
+    test("allows inputs with default values to be ommited from variable", async () => {
       const result = await executeQuery(
         `
         query ($value: TestInputObjectWithDefaultValue!) {
