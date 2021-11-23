@@ -180,6 +180,11 @@ export interface CompiledQuery<
   ) => Promise<
     AsyncIterableIterator<ExecutionResult<TResult>> | ExecutionResult<TResult>
   >;
+  createSourceEventStream?: (
+    root: any,
+    context: any,
+    variables?: Maybe<TVariables>,
+  ) => Promise<AsyncIterable<unknown> | ExecutionResult>;
   stringify: (v: any) => string;
 }
 
@@ -274,19 +279,26 @@ export function compileQuery<
     };
 
     if (context.operation.operation === "subscription") {
+      const createSourceEventStream = compileSourceEventStream(
+        context,
+        type,
+        fieldMap,
+      );
+      const subscribe = compileSubscription(
+        createSourceEventStream,
+        compiledQuery.query
+      );
+      compiledQuery.createSourceEventStream = createBoundCreateSourceEventStream(
+        context,
+        createSourceEventStream,
+        getVariables,
+        context.operation.name?.value
+      );
       compiledQuery.subscribe = createBoundSubscribe(
         context,
-        document,
-        compileSubscriptionOperation(
-          context,
-          type,
-          fieldMap,
-          compiledQuery.query
-        ),
+        subscribe,
         getVariables,
-        context.operation.name != null
-          ? context.operation.name.value
-          : undefined
+        context.operation.name?.value
       );
     }
 
@@ -1678,11 +1690,10 @@ export function isAsyncIterable<T = unknown>(
   return typeof Object(val)[Symbol.asyncIterator] === "function";
 }
 
-function compileSubscriptionOperation(
+function compileSourceEventStream(
   context: CompilationContext,
   type: GraphQLObjectType,
-  fieldMap: FieldsAndNodes,
-  queryFn: CompiledQuery["query"]
+  fieldMap: FieldsAndNodes
 ) {
   const fieldNodes = Object.values(fieldMap)[0];
   const fieldNode = fieldNodes[0];
@@ -1729,7 +1740,7 @@ function compileSubscriptionOperation(
     }
   }
 
-  async function createSourceEventStream(executionContext: ExecutionContext) {
+  return async function createSourceEventStream(executionContext: ExecutionContext) {
     try {
       const eventStream = await executeSubscription(executionContext);
 
@@ -1751,7 +1762,12 @@ function compileSubscriptionOperation(
       throw error;
     }
   }
+}
 
+function compileSubscription(
+  createSourceEventStream: (executionContext: ExecutionContext) => Promise<AsyncIterableIterator<unknown> | { errors: GraphQLError[] }>,
+  queryFn: CompiledQuery["query"]
+) {
   return async function subscribe(executionContext: ExecutionContext) {
     const resultOrStream = await createSourceEventStream(executionContext);
 
@@ -1773,9 +1789,62 @@ function compileSubscriptionOperation(
   };
 }
 
+function createBoundCreateSourceEventStream(
+  compilationContext: CompilationContext,
+  func: (
+    context: ExecutionContext
+  ) => Promise<AsyncIterable<unknown> | ExecutionResult>,
+  getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
+  operationName: string | undefined
+): CompiledQuery["createSourceEventStream"] {
+  const { resolvers, typeResolvers, isTypeOfs, serializers, resolveInfos } =
+    compilationContext;
+  const trimmer = createNullTrimmer(compilationContext);
+  const fnName = operationName || "subscribe";
+
+  const ret = {
+    async [fnName](
+      rootValue: any,
+      context: any,
+      variables: Maybe<{ [key: string]: any }>
+    ): Promise<AsyncIterable<unknown> | ExecutionResult> {
+      // this can be shared across in a batch request
+      const parsedVariables = getVariableValues(variables || {});
+
+      // Return early errors if variable coercing failed.
+      if (failToParseVariables(parsedVariables)) {
+        return { errors: parsedVariables.errors };
+      }
+
+      const executionContext: ExecutionContext = {
+        rootValue,
+        context,
+        variables: parsedVariables.coerced,
+        safeMap,
+        inspect,
+        GraphQLError: GraphqlJitError,
+        resolvers,
+        typeResolvers,
+        isTypeOfs,
+        serializers,
+        resolveInfos,
+        trimmer,
+        promiseCounter: 0,
+        nullErrors: [],
+        errors: [],
+        data: {}
+      };
+
+      // eslint-disable-next-line no-useless-call
+      return func.call(null, executionContext);
+    }
+  };
+
+  return ret[fnName];
+}
+
 function createBoundSubscribe(
   compilationContext: CompilationContext,
-  document: DocumentNode,
   func: (
     context: ExecutionContext
   ) => Promise<AsyncIterableIterator<ExecutionResult> | ExecutionResult>,
