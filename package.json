@@ -72,7 +72,7 @@
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-promise": "^5.1.1",
     "eslint-plugin-standard": "^5.0.0",
-     "graphql": "^16.0.0",
+    "graphql": "^16.0.0",
     "jest": "^24.7.1",
     "lint-staged": "^8.1.5",
     "prettier": "^2.4.1",
@@ -84,7 +84,7 @@
     "@graphql-typed-document-node/core": "3.1.0",
     "fast-json-stringify": "^1.13.0",
     "generate-function": "^2.3.1",
-    "json-schema": "^0.2.3",
+    "json-schema": "^0.4.0",
     "lodash.memoize": "^4.1.2",
     "lodash.merge": "4.6.2",
     "lodash.mergewith": "4.6.2"
