@@ -1,7 +1,7 @@
 # GraphQL JIT
 
 ![npm](https://img.shields.io/npm/dw/graphql-jit)
-[![codecov](https://codecov.io/gh/zalando-incubator/graphql-jit/branch/master/graph/badge.svg)](https://codecov.io/gh/zalando-incubator/graphql-jit)
+[![codecov](https://codecov.io/gh/zalando-incubator/graphql-jit/branch/main/graph/badge.svg)](https://codecov.io/gh/zalando-incubator/graphql-jit)
 
 ### Why?
 
