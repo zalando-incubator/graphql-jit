@@ -1,9 +1,6 @@
 import Benchmark from "benchmark";
 import {
   createSourceEventStream,
-  DocumentNode,
-  execute,
-  getIntrospectionQuery,
   GraphQLBoolean,
   GraphQLID,
   GraphQLList,
@@ -14,9 +11,8 @@ import {
   parse
 
 } from "graphql";
-import { compileQuery, isCompiledQuery, isPromise } from "../execution";
-import {
-} from "graphql";
+import { isPromise } from "../execution";
+import { compileSourceEventStream } from "..";
 
 const schema = function schema() {
   const BlogArticle: GraphQLObjectType = new GraphQLObjectType({
@@ -95,13 +91,14 @@ fragment articleFields on Article {
 }
 `);
 
+// TODO
 const skipJS = false;
 
 export function benchmarkCreateSourceEventStream() {
-  const compiledQuery = compileQuery(schema, subscription, undefined, {
+  const compiledQuery = compileSourceEventStream(schema, subscription, undefined, {
     debug: true
   } as any);
-  if (!isCompiledQuery(compiledQuery) || !compiledQuery.createSourceEventStream) {
+  if (!compiledQuery) {
     // eslint-disable-next-line no-console
     console.error(`failed to compile`);
     return null;
@@ -131,7 +128,7 @@ export function benchmarkCreateSourceEventStream() {
       minSamples: 150,
       defer: true,
       fn(deferred: any) {
-        const stream = compiledQuery.createSourceEventStream!(
+        const stream = compiledQuery(
           {},
           undefined
         );

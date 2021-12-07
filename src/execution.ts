@@ -180,13 +180,16 @@ export interface CompiledQuery<
   ) => Promise<
     AsyncIterableIterator<ExecutionResult<TResult>> | ExecutionResult<TResult>
   >;
-  createSourceEventStream?: (
-    root: any,
-    context: any,
-    variables?: Maybe<TVariables>,
-  ) => Promise<AsyncIterable<unknown> | ExecutionResult>;
   stringify: (v: any) => string;
 }
+
+export type CreateSourceEventStream<
+  TVariables = { [key: string]: any }
+> = (
+  root: any,
+  context: any,
+  variables?: Maybe<TVariables>,
+) => Promise<AsyncIterable<unknown> | ExecutionResult>;
 
 interface InternalCompiledQuery extends CompiledQuery {
   __DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation?: string;
@@ -279,7 +282,7 @@ export function compileQuery<
     };
 
     if (context.operation.operation === "subscription") {
-      const createSourceEventStream = compileSourceEventStream(
+      const createSourceEventStream = compileSourceEventStreamOperation(
         context,
         type,
         fieldMap,
@@ -287,12 +290,6 @@ export function compileQuery<
       const subscribe = compileSubscription(
         createSourceEventStream,
         compiledQuery.query
-      );
-      compiledQuery.createSourceEventStream = createBoundCreateSourceEventStream(
-        context,
-        createSourceEventStream,
-        getVariables,
-        context.operation.name?.value
       );
       compiledQuery.subscribe = createBoundSubscribe(
         context,
@@ -314,6 +311,98 @@ export function compileQuery<
       errors: normalizeErrors(err)
     };
   }
+}
+
+/**
+ * It compiles a GraphQL query to an executable function
+ * @param {GraphQLSchema} schema GraphQL schema
+ * @param {DocumentNode} document Query being submitted
+ * @param {string} operationName name of the operation
+ * @param partialOptions compilation options to tune the compiler features
+ * @returns {CompiledQuery} the cacheable result
+ */
+export function compileSourceEventStream<
+  TResult = { [key: string]: any },
+  TVariables = { [key: string]: any }
+>(
+  schema: GraphQLSchema,
+  document: TypedDocumentNode<TResult, TVariables>,
+  operationName?: string,
+  partialOptions?: Partial<CompilerOptions>
+): CreateSourceEventStream<TVariables> {
+  if (!schema) {
+    throw new Error(`Expected ${schema} to be a GraphQL schema.`);
+  }
+  if (!document) {
+    throw new Error("Must provide document.");
+  }
+
+  if (
+    partialOptions &&
+    partialOptions.resolverInfoEnricher &&
+    typeof partialOptions.resolverInfoEnricher !== "function"
+  ) {
+    throw new Error("resolverInfoEnricher must be a function");
+  }
+    const options = {
+      disablingCapturingStackErrors: false,
+      customJSONSerializer: false,
+      disableLeafSerialization: false,
+      customSerializers: {},
+      ...partialOptions
+    };
+
+    // If a valid context cannot be created due to incorrect arguments,
+    // a "Response" with only errors is returned.
+    const context = buildCompilationContext(
+      schema,
+      document,
+      options,
+      operationName
+    );
+
+    const getVariables = compileVariableParsing(
+      schema,
+      context.operation.variableDefinitions || []
+    );
+
+    const type = getOperationRootType(context.schema, context.operation);
+    const fieldMap = collectFields(
+      context,
+      type,
+      context.operation.selectionSet,
+      Object.create(null),
+      Object.create(null)
+    );
+
+    context.deferred.forEach((deferredField) => {
+      compileDeferredField(context, deferredField)
+    });
+
+    // TODO refactor executeSubscription instead of just preparing everything for it
+    const fieldNodes = Object.values(fieldMap)[0];
+    const fieldNode = fieldNodes[0];
+    const fieldName = fieldNode.name.value;
+    const field = resolveFieldDef(context, type, fieldNodes);
+
+    const responsePath = addPath(undefined, fieldName);
+    getExecutionInfo( context, type, field!.type, fieldName, fieldNodes, responsePath)
+    // end hack
+
+    if (context.operation.operation !== "subscription") {
+      throw new Error("Operation must be a subscription");
+    }
+    const createSourceEventStream = compileSourceEventStreamOperation(
+      context,
+      type,
+      fieldMap,
+    );
+    return createBoundCreateSourceEventStream(
+      context,
+      createSourceEventStream,
+      getVariables,
+      context.operation.name?.value
+    );
 }
 
 export function isCompiledQuery<
@@ -1690,7 +1779,7 @@ export function isAsyncIterable<T = unknown>(
   return typeof Object(val)[Symbol.asyncIterator] === "function";
 }
 
-function compileSourceEventStream(
+function compileSourceEventStreamOperation(
   context: CompilationContext,
   type: GraphQLObjectType,
   fieldMap: FieldsAndNodes
@@ -1796,7 +1885,7 @@ function createBoundCreateSourceEventStream(
   ) => Promise<AsyncIterable<unknown> | ExecutionResult>,
   getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
   operationName: string | undefined
-): CompiledQuery["createSourceEventStream"] {
+): CreateSourceEventStream {
   const { resolvers, typeResolvers, isTypeOfs, serializers, resolveInfos } =
     compilationContext;
   const trimmer = createNullTrimmer(compilationContext);
