@@ -57,7 +57,7 @@ async function persistHandler(req: IncomingMessage, res: ServerResponse) {
   try {
     id = store.add(query);
   } catch (e) {
-    return badRequest(res, e.message);
+    return badRequest(res, (e as Error).message);
   }
 
   res.writeHead(201);
@@ -74,7 +74,7 @@ async function graphqlHandler(req: IncomingMessage, res: ServerResponse) {
   try {
     inp = JSON.parse(body);
   } catch (e) {
-    return badRequest(res, e.message);
+    return badRequest(res, (e as Error).message);
   }
 
   if (!inp.id) {
