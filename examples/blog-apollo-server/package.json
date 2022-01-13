@@ -2,7 +2,11 @@
   "name": "blog-apollo-server",
   "version": "0.1.0",
   "dependencies": {
-    "apollo-server": "^2.9.16",
+    "@graphql-tools/schema": "^8.3.1",
+    "apollo-server": "^3.6.1",
     "tiny-lru": "^7.0.2"
+  },
+  "devDependencies": {
+    "ts-node": "^10.4.0"
   }
 }

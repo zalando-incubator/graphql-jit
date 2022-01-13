@@ -1,4 +1,5 @@
-import { ApolloServer, makeExecutableSchema } from "apollo-server";
+import { ApolloServer } from "apollo-server";
+import { makeExecutableSchema } from "@graphql-tools/schema";
 import { readFileSync } from "fs";
 import path from "path";
 import { executor } from "./executor";
