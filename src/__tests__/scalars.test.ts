@@ -243,7 +243,7 @@ describe("Scalars: Is able to serialize custom scalar", () => {
 });
 
 describe("Scalars: Is able to deserialize custom scalar", () => {
-  it("deserializes non-primitive scalars properly", async () => {
+  it("deserializes Date object scalars properly", async () => {
     const request = `
       {
         scalar(arg: "2022-01-01")

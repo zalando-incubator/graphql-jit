@@ -1166,7 +1166,7 @@ const MAGIC_PLUS_INFINITY =
 const MAGIC_NAN = "__MAGIC_NAN__57f286b9_4c20_487f_b409_79804ddcb4f8";
 const MAGIC_DATE = "__MAGIC_DATE__33a9e76d_02e0_4128_8e92_3530ad3da74d";
 
-function specialValueReplacer(_: any, value: any) {
+function specialValueReplacer(this: any, key: any, value: any) {
   if (Number.isNaN(value)) {
     return MAGIC_NAN;
   }
@@ -1179,6 +1179,10 @@ function specialValueReplacer(_: any, value: any) {
     return MAGIC_MINUS_INFINITY;
   }
 
+  if (this[key] instanceof Date) {
+    return MAGIC_DATE + this[key].getTime();
+  }
+
   return value;
 }
 
@@ -1186,7 +1190,8 @@ function objectStringify(val: any): string {
   return JSON.stringify(val, specialValueReplacer)
     .replace(new RegExp(`"${MAGIC_NAN}"`, "g"), "NaN")
     .replace(new RegExp(`"${MAGIC_PLUS_INFINITY}"`, "g"), "Infinity")
-    .replace(new RegExp(`"${MAGIC_MINUS_INFINITY}"`, "g"), "-Infinity");
+    .replace(new RegExp(`"${MAGIC_MINUS_INFINITY}"`, "g"), "-Infinity")
+    .replace(new RegExp(`"${MAGIC_DATE}([^"]+)"`, "g"), "new Date($1)");
 }
 
 /**
