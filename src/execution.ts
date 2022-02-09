@@ -1160,10 +1160,11 @@ function safeMap(
 }
 
 const MAGIC_MINUS_INFINITY =
-  "__MAGIC_MINUS_INFINITY__71d4310a-d4a3-4a05-b1fe-e60779d24998";
+  "__MAGIC_MINUS_INFINITY__71d4310a_d4a3_4a05_b1fe_e60779d24998";
 const MAGIC_PLUS_INFINITY =
-  "__MAGIC_PLUS_INFINITY__bb201c39-3333-4695-b4ad-7f1722e7aa7a";
-const MAGIC_NAN = "__MAGIC_NAN__57f286b9-4c20-487f-b409-79804ddcb4f8";
+  "__MAGIC_PLUS_INFINITY__bb201c39_3333_4695_b4ad_7f1722e7aa7a";
+const MAGIC_NAN = "__MAGIC_NAN__57f286b9_4c20_487f_b409_79804ddcb4f8";
+const MAGIC_DATE = "__MAGIC_DATE__33a9e76d_02e0_4128_8e92_3530ad3da74d";
 
 function specialValueReplacer(_: any, value: any) {
   if (Number.isNaN(value)) {
@@ -1183,9 +1184,9 @@ function specialValueReplacer(_: any, value: any) {
 
 function objectStringify(val: any): string {
   return JSON.stringify(val, specialValueReplacer)
-    .replace(`"${MAGIC_NAN}"`, "NaN")
-    .replace(`"${MAGIC_PLUS_INFINITY}"`, "Infinity")
-    .replace(`"${MAGIC_MINUS_INFINITY}"`, "-Infinity");
+    .replace(new RegExp(`"${MAGIC_NAN}"`, "g"), "NaN")
+    .replace(new RegExp(`"${MAGIC_PLUS_INFINITY}"`, "g"), "Infinity")
+    .replace(new RegExp(`"${MAGIC_MINUS_INFINITY}"`, "g"), "-Infinity");
 }
 
 /**
