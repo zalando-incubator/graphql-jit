@@ -1502,7 +1502,10 @@ function defaultResolveTypeFn(
     }
   }
 
-  throw new Error(`Could not resolve type of ${value}`);
+  throw new Error(
+    `Could not resolve the object type in possible types of ${abstractType.name} for the value: ` +
+      inspect(value)
+  );
 }
 
 /**
