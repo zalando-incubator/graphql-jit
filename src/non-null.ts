@@ -1,7 +1,6 @@
 import {
   ExecutionResult,
   FieldNode,
-  getOperationRootType,
   GraphQLError,
   GraphQLType,
   isListType,
@@ -135,10 +134,9 @@ function findNullableAncestor(
 function parseQueryNullables(
   compilationContext: CompilationContext
 ): QueryMetadata {
-  const type = getOperationRootType(
-    compilationContext.schema,
-    compilationContext.operation
-  );
+  const type = compilationContext.schema.getRootType(
+    compilationContext.operation.operation
+  )!;
   const fields = collectFields(
     compilationContext,
     type,
