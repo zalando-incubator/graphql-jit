@@ -8,7 +8,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git@github.com:ruiaraujo/graphql-jit.git"
+    "url": "https://github.com/zalando-incubator/graphql-jit.git"
   },
   "scripts": {
     "precommit": "lint-staged",
