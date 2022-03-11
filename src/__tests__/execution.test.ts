@@ -305,6 +305,46 @@ describe("Execute: Handles basic execution tasks", () => {
     expect(resolvedArgs.stringArg).toEqual("foo");
   });
 
+  test("allows NaN/Infinity/-Infinity as arguments", async () => {
+    const doc = `
+      query Example { b }
+    `;
+
+    let resolvedArgs: any = {};
+
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Type",
+        fields: {
+          b: {
+            args: {
+              numArg1: { type: GraphQLInt, defaultValue: NaN },
+              numArg2: { type: GraphQLInt, defaultValue: NaN },
+              numArg3: { type: GraphQLInt, defaultValue: Infinity },
+              numArg4: { type: GraphQLInt, defaultValue: Infinity },
+              numArg5: { type: GraphQLInt, defaultValue: -Infinity },
+              numArg6: { type: GraphQLInt, defaultValue: -Infinity }
+            },
+            type: GraphQLString,
+            resolve(_, args) {
+              resolvedArgs = args;
+              return "";
+            }
+          }
+        }
+      })
+    });
+
+    executeQuery(schema, parse(doc));
+
+    expect(resolvedArgs.numArg1).toBeNaN();
+    expect(resolvedArgs.numArg2).toBeNaN();
+    expect(resolvedArgs.numArg3).toBe(Infinity);
+    expect(resolvedArgs.numArg4).toBe(Infinity);
+    expect(resolvedArgs.numArg5).toBe(-Infinity);
+    expect(resolvedArgs.numArg6).toBe(-Infinity);
+  });
+
   test("nulls out error subtrees", async () => {
     const doc = `{
       sync

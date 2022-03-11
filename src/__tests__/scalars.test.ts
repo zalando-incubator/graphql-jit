@@ -5,6 +5,7 @@ import {
   GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
+  Kind,
   parse
 } from "graphql";
 import { compileQuery } from "../index";
@@ -237,6 +238,46 @@ describe("Scalars: Is able to serialize custom scalar", () => {
         expect(GraphQLString.serialize).not.toHaveBeenCalledWith("test");
         expect(customSerializer).toHaveBeenCalledWith("test");
       });
+    });
+  });
+});
+
+describe("Scalars: Is able to deserialize custom scalar", () => {
+  it("deserializes Date object scalars properly", async () => {
+    const request = `
+      {
+        scalar(arg: "2022-01-01")
+      }
+    `;
+
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          scalar: {
+            type: GraphQLString,
+            args: {
+              arg: {
+                type: new GraphQLScalarType({
+                  name: "Date",
+                  serialize: (value: any) => value.toISOString().slice(0, 10),
+                  parseValue: (value: any) => new Date(value),
+                  parseLiteral: (ast) =>
+                    ast.kind === Kind.STRING ? new Date(ast.value) : null
+                })
+              }
+            },
+            resolve: (_parent, { arg }) => Object.prototype.toString.call(arg)
+          }
+        }
+      })
+    });
+
+    const result = await executeQuery(schema, parse(request));
+    expect(result).toEqual({
+      data: {
+        scalar: "[object Date]"
+      }
     });
   });
 });
