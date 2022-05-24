@@ -11,16 +11,25 @@ const testSchema = makeExecutableSchema({
   typeDefs: `
     schema {
       query: TestType
+      mutation: Mut
     }
     type TestType {
       a: String
       b: String
+    }
+    type Mut {
+      c: String
+      d: String
     }
   `,
   resolvers: {
     TestType: {
       a: () => "a",
       b: () => "b"
+    },
+    Mut: {
+      c: () => "c",
+      d: () => "d"
     }
   }
 });
@@ -81,6 +90,66 @@ describe("Execute: handles directives", () => {
 
       expect(result).toEqual({
         data: { a: "a" }
+      });
+    });
+  });
+
+  describe("mutations", () => {
+    test("skip directive works on mutation", () => {
+      const result = executeTestQuery(`
+        mutation {
+          c @skip(if: true)
+          d
+        }
+      `);
+
+      expect(result).toEqual({
+        data: { d: "d" }
+      });
+    });
+
+    test("include directive works on mutation", () => {
+      const result = executeTestQuery(`
+        mutation {
+          c
+          d @include(if: false)
+        }
+      `);
+
+      expect(result).toEqual({
+        data: { c: "c" }
+      });
+    });
+
+    test("skip directive works on mutation - with variables", () => {
+      const result = executeTestQuery(
+        `
+          mutation($if: Boolean!) {
+            c @skip(if: $if)
+            d
+          }
+        `,
+        { if: true }
+      );
+
+      expect(result).toEqual({
+        data: { d: "d" }
+      });
+    });
+
+    test("include directive works on mutation - with variables", () => {
+      const result = executeTestQuery(
+        `
+          mutation($if: Boolean!) {
+            c
+            d @include(if: $if)
+          }
+        `,
+        { if: false }
+      );
+
+      expect(result).toEqual({
+        data: { c: "c" }
       });
     });
   });

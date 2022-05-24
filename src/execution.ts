@@ -598,14 +598,18 @@ function compileDeferredField(
 
 function compileDeferredFieldsSerially(context: CompilationContext): string {
   let body = "";
-  context.deferred.forEach((deferredField) => {
+  context.deferred.forEach((deferredField, index) => {
     const { name, fieldName, parentType } = deferredField;
     const resolverName = getResolverName(parentType.name, fieldName);
     const mutationHandler = getHoistedFunctionName(
       context,
       `${name}${resolverName}Mutation`
     );
-    body += `${GLOBAL_EXECUTION_CONTEXT}.queue.push(${mutationHandler});\n`;
+    body += `
+      if (${SAFETY_CHECK_PREFIX}${index}) {
+        ${GLOBAL_EXECUTION_CONTEXT}.queue.push(${mutationHandler});
+      }
+    `;
     const appendix = `
     if (${GLOBAL_PROMISE_COUNTER} === 0) {
       ${GLOBAL_RESOLVE}(${GLOBAL_EXECUTION_CONTEXT});
