@@ -84,7 +84,6 @@
     "@graphql-typed-document-node/core": "^3.1.1",
     "fast-json-stringify": "^5.7.0",
     "generate-function": "^2.3.1",
-    "json-schema": "^0.4.0",
     "lodash.memoize": "^4.1.2",
     "lodash.merge": "4.6.2",
     "lodash.mergewith": "4.6.2"

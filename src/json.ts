@@ -13,12 +13,26 @@ import {
   isObjectType,
   isScalarType
 } from "graphql";
-import { JSONSchema6, JSONSchema6TypeName } from "json-schema";
+import {
+  BooleanSchema,
+  IntegerSchema,
+  NumberSchema,
+  ObjectSchema,
+  RefSchema,
+  Schema,
+  StringSchema
+} from "fast-json-stringify";
 import { collectFields, collectSubfields, resolveFieldDef } from "./ast";
 import { getOperationRootType } from "./compat";
 import { CompilationContext } from "./execution";
 
-const PRIMITIVES: { [key: string]: JSONSchema6TypeName } = {
+const PRIMITIVES: {
+  [key: string]:
+    | IntegerSchema["type"]
+    | NumberSchema["type"]
+    | StringSchema["type"]
+    | BooleanSchema["type"];
+} = {
   Int: "integer",
   Float: "number",
   String: "string",
@@ -34,7 +48,7 @@ const PRIMITIVES: { [key: string]: JSONSchema6TypeName } = {
  */
 export function queryToJSONSchema(
   compilationContext: CompilationContext
-): JSONSchema6 {
+): Schema {
   const type = getOperationRootType(
     compilationContext.schema,
     compilationContext.operation
@@ -68,8 +82,9 @@ export function queryToJSONSchema(
     type: "object",
     properties: {
       data: {
-        type: ["object", "null"],
-        properties: fieldProperties
+        type: "object",
+        properties: fieldProperties,
+        nullable: true
       },
       errors: {
         type: "array",
@@ -111,7 +126,7 @@ function transformNode(
   compilationContext: CompilationContext,
   fieldNodes: FieldNode[],
   type: GraphQLType
-): JSONSchema6 {
+): Schema {
   if (isObjectType(type)) {
     const subfields = collectSubfields(compilationContext, type, fieldNodes);
     const properties = Object.create(null);
@@ -133,52 +148,54 @@ function transformNode(
       );
     }
     return {
-      type: ["object", "null"],
-      properties
+      type: "object",
+      properties,
+      nullable: true
     };
   }
   if (isListType(type)) {
     return {
-      type: ["array", "null"],
-      items: transformNode(compilationContext, fieldNodes, type.ofType)
+      type: "array",
+      items: transformNode(compilationContext, fieldNodes, type.ofType),
+      nullable: true
     };
   }
   if (isNonNullType(type)) {
     const nullable = transformNode(compilationContext, fieldNodes, type.ofType);
-    if (nullable.type && Array.isArray(nullable.type)) {
-      const nonNullable = nullable.type.filter((x) => x !== "null");
-      return {
-        ...nullable,
-        type: nonNullable.length === 1 ? nonNullable[0] : nonNullable
-      };
-    }
-    return {};
+    (nullable as Exclude<Schema, RefSchema>).nullable = false;
+    return nullable;
   }
   if (isEnumType(type)) {
     return {
-      type: ["string", "null"]
+      type: "string",
+      nullable: true
     };
   }
   if (isScalarType(type)) {
     const jsonSchemaType = PRIMITIVES[type.name];
     if (!jsonSchemaType) {
-      return {};
+      return {} as Schema;
     }
     return {
-      type: [jsonSchemaType, "null"]
+      type: jsonSchemaType,
+      nullable: true
     };
   }
   if (isAbstractType(type)) {
     return compilationContext.schema.getPossibleTypes(type).reduce(
       (res, t) => {
         const jsonSchema = transformNode(compilationContext, fieldNodes, t);
-        res.properties = { ...res.properties, ...jsonSchema.properties };
+        (res as ObjectSchema).properties = {
+          ...(res as ObjectSchema).properties,
+          ...(jsonSchema as ObjectSchema).properties
+        };
         return res;
       },
       {
-        type: ["object", "null"],
-        properties: {}
-      } as JSONSchema6
+        type: "object",
+        properties: {},
+        nullable: true
+      } as Schema
     );
   }
   throw new Error(`Got unhandled type: ${type.name}`);
