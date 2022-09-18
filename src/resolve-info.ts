@@ -10,11 +10,13 @@ import {
   GraphQLOutputType,
   GraphQLResolveInfo,
   GraphQLSchema,
+  isAbstractType,
   isCompositeType,
   isListType,
   isNonNullType,
   isObjectType,
   isUnionType,
+  Kind,
   SelectionSetNode
 } from "graphql";
 import memoize from "lodash.memoize";
@@ -172,12 +174,24 @@ type FragmentsType = GraphQLResolveInfo["fragments"];
 type GraphQLNamedOutputType = GraphQLNamedType & GraphQLOutputType;
 type GraphQLObjectLike = GraphQLInterfaceType | GraphQLObjectType;
 
-const memoizedGetReturnType = memoize2(getReturnType);
-const memoizedHasField = memoize2(hasField);
-const memoizedResolveEndType = memoize(resolveEndType);
-const memoizedGetPossibleTypes = memoize2(getPossibleTypes);
-const memoizedExpandFieldNodeType = memoize4(expandFieldNodeType);
-const memoizedExpandFieldNode = memoize4(expandFieldNode);
+const MEMOIZATION = false;
+
+const memoizedGetReturnType = MEMOIZATION
+  ? memoize2(getReturnType)
+  : getReturnType;
+const memoizedHasField = MEMOIZATION ? memoize2(hasField) : hasField;
+const memoizedResolveEndType = MEMOIZATION
+  ? memoize(resolveEndType)
+  : resolveEndType;
+const memoizedGetPossibleTypes = MEMOIZATION
+  ? memoize2(getPossibleTypes)
+  : getPossibleTypes;
+const memoizedExpandFieldNodeType = MEMOIZATION
+  ? memoize4(expandFieldNodeType)
+  : expandFieldNodeType;
+const memoizedExpandFieldNode = MEMOIZATION
+  ? memoize4(expandFieldNode)
+  : expandFieldNode;
 
 function expandFieldNode(
   schema: GraphQLSchema,
@@ -217,7 +231,7 @@ function expandFieldNodeType(
   const typeExpansion: TypeExpansion = {};
 
   for (const selection of selectionSet.selections) {
-    if (selection.kind === "Field") {
+    if (selection.kind === Kind.FIELD) {
       if (
         !isUnionType(parentType) &&
         memoizedHasField(parentType, selection.name.value)
@@ -231,13 +245,43 @@ function expandFieldNodeType(
       }
     } else {
       const selectionSet =
-        selection.kind === "InlineFragment"
+        selection.kind === Kind.INLINE_FRAGMENT
           ? selection.selectionSet
           : fragments[selection.name.value].selectionSet;
-      deepMerge(
-        typeExpansion,
-        memoizedExpandFieldNodeType(schema, fragments, parentType, selectionSet)
-      );
+
+      const nextType =
+        selection.kind === Kind.INLINE_FRAGMENT
+          ? selection.typeCondition
+            ? (schema.getType(
+                selection.typeCondition.name.value
+              ) as GraphQLCompositeType)
+            : parentType
+          : (schema.getType(
+              fragments[selection.name.value].typeCondition.name.value
+            ) as GraphQLCompositeType);
+
+      /**
+       * nextType (comes from query) is the type extracted from the fragment
+       * parentType (comes from schema) is the possibleType for which we are filling fields
+       *
+       * if the type from query (nextType) is the same as the type we are filling (parentType)
+       * or
+       * if the type from query (nextType) is an abstract type - this case is when we jump
+       * to a super type or sub type. Here we maintain the context (parentType) for which
+       * we are filling the fields. The super type / sub type will be filled in its own
+       * pass.
+       */
+      if (nextType === parentType || isAbstractType(nextType)) {
+        deepMerge(
+          typeExpansion,
+          memoizedExpandFieldNodeType(
+            schema,
+            fragments,
+            parentType,
+            selectionSet
+          )
+        );
+      }
     }
   }
 

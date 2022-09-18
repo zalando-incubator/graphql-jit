@@ -608,9 +608,11 @@ describe("resolver info", () => {
         }
         union Baz = Foo | Bar
         type Foo {
+          common: String
           foo: String
         }
         type Bar {
+          common: String
           bar: Int
         }
       `,
@@ -660,6 +662,46 @@ describe("resolver info", () => {
                       },
                     },
                     "Foo": Object {
+                      "foo": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                  }
+              `);
+      });
+
+      test("union field nodes - repeating names", async () => {
+        const result = await executeQuery(
+          schema,
+          parse(
+            `
+            query {
+              uBaz {
+                ... on Foo {
+                  foo
+                  common
+                }
+                ... on Bar {
+                  bar
+                }
+              }
+            }
+          `
+          )
+        );
+
+        expect(result.errors).not.toBeDefined();
+        expect(inf.fieldExpansion).toMatchInlineSnapshot(`
+                  Object {
+                    "Bar": Object {
+                      "bar": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
+                    },
+                    "Foo": Object {
+                      "common": Object {
+                        Symbol(LeafFieldSymbol): true,
+                      },
                       "foo": Object {
                         Symbol(LeafFieldSymbol): true,
                       },
@@ -918,13 +960,7 @@ describe("resolver info", () => {
                           "id": Object {
                             Symbol(LeafFieldSymbol): true,
                           },
-                          "name": Object {
-                            Symbol(LeafFieldSymbol): true,
-                          },
                         },
-                      },
-                      "url": Object {
-                        Symbol(LeafFieldSymbol): true,
                       },
                     },
                     "Node": Object {
@@ -946,13 +982,7 @@ describe("resolver info", () => {
                           "id": Object {
                             Symbol(LeafFieldSymbol): true,
                           },
-                          "name": Object {
-                            Symbol(LeafFieldSymbol): true,
-                          },
                         },
-                      },
-                      "url": Object {
-                        Symbol(LeafFieldSymbol): true,
                       },
                     },
                   }
