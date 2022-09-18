@@ -21,6 +21,7 @@ export function getOperationRootType(
   if (GraphQL.getOperationRootType) {
     return GraphQL.getOperationRootType(schema, operation);
   } else {
-    return schema.getRootType(operation.operation)!;
+    // the use of any is to support graphql v15 types which will not use this codepath
+    return (schema as any).getRootType(operation.operation)!;
   }
 }
