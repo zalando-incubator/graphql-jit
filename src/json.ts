@@ -5,7 +5,6 @@
  */
 import {
   FieldNode,
-  getOperationRootType,
   GraphQLType,
   isAbstractType,
   isEnumType,
@@ -35,10 +34,9 @@ const PRIMITIVES: { [key: string]: JSONSchema6TypeName } = {
 export function queryToJSONSchema(
   compilationContext: CompilationContext
 ): JSONSchema6 {
-  const type = getOperationRootType(
-    compilationContext.schema,
-    compilationContext.operation
-  );
+  const type = compilationContext.schema.getRootType(
+    compilationContext.operation.operation
+  )!;
   const fields = collectFields(
     compilationContext,
     type,

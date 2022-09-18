@@ -6,7 +6,6 @@ import {
   DocumentNode,
   ExecutionResult,
   FragmentDefinitionNode,
-  getOperationRootType,
   GraphQLAbstractType,
   GraphQLEnumType,
   GraphQLError,
@@ -248,7 +247,7 @@ export function compileQuery<
       context.operation.variableDefinitions || []
     );
 
-    const type = getOperationRootType(context.schema, context.operation);
+    const type = context.schema.getRootType(context.operation.operation)!;
     const fieldMap = collectFields(
       context,
       type,
