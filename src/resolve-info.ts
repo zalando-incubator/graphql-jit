@@ -174,7 +174,7 @@ type FragmentsType = GraphQLResolveInfo["fragments"];
 type GraphQLNamedOutputType = GraphQLNamedType & GraphQLOutputType;
 type GraphQLObjectLike = GraphQLInterfaceType | GraphQLObjectType;
 
-const MEMOIZATION = false;
+const MEMOIZATION = true;
 
 const memoizedGetReturnType = MEMOIZATION
   ? memoize2(getReturnType)
