@@ -47,6 +47,7 @@ import {
   ObjectPath,
   resolveFieldDef
 } from "./ast";
+import { getOperationRootType } from "./compat";
 import { GraphQLError as GraphqlJitError } from "./error";
 import createInspect from "./inspect";
 import { queryToJSONSchema } from "./json";
@@ -247,7 +248,7 @@ export function compileQuery<
       context.operation.variableDefinitions || []
     );
 
-    const type = context.schema.getRootType(context.operation.operation)!;
+    const type = getOperationRootType(context.schema, context.operation);
     const fieldMap = collectFields(
       context,
       type,

@@ -15,6 +15,7 @@ import {
 } from "graphql";
 import { JSONSchema6, JSONSchema6TypeName } from "json-schema";
 import { collectFields, collectSubfields, resolveFieldDef } from "./ast";
+import { getOperationRootType } from "./compat";
 import { CompilationContext } from "./execution";
 
 const PRIMITIVES: { [key: string]: JSONSchema6TypeName } = {
@@ -34,9 +35,10 @@ const PRIMITIVES: { [key: string]: JSONSchema6TypeName } = {
 export function queryToJSONSchema(
   compilationContext: CompilationContext
 ): JSONSchema6 {
-  const type = compilationContext.schema.getRootType(
-    compilationContext.operation.operation
-  )!;
+  const type = getOperationRootType(
+    compilationContext.schema,
+    compilationContext.operation
+  );
   const fields = collectFields(
     compilationContext,
     type,

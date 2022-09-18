@@ -10,6 +10,7 @@ import {
 import { isAbstractType } from "graphql/type";
 import merge from "lodash.merge";
 import { collectFields, collectSubfields, resolveFieldDef } from "./ast";
+import { getOperationRootType } from "./compat";
 import { CompilationContext } from "./execution";
 
 interface QueryMetadata {
@@ -134,9 +135,10 @@ function findNullableAncestor(
 function parseQueryNullables(
   compilationContext: CompilationContext
 ): QueryMetadata {
-  const type = compilationContext.schema.getRootType(
-    compilationContext.operation.operation
-  )!;
+  const type = getOperationRootType(
+    compilationContext.schema,
+    compilationContext.operation
+  );
   const fields = collectFields(
     compilationContext,
     type,
