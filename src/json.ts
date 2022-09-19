@@ -5,7 +5,6 @@
  */
 import {
   FieldNode,
-  getOperationRootType,
   GraphQLType,
   isAbstractType,
   isEnumType,
@@ -16,6 +15,7 @@ import {
 } from "graphql";
 import { JSONSchema6, JSONSchema6TypeName } from "json-schema";
 import { collectFields, collectSubfields, resolveFieldDef } from "./ast";
+import { getOperationRootType } from "./compat";
 import { CompilationContext } from "./execution";
 
 const PRIMITIVES: { [key: string]: JSONSchema6TypeName } = {

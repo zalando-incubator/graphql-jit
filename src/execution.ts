@@ -6,7 +6,6 @@ import {
   DocumentNode,
   ExecutionResult,
   FragmentDefinitionNode,
-  getOperationRootType,
   GraphQLAbstractType,
   GraphQLEnumType,
   GraphQLError,
@@ -48,6 +47,7 @@ import {
   ObjectPath,
   resolveFieldDef
 } from "./ast";
+import { getOperationRootType } from "./compat";
 import { GraphQLError as GraphqlJitError } from "./error";
 import createInspect from "./inspect";
 import { queryToJSONSchema } from "./json";
