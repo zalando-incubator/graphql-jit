@@ -22,6 +22,8 @@ import {
 import memoize from "lodash.memoize";
 import mergeWith from "lodash.mergewith";
 import { memoize2, memoize4 } from "./memoize";
+import { JitFieldNode } from "./ast";
+import { CoercedVariableValues } from "./variables";
 
 // TODO(boopathi): Use negated types to express
 // Enrichments<T> = { [key in (string & not keyof GraphQLResolveInfo)]: T[key] }
@@ -37,19 +39,32 @@ export interface ResolveInfoEnricherInput {
   parentType: GraphQLObjectType;
   returnType: GraphQLOutputType;
   fieldName: string;
-  fieldNodes: FieldNode[];
+  fieldNodes: JitFieldNode[];
 }
 
-export interface FieldExpansion {
+export type ShouldIncludeVariables = {
+  variables: CoercedVariableValues;
+};
+
+export interface ShouldIncludeExtension {
+  __shouldInclude: (variables: ShouldIncludeVariables) => boolean;
+}
+
+export type FieldExpansion = ShouldIncludeExtension & {
   // The possible return types that the field can return
   // It includes all the types in the Schema that intersect with the actual return type
+  // eslint-disable-next-line no-use-before-define
+  [returnType: string]: TypeExpansion;
+};
+
+type RootFieldExpansion = {
   // eslint-disable-next-line no-use-before-define
   [returnType: string]: TypeExpansion;
 }
 
 const LeafFieldSymbol = Symbol("LeafFieldSymbol");
 
-export interface LeafField {
+export interface LeafField extends ShouldIncludeExtension {
   [LeafFieldSymbol]: true;
 }
 
@@ -59,11 +74,27 @@ export interface TypeExpansion {
   [fieldName: string]: FieldExpansion | LeafField;
 }
 
-function createLeafField<T extends object>(props: T): T & LeafField {
-  return {
-    [LeafFieldSymbol]: true,
-    ...props
-  };
+function createLeafField<T extends object>(
+  props: T,
+  shouldInclude: (variables: ShouldIncludeVariables) => boolean
+): T & LeafField {
+  const leaf = Object.create(
+    {
+      __shouldInclude: shouldInclude
+    },
+    {}
+  );
+
+  Object.assign(leaf, props);
+
+  Object.defineProperty(leaf, LeafFieldSymbol, {
+    writable: true,
+    configurable: true,
+    enumerable: true,
+    value: true
+  });
+
+  return leaf;
 }
 
 export function isLeafField(obj: LeafField | FieldExpansion): obj is LeafField {
@@ -156,7 +187,7 @@ export function createResolveInfoThunk<T>(
 
 export function fieldExpansionEnricher(input: ResolveInfoEnricherInput) {
   const { schema, fragments, returnType, fieldNodes } = input;
-  const fieldExpansion: FieldExpansion | LeafField = {};
+  const fieldExpansion: RootFieldExpansion = {};
 
   for (const fieldNode of fieldNodes) {
     deepMerge(
@@ -164,6 +195,10 @@ export function fieldExpansionEnricher(input: ResolveInfoEnricherInput) {
       memoizedExpandFieldNode(schema, fragments, fieldNode, returnType)
     );
   }
+
+  // this is remaining from deepMerge.
+  // delete - because you can't skip resolution of root
+  delete fieldExpansion.__shouldInclude
 
   return {
     fieldExpansion
@@ -196,18 +231,31 @@ const memoizedExpandFieldNode = MEMOIZATION
 function expandFieldNode(
   schema: GraphQLSchema,
   fragments: FragmentsType,
-  node: FieldNode,
+  node: JitFieldNode,
   fieldType: GraphQLOutputType
 ): FieldExpansion | LeafField {
+  const shouldInclude = (variables: ShouldIncludeVariables): boolean => {
+    const expr = (node.__internalShouldInclude as string);
+    // eslint-disable-next-line no-new-func
+    const fn = new Function(`__context`, `return ${expr}`);
+
+    return fn(variables);
+  };
+
   if (node.selectionSet == null) {
-    return createLeafField({});
+    return createLeafField({}, shouldInclude);
   }
 
   // there is a selectionSet which makes the fieldType a CompositeType
   const typ = memoizedResolveEndType(fieldType) as GraphQLCompositeType;
   const possibleTypes = memoizedGetPossibleTypes(schema, typ);
 
-  const fieldExpansion: FieldExpansion = {};
+  const fieldExpansion: FieldExpansion = Object.create(
+    {
+      __shouldInclude: shouldInclude
+    },
+    {}
+  );
   for (const possibleType of possibleTypes) {
     if (!isUnionType(possibleType)) {
       fieldExpansion[possibleType.name] = memoizedExpandFieldNodeType(
