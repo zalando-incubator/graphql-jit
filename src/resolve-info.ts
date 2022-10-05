@@ -60,7 +60,7 @@ export type FieldExpansion = ShouldIncludeExtension & {
 type RootFieldExpansion = {
   // eslint-disable-next-line no-use-before-define
   [returnType: string]: TypeExpansion;
-}
+};
 
 const LeafFieldSymbol = Symbol("LeafFieldSymbol");
 
@@ -198,7 +198,7 @@ export function fieldExpansionEnricher(input: ResolveInfoEnricherInput) {
 
   // this is remaining from deepMerge.
   // delete - because you can't skip resolution of root
-  delete fieldExpansion.__shouldInclude
+  delete fieldExpansion.__shouldInclude;
 
   return {
     fieldExpansion
@@ -235,7 +235,7 @@ function expandFieldNode(
   fieldType: GraphQLOutputType
 ): FieldExpansion | LeafField {
   const shouldInclude = (variables: ShouldIncludeVariables): boolean => {
-    const expr = (node.__internalShouldInclude as string);
+    const expr = node.__internalShouldInclude as string;
     // eslint-disable-next-line no-new-func
     const fn = new Function(`__context`, `return ${expr}`);
 

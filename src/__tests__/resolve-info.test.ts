@@ -1265,7 +1265,6 @@ describe("resolver info", () => {
         });
         expect(idShouldInclude).toBe(false);
       });
-      
     });
   });
 });
