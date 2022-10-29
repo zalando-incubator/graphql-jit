@@ -283,7 +283,7 @@ describe("Execute: Handles inputs", () => {
           errors: [
             {
               message:
-                'Argument "input" of type "TestInputObject" has invalid value {b: ["A", null, "C"], c: false}.',
+                'Argument "input" of type "TestInputObject" has invalid value { b: ["A", null, "C"], c: false }.',
               locations: [{ line: 3, column: 41 }]
             }
           ]

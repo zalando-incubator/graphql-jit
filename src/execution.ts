@@ -47,7 +47,6 @@ import {
   ObjectPath,
   resolveFieldDef
 } from "./ast";
-import { getOperationRootType } from "./compat";
 import { GraphQLError as GraphqlJitError } from "./error";
 import createInspect from "./inspect";
 import { queryToJSONSchema } from "./json";
@@ -62,6 +61,7 @@ import {
   compileVariableParsing,
   failToParseVariables
 } from "./variables";
+import { getRootType } from "./get-root-type";
 
 const inspect = createInspect();
 
@@ -248,7 +248,8 @@ export function compileQuery<
       context.operation.variableDefinitions || []
     );
 
-    const type = getOperationRootType(context.schema, context.operation);
+    const type = getRootType(context);
+
     const fieldMap = collectFields(
       context,
       type,
@@ -1706,7 +1707,7 @@ function compileSubscriptionOperation(
   if (!field) {
     throw new GraphQLError(
       `The subscription field "${fieldName}" is not defined.`,
-      fieldNodes
+      { nodes: fieldNodes }
     );
   }
 
