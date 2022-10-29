@@ -26,10 +26,8 @@ import {
   typeFromAST,
   valueFromASTUntyped,
   ValueNode,
-  VariableNode,
-  versionInfo
+  VariableNode
 } from "graphql";
-import { getFieldDef } from "graphql/execution/execute";
 import { Kind, SelectionNode, TypeNode } from "graphql/language";
 import { isAbstractType } from "graphql/type";
 import { CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution";
@@ -414,7 +412,7 @@ function compileSkipIncludeDirective(
   if (ifNode == null) {
     throw new GraphQLError(
       `Directive '${directive.name.value}' is missing required arguments: 'if'`,
-      [directive]
+      { nodes: [directive] }
     );
   }
 
@@ -431,7 +429,7 @@ function compileSkipIncludeDirective(
         }' has an invalid value (${valueFromASTUntyped(
           ifNode.value
         )}). Expected type 'Boolean!'`,
-        [ifNode]
+        { nodes: [ifNode] }
       );
   }
 }
@@ -454,9 +452,9 @@ function validateSkipIncludeVariableType(
       (it) => it.variable.name.value === variable.name.value
     );
   if (variableDefinition == null) {
-    throw new GraphQLError(`Variable '${variable.name.value}' is not defined`, [
-      variable
-    ]);
+    throw new GraphQLError(`Variable '${variable.name.value}' is not defined`, {
+      nodes: [variable]
+    });
   }
 
   if (
@@ -470,7 +468,7 @@ function validateSkipIncludeVariableType(
       `Variable '${variable.name.value}' of type '${typeNodeToString(
         variableDefinition.type
       )}' used in position expecting type 'Boolean!'`,
-      [variableDefinition]
+      { nodes: [variableDefinition] }
     );
   }
 }
@@ -539,12 +537,7 @@ export function resolveFieldDef(
 ): Maybe<GraphQLField<any, any>> {
   const fieldNode = fieldNodes[0];
 
-  if (versionInfo.major < 16) {
-    const fieldName = fieldNode.name.value;
-    return getFieldDef(compilationContext.schema, parentType, fieldName as any);
-  }
-
-  return getFieldDef(compilationContext.schema, parentType, fieldNode as any);
+  return compilationContext.schema.getField(parentType, fieldNode.name.value);
 }
 
 /**
@@ -686,7 +679,7 @@ export function getArgumentDefs(
           `Argument "${name}" of type "${argType}" has invalid value ${print(
             argumentNode.value
           )}.`,
-          argumentNode.value
+          { nodes: argumentNode.value }
         );
       }
 
@@ -709,7 +702,7 @@ export function getArgumentDefs(
             `"${argType}" must not be null.`
           : `Argument "${name}" of required type ` +
             `"${argType}" was not provided.`,
-        node
+        { nodes: node }
       );
     }
   }

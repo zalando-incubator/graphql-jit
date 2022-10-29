@@ -1,6 +1,5 @@
 import fastJson from "fast-json-stringify";
 import {
-  formatError,
   GraphQLBoolean,
   GraphQLError,
   GraphQLID,
@@ -11,7 +10,6 @@ import {
   GraphQLString,
   parse,
   GraphQLInt,
-  GraphQLScalarType,
   versionInfo
 } from "graphql";
 import { buildExecutionContext } from "graphql/execution/execute";
@@ -163,7 +161,7 @@ describe("json schema creator", () => {
     test("error response serialization", async () => {
       const stringify = fastJson(jsonSchema);
       const response = {
-        errors: [formatError(new GraphQLError("test"))]
+        errors: [new GraphQLError("test").toJSON()]
       };
       expect(stringify(response)).toEqual(JSON.stringify(response));
     });
