@@ -61,8 +61,8 @@ import {
   compileVariableParsing,
   failToParseVariables
 } from "./variables";
-import { getRootType } from "./get-root-type";
 import { getGraphQLErrorOptions } from "./get-graphql-error-options";
+import { getOperationRootType } from "./compat";
 
 const inspect = createInspect();
 
@@ -249,8 +249,7 @@ export function compileQuery<
       context.operation.variableDefinitions || []
     );
 
-    const type = getRootType(context);
-
+    const type = getOperationRootType(context.schema, context.operation);
     const fieldMap = collectFields(
       context,
       type,
