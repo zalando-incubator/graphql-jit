@@ -543,7 +543,7 @@ export function resolveFieldDef(
 
   if (versionInfo.major < 16) {
     const fieldName = fieldNode.name.value;
-    return execute.getFieldDef(
+    return (execute as any).getFieldDef(
       compilationContext.schema,
       parentType,
       fieldName as any
@@ -551,7 +551,7 @@ export function resolveFieldDef(
   }
 
   if (versionInfo.major < 17) {
-    return execute.getFieldDef(
+    return (execute as any).getFieldDef(
       compilationContext.schema,
       parentType,
       fieldNode as any

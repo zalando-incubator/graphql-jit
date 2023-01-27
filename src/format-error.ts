@@ -1,6 +1,6 @@
 import { GraphQLError, versionInfo } from "graphql";
 import * as utilities from "graphql/error";
-import { GraphQLFormattedError } from "graphql/error/formatError";
+import { GraphQLFormattedError } from "graphql/error";
 
 export const formatError = (error: GraphQLError): GraphQLFormattedError => {
   if (versionInfo.major < 16) {
