@@ -26,13 +26,15 @@ import {
   typeFromAST,
   valueFromASTUntyped,
   ValueNode,
-  VariableNode
+  VariableNode,
+  versionInfo
 } from "graphql";
 import { Kind, SelectionNode, TypeNode } from "graphql/language";
 import { isAbstractType } from "graphql/type";
 import { CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution";
 import createInspect from "./inspect";
 import { Maybe } from "./types";
+import * as execute from "graphql/execution/execute";
 
 export interface JitFieldNode extends FieldNode {
   __internalShouldInclude?: string;
@@ -537,7 +539,27 @@ export function resolveFieldDef(
 ): Maybe<GraphQLField<any, any>> {
   const fieldNode = fieldNodes[0];
 
-  return compilationContext.schema.getField(parentType, fieldNode.name.value);
+  if (versionInfo.major < 16) {
+    const fieldName = fieldNode.name.value;
+    return execute.getFieldDef(
+      compilationContext.schema,
+      parentType,
+      fieldName as any
+    );
+  }
+
+  if (versionInfo.major < 17) {
+    return execute.getFieldDef(
+      compilationContext.schema,
+      parentType,
+      fieldNode as any
+    );
+  }
+
+  return (compilationContext.schema as any).getField(
+    parentType,
+    fieldNode.name.value
+  );
 }
 
 /**
