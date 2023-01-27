@@ -35,6 +35,7 @@ import { CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution";
 import createInspect from "./inspect";
 import { Maybe } from "./types";
 import * as execute from "graphql/execution/execute";
+import { getGraphQLErrorOptions } from "./get-graphql-error-options";
 
 export interface JitFieldNode extends FieldNode {
   __internalShouldInclude?: string;
@@ -414,7 +415,7 @@ function compileSkipIncludeDirective(
   if (ifNode == null) {
     throw new GraphQLError(
       `Directive '${directive.name.value}' is missing required arguments: 'if'`,
-      { nodes: [directive] }
+      getGraphQLErrorOptions([directive])
     );
   }
 
@@ -431,7 +432,7 @@ function compileSkipIncludeDirective(
         }' has an invalid value (${valueFromASTUntyped(
           ifNode.value
         )}). Expected type 'Boolean!'`,
-        { nodes: [ifNode] }
+        getGraphQLErrorOptions([ifNode])
       );
   }
 }
@@ -454,9 +455,10 @@ function validateSkipIncludeVariableType(
       (it) => it.variable.name.value === variable.name.value
     );
   if (variableDefinition == null) {
-    throw new GraphQLError(`Variable '${variable.name.value}' is not defined`, {
-      nodes: [variable]
-    });
+    throw new GraphQLError(
+      `Variable '${variable.name.value}' is not defined`,
+      getGraphQLErrorOptions([variable])
+    );
   }
 
   if (
@@ -470,7 +472,7 @@ function validateSkipIncludeVariableType(
       `Variable '${variable.name.value}' of type '${typeNodeToString(
         variableDefinition.type
       )}' used in position expecting type 'Boolean!'`,
-      { nodes: [variableDefinition] }
+      getGraphQLErrorOptions([variableDefinition])
     );
   }
 }
@@ -701,7 +703,7 @@ export function getArgumentDefs(
           `Argument "${name}" of type "${argType}" has invalid value ${print(
             argumentNode.value
           )}.`,
-          { nodes: argumentNode.value }
+          getGraphQLErrorOptions(argumentNode.value)
         );
       }
 
@@ -724,7 +726,7 @@ export function getArgumentDefs(
             `"${argType}" must not be null.`
           : `Argument "${name}" of required type ` +
             `"${argType}" was not provided.`,
-        { nodes: node }
+        getGraphQLErrorOptions(node)
       );
     }
   }

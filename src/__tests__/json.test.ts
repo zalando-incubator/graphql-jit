@@ -15,6 +15,7 @@ import {
 import { buildExecutionContext } from "graphql/execution/execute";
 import { compileQuery } from "../index";
 import { queryToJSONSchema } from "../json";
+import { formatError } from "../format-error";
 import { makeExecutableSchema } from "@graphql-tools/schema";
 
 describe("json schema creator", () => {
@@ -161,7 +162,7 @@ describe("json schema creator", () => {
     test("error response serialization", async () => {
       const stringify = fastJson(jsonSchema);
       const response = {
-        errors: [new GraphQLError("test").toJSON()]
+        errors: [formatError(new GraphQLError("test"))]
       };
       expect(stringify(response)).toEqual(JSON.stringify(response));
     });

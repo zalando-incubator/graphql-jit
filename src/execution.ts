@@ -62,6 +62,7 @@ import {
   failToParseVariables
 } from "./variables";
 import { getRootType } from "./get-root-type";
+import { getGraphQLErrorOptions } from "./get-graphql-error-options";
 
 const inspect = createInspect();
 
@@ -1707,7 +1708,7 @@ function compileSubscriptionOperation(
   if (!field) {
     throw new GraphQLError(
       `The subscription field "${fieldName}" is not defined.`,
-      { nodes: fieldNodes }
+      getGraphQLErrorOptions(fieldNodes)
     );
   }
 
