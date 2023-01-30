@@ -4,19 +4,15 @@ exports[`JSON schema creation with abstract types json schema creation 1`] = `
 Object {
   "properties": Object {
     "data": Object {
+      "nullable": true,
       "properties": Object {
         "u": Object {
+          "nullable": true,
           "properties": Object {},
-          "type": Array [
-            "object",
-            "null",
-          ],
+          "type": "object",
         },
       },
-      "type": Array [
-        "object",
-        "null",
-      ],
+      "type": "object",
     },
     "errors": Object {
       "items": Object {
