@@ -459,11 +459,19 @@ function validateSkipIncludeVariableType(
     ]);
   }
 
+  // Part of Spec text: https://spec.graphql.org/June2018/#sec-All-Variable-Usages-are-Allowed
   if (
     !(
-      variableDefinition.type.kind === Kind.NON_NULL_TYPE &&
-      variableDefinition.type.type.kind === Kind.NAMED_TYPE &&
-      variableDefinition.type.type.name.value === "Boolean"
+      // The variable defintion is a Non-nullable Boolean type
+      (
+        (variableDefinition.type.kind === Kind.NON_NULL_TYPE &&
+          variableDefinition.type.type.kind === Kind.NAMED_TYPE &&
+          variableDefinition.type.type.name.value === "Boolean") ||
+        // or the variable definition is a nullable Boolean type with a default value
+        (variableDefinition.type.kind === Kind.NAMED_TYPE &&
+          variableDefinition.type.name.value === "Boolean" &&
+          variableDefinition.defaultValue != null)
+      )
     )
   ) {
     throw new GraphQLError(
