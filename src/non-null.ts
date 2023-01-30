@@ -1,7 +1,6 @@
 import {
   ExecutionResult,
   FieldNode,
-  getOperationRootType,
   GraphQLError,
   GraphQLType,
   isListType,
@@ -11,6 +10,7 @@ import {
 import { isAbstractType } from "graphql/type";
 import merge from "lodash.merge";
 import { collectFields, collectSubfields, resolveFieldDef } from "./ast";
+import { getOperationRootType } from "./compat";
 import { CompilationContext } from "./execution";
 
 interface QueryMetadata {

@@ -1383,4 +1383,54 @@ describe("Execute: handles directives", () => {
       expect(mockResolver).toHaveBeenCalled();
     });
   });
+
+  describe("default values in include / skip directive's if", () => {
+    test("default value true in include", () => {
+      const result = executeTestQuery(`
+        query myQuery($inc: Boolean = true) {
+          a @include(if: $inc)
+        }
+      `);
+
+      expect(result).toEqual({
+        data: { a: "a" }
+      });
+    });
+
+    test("default value false in include", () => {
+      const result = executeTestQuery(`
+        query myQuery($inc: Boolean = false) {
+          a @include(if: $inc)
+        }
+      `);
+
+      expect(result).toEqual({
+        data: {}
+      });
+    });
+
+    test("default value true in skip", () => {
+      const result = executeTestQuery(`
+        query myQuery($skip: Boolean = true) {
+          a @skip(if: $skip)
+        }
+      `);
+
+      expect(result).toEqual({
+        data: {}
+      });
+    });
+
+    test("default value false in skip", () => {
+      const result = executeTestQuery(`
+        query myQuery($skip: Boolean = false) {
+          a @skip(if: $skip)
+        }
+      `);
+
+      expect(result).toEqual({
+        data: { a: "a" }
+      });
+    });
+  });
 });

@@ -5,7 +5,6 @@
  */
 import {
   FieldNode,
-  getOperationRootType,
   GraphQLType,
   isAbstractType,
   isEnumType,
@@ -24,6 +23,7 @@ import {
   StringSchema
 } from "fast-json-stringify";
 import { collectFields, collectSubfields, resolveFieldDef } from "./ast";
+import { getOperationRootType } from "./compat";
 import { CompilationContext } from "./execution";
 
 const PRIMITIVES: {

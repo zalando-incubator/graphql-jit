@@ -1,5 +1,63 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`JSON schema creation with abstract types json schema creation 1`] = `
+Object {
+  "properties": Object {
+    "data": Object {
+      "properties": Object {
+        "u": Object {
+          "properties": Object {},
+          "type": Array [
+            "object",
+            "null",
+          ],
+        },
+      },
+      "type": Array [
+        "object",
+        "null",
+      ],
+    },
+    "errors": Object {
+      "items": Object {
+        "additionalProperties": true,
+        "properties": Object {
+          "locations": Object {
+            "items": Object {
+              "properties": Object {
+                "column": Object {
+                  "type": "number",
+                },
+                "line": Object {
+                  "type": "number",
+                },
+              },
+              "type": "object",
+            },
+            "type": "array",
+          },
+          "message": Object {
+            "type": "string",
+          },
+          "path": Object {
+            "items": Object {
+              "type": Array [
+                "string",
+                "number",
+              ],
+            },
+            "type": "array",
+          },
+        },
+        "type": "object",
+      },
+      "type": "array",
+    },
+  },
+  "type": "object",
+}
+`;
+
 exports[`json schema creator json schema creation 1`] = `
 Object {
   "properties": Object {
