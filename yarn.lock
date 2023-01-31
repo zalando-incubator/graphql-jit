@@ -2653,10 +2653,10 @@ graceful-fs@^4.2.4:
   resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.8.tgz#e412b8d33f5e006593cbd3cee6df9f2cebbe802a"
   integrity sha512-qkIilPUYcNhJpd33n0GBXTB1MMPp14TxEsEs0pTrsSVucApsYzW5V+Q8Qxhik6KU3evy+qkAAowTByymK0avdg==
 
-graphql@^17.0.0-alpha.2:
-  version "17.0.0-alpha.2.canary.pr.3791.264f22163eb937ff87a420be9f7d45965f2cbf07"
-  resolved "https://registry.yarnpkg.com/graphql/-/graphql-17.0.0-alpha.2.canary.pr.3791.264f22163eb937ff87a420be9f7d45965f2cbf07.tgz#3835b1183f4a7a735d629df575a29cba3829f1ea"
-  integrity sha512-foJTYdXFHaZNx0M5eks57HBGSNwtfxQWcR7REVG3IB9Q0Ah3pumvN4Jk8GciWARv4/ySP/hKpGMqMFy1TKlqqg==
+graphql@^16.0.0:
+  version "16.6.0"
+  resolved "https://registry.yarnpkg.com/graphql/-/graphql-16.6.0.tgz#c2dcffa4649db149f6282af726c8c83f1c7c5fdb"
+  integrity sha512-KPIBPDlW7NxrbT/eh4qPXz5FiFdL5UbaA0XUNz2Rp3Z3hqBSkbj0GVjwFDztsWVauZUWsbKHgMg++sk8UX0bkw==
 
 has-ansi@^2.0.0:
   version "2.0.0"

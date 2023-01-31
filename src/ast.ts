@@ -26,16 +26,13 @@ import {
   typeFromAST,
   valueFromASTUntyped,
   ValueNode,
-  VariableNode,
-  versionInfo
+  VariableNode
 } from "graphql";
 import { Kind, SelectionNode, TypeNode } from "graphql/language";
 import { isAbstractType } from "graphql/type";
 import { CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution";
 import createInspect from "./inspect";
-import { Maybe } from "./types";
-import * as execute from "graphql/execution/execute";
-import { getGraphQLErrorOptions } from "./get-graphql-error-options";
+import { getGraphQLErrorOptions, resolveFieldDef } from "./compat";
 
 export interface JitFieldNode extends FieldNode {
   __internalShouldInclude?: string;
@@ -528,41 +525,7 @@ function getFieldEntryKey(node: FieldNode): string {
   return node.alias ? node.alias.value : node.name.value;
 }
 
-/**
- * Resolves the field on the given source object. In particular, this
- * figures out the value that the field returns by calling its resolve function,
- * then calls completeValue to complete promises, serialize scalars, or execute
- * the sub-selection-set for objects.
- */
-export function resolveFieldDef(
-  compilationContext: CompilationContext,
-  parentType: GraphQLObjectType,
-  fieldNodes: FieldNode[]
-): Maybe<GraphQLField<any, any>> {
-  const fieldNode = fieldNodes[0];
-
-  if (versionInfo.major < 16) {
-    const fieldName = fieldNode.name.value;
-    return (execute as any).getFieldDef(
-      compilationContext.schema,
-      parentType,
-      fieldName as any
-    );
-  }
-
-  if (versionInfo.major < 17) {
-    return (execute as any).getFieldDef(
-      compilationContext.schema,
-      parentType,
-      fieldNode as any
-    );
-  }
-
-  return (compilationContext.schema as any).getField(
-    parentType,
-    fieldNode.name.value
-  );
-}
+export { resolveFieldDef };
 
 /**
  * A memoized collection of relevant subfields in the context of the return

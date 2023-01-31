@@ -15,8 +15,8 @@ import {
 import { buildExecutionContext } from "graphql/execution/execute";
 import { compileQuery } from "../index";
 import { queryToJSONSchema } from "../json";
-import { formatError } from "../format-error";
 import { makeExecutableSchema } from "@graphql-tools/schema";
+import { formatError } from "../compat";
 
 describe("json schema creator", () => {
   const BlogAuthor = new GraphQLObjectType({

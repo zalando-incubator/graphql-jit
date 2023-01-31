@@ -61,8 +61,7 @@ import {
   compileVariableParsing,
   failToParseVariables
 } from "./variables";
-import { getGraphQLErrorOptions } from "./get-graphql-error-options";
-import { getOperationRootType } from "./compat";
+import { getGraphQLErrorOptions, getOperationRootType } from "./compat";
 
 const inspect = createInspect();
 
