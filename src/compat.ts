@@ -9,7 +9,8 @@ import { GraphQLObjectType } from "graphql/type/definition";
 import { Maybe } from "graphql/jsutils/Maybe";
 
 import { ASTNode, OperationDefinitionNode } from "graphql/language/ast";
-import * as utilities from "graphql/error";
+import * as errorUtilities from "graphql/error";
+import * as utilities from "graphql/utilities";
 import { GraphQLFormattedError } from "graphql/error";
 import { CompilationContext } from "./execution";
 import * as execute from "graphql/execution/execute";
@@ -53,7 +54,7 @@ export function getOperationRootType(
  */
 export function formatError(error: GraphQLError): GraphQLFormattedError {
   if (versionInfo.major < 16) {
-    return (utilities as any).formatError(error);
+    return (errorUtilities as any).formatError(error);
   }
 
   return (error as any).toJSON();
