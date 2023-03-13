@@ -44,8 +44,10 @@ import {
   flattenPath,
   getArgumentDefs,
   JitFieldNode,
+  joinSkipIncludePath,
   ObjectPath,
-  resolveFieldDef
+  resolveFieldDef,
+  serializeObjectPathForSkipInclude
 } from "./ast";
 import { GraphQLError as GraphqlJitError } from "./error";
 import createInspect from "./inspect";
@@ -686,7 +688,7 @@ function compileType(
       errorDestination
     );
   } else if (isObjectType(type)) {
-    const fieldMap = collectSubfields(context, type, fieldNodes);
+    const fieldMap = collectSubfields(context, type, fieldNodes, previousPath);
     body += compileObjectType(
       context,
       type,
@@ -852,14 +854,37 @@ function compileObjectType(
      *
      * `compilationFor($c1) || compilationFor($c2)`
      */
+    const serializedResponsePath = joinSkipIncludePath(
+      serializeObjectPathForSkipInclude(responsePath),
+      name
+    );
+
+    const oldFieldCondition =
+      fieldNodes
+        .map((it) => it.__internalShouldInclude)
+        .filter((it) => it)
+        .join(" || ") || /* if(true) - default */ "true";
+
+    const fieldCondition =
+      fieldNodes
+        .map((it) => it.__internalShouldIncludePath?.[serializedResponsePath])
+        .filter((it) => it)
+        .join(" || ") || /* if(true) - default */ "true";
+
+    // for (const fieldNode of fieldNodes) {
+    //   console.log(fieldNode.__internalShouldIncludePath);
+    // }
+    // console.log(
+    //   serializedResponsePath,
+    //   "\nnew:\n",
+    //   fieldCondition,
+    //   "\nold:\n",
+    //   oldFieldCondition
+    // );
+
     body(`
       (
-        ${
-          fieldNodes
-            .map((it) => it.__internalShouldInclude)
-            .filter((it) => it)
-            .join(" || ") || /* if(true) - default */ "true"
-        }
+        ${fieldCondition}
       )
     `);
 

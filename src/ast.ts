@@ -33,9 +33,23 @@ import { isAbstractType } from "graphql/type";
 import { CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution";
 import createInspect from "./inspect";
 import { getGraphQLErrorOptions, resolveFieldDef } from "./compat";
+import { memoize4 } from "./memoize";
 
 export interface JitFieldNode extends FieldNode {
+  /**
+   * @deprecated Use __internalShouldIncludePath instead
+   * @see __internalShouldIncludePath
+   */
   __internalShouldInclude?: string;
+
+  // The shouldInclude logic is specific to the current path
+  // This is because the same fieldNode can be reached from different paths
+  // - for example, the same fragment used in two different places
+  __internalShouldIncludePath?: {
+    // Key is the stringified ObjectPath,
+    // Value is the shouldInclude logic for that path
+    [path: string]: string;
+  };
 }
 
 export interface FieldsAndNodes {
@@ -57,14 +71,17 @@ export function collectFields(
   runtimeType: GraphQLObjectType,
   selectionSet: SelectionSetNode,
   fields: FieldsAndNodes,
-  visitedFragmentNames: { [key: string]: boolean }
+  visitedFragmentNames: { [key: string]: boolean },
+  previousPath?: ObjectPath
 ): FieldsAndNodes {
   return collectFieldsImpl(
     compilationContext,
     runtimeType,
     selectionSet,
     fields,
-    visitedFragmentNames
+    visitedFragmentNames,
+    undefined,
+    serializeObjectPathForSkipInclude(previousPath)
   );
 }
 
@@ -78,7 +95,8 @@ function collectFieldsImpl(
   selectionSet: SelectionSetNode,
   fields: FieldsAndNodes,
   visitedFragmentNames: { [key: string]: boolean },
-  previousShouldInclude = ""
+  previousShouldInclude = "",
+  previousPath = ""
 ): FieldsAndNodes {
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
@@ -88,6 +106,25 @@ function collectFieldsImpl(
           fields[name] = [];
         }
         const fieldNode: JitFieldNode = selection;
+
+        // the current path of the field
+        // This is used to generate per path skip/include code
+        // because the same field can be reached from different paths (e.g. fragment reuse)
+        const currentPath = joinSkipIncludePath(
+          previousPath,
+
+          // use alias(instead of selection.name.value) if available as the responsePath used for lookup uses alias
+          name
+        );
+
+        // `should include`s generated for the current fieldNode
+        const compiledSkipInclude = compileSkipInclude(
+          compilationContext,
+          selection
+        );
+
+        if (!fieldNode.__internalShouldIncludePath)
+          fieldNode.__internalShouldIncludePath = {};
 
         /**
          * Carry over fragment's skip and include code
@@ -105,10 +142,18 @@ function collectFieldsImpl(
          * -----------------------------
          * `should include`s generated for the current fieldNode
          */
+        fieldNode.__internalShouldIncludePath[currentPath] =
+          joinShouldIncludeCompilations(
+            fieldNode.__internalShouldIncludePath?.[currentPath] ?? "",
+            previousShouldInclude,
+            compiledSkipInclude
+          );
+
+        // @deprecated
         fieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
           fieldNode.__internalShouldInclude ?? "",
           previousShouldInclude,
-          compileSkipInclude(compilationContext, selection)
+          compiledSkipInclude
         );
 
         /**
@@ -118,7 +163,7 @@ function collectFieldsImpl(
          *
          * Refer the function definition for example.
          */
-        augmentFieldNodeTree(compilationContext, fieldNode);
+        augmentFieldNodeTree(compilationContext, fieldNode, currentPath);
 
         fields[name].push(fieldNode);
         break;
@@ -134,6 +179,14 @@ function collectFieldsImpl(
         ) {
           continue;
         }
+
+        // current fragment's shouldInclude
+        const compiledSkipInclude = compileSkipInclude(
+          compilationContext,
+          selection
+        );
+
+        // recurse
         collectFieldsImpl(
           compilationContext,
           runtimeType,
@@ -144,8 +197,9 @@ function collectFieldsImpl(
             // `should include`s from previous fragments
             previousShouldInclude,
             // current fragment's shouldInclude
-            compileSkipInclude(compilationContext, selection)
-          )
+            compiledSkipInclude
+          ),
+          previousPath
         );
         break;
 
@@ -162,6 +216,14 @@ function collectFieldsImpl(
         ) {
           continue;
         }
+
+        // current fragment's shouldInclude
+        const compiledSkipInclude = compileSkipInclude(
+          compilationContext,
+          selection
+        );
+
+        // recurse
         collectFieldsImpl(
           compilationContext,
           runtimeType,
@@ -172,9 +234,11 @@ function collectFieldsImpl(
             // `should include`s from previous fragments
             previousShouldInclude,
             // current fragment's shouldInclude
-            compileSkipInclude(compilationContext, selection)
-          )
+            compiledSkipInclude
+          ),
+          previousPath
         );
+
         break;
       }
     }
@@ -230,10 +294,11 @@ function collectFieldsImpl(
  */
 function augmentFieldNodeTree(
   compilationContext: CompilationContext,
-  rootFieldNode: JitFieldNode
+  rootFieldNode: JitFieldNode,
+  previousPath: string
 ) {
   for (const selection of rootFieldNode.selectionSet?.selections ?? []) {
-    handle(rootFieldNode, selection);
+    handle(rootFieldNode, selection, false, previousPath);
   }
 
   /**
@@ -243,12 +308,30 @@ function augmentFieldNodeTree(
   function handle(
     parentFieldNode: JitFieldNode,
     selection: SelectionNode,
-    comesFromFragmentSpread = false
+    comesFromFragmentSpread = false,
+    previousPath: string
   ) {
     switch (selection.kind) {
       case Kind.FIELD: {
         const jitFieldNode: JitFieldNode = selection;
+        const currentPath = joinSkipIncludePath(
+          previousPath,
+
+          // use alias(instead of selection.name.value) if available as the responsePath used for lookup uses alias
+          getFieldEntryKey(jitFieldNode)
+        );
+
         if (!comesFromFragmentSpread) {
+          if (!jitFieldNode.__internalShouldIncludePath)
+            jitFieldNode.__internalShouldIncludePath = {};
+
+          jitFieldNode.__internalShouldIncludePath[currentPath] =
+            joinShouldIncludeCompilations(
+              parentFieldNode.__internalShouldIncludePath?.[previousPath] ?? "",
+              jitFieldNode.__internalShouldIncludePath?.[currentPath] ?? ""
+            );
+
+          // @deprecated
           jitFieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
             parentFieldNode.__internalShouldInclude ?? "",
             jitFieldNode.__internalShouldInclude ?? ""
@@ -256,20 +339,20 @@ function augmentFieldNodeTree(
         }
         // go further down the query tree
         for (const selection of jitFieldNode.selectionSet?.selections ?? []) {
-          handle(jitFieldNode, selection);
+          handle(jitFieldNode, selection, false, currentPath);
         }
         break;
       }
       case Kind.INLINE_FRAGMENT: {
         for (const subSelection of selection.selectionSet.selections) {
-          handle(parentFieldNode, subSelection, true);
+          handle(parentFieldNode, subSelection, true, previousPath);
         }
         break;
       }
       case Kind.FRAGMENT_SPREAD: {
         const fragment = compilationContext.fragments[selection.name.value];
         for (const subSelection of fragment.selectionSet.selections) {
-          handle(parentFieldNode, subSelection, true);
+          handle(parentFieldNode, subSelection, true, previousPath);
         }
       }
     }
@@ -540,12 +623,13 @@ export { resolveFieldDef };
  * type. Memoizing ensures the subfields are not repeatedly calculated, which
  * saves overhead when resolving lists of values.
  */
-export const collectSubfields = memoize3(_collectSubfields);
+export const collectSubfields = memoize4(_collectSubfields);
 
 function _collectSubfields(
   compilationContext: CompilationContext,
   returnType: GraphQLObjectType,
-  fieldNodes: FieldNode[]
+  fieldNodes: FieldNode[],
+  previousPath?: ObjectPath
 ): { [key: string]: FieldNode[] } {
   let subFieldNodes = Object.create(null);
   const visitedFragmentNames = Object.create(null);
@@ -557,7 +641,8 @@ function _collectSubfields(
         returnType,
         selectionSet,
         subFieldNodes,
-        visitedFragmentNames
+        visitedFragmentNames,
+        previousPath
       );
     }
   }
@@ -920,6 +1005,43 @@ export function flattenPath(
     curr = curr.prev;
   }
   return flattened;
+}
+
+/**
+ * Serialize a path for use in the skip/include directives.
+ *
+ * @param path The path to serialize
+ * @returns The path serialized as a string, with the root path first.
+ */
+export function serializeObjectPathForSkipInclude(
+  path: ObjectPath | undefined
+) {
+  let serialized = "";
+  let curr = path;
+  while (curr) {
+    if (curr.type === "literal") {
+      serialized = joinSkipIncludePath(curr.key, serialized);
+    }
+    curr = curr.prev;
+  }
+  return serialized;
+}
+
+/**
+ * join two path segments to a dot notation, handling empty strings
+ *
+ * @param a path segment
+ * @param b path segment
+ * @returns combined path in dot notation
+ */
+export function joinSkipIncludePath(a: string, b: string) {
+  if (a) {
+    if (b) {
+      return `${a}.${b}`;
+    }
+    return a;
+  }
+  return b;
 }
 
 function isInvalid(value: any): boolean {
