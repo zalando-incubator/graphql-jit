@@ -16,7 +16,8 @@ import {
   GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
-  parse
+  parse,
+  versionInfo
 } from "graphql";
 import { GraphQLArgumentConfig } from "graphql/type/definition";
 import { compileQuery, isCompiledQuery } from "../index";
@@ -283,7 +284,9 @@ describe("Execute: Handles inputs", () => {
           errors: [
             {
               message:
-                'Argument "input" of type "TestInputObject" has invalid value {b: ["A", null, "C"], c: false}.',
+                versionInfo.major < 17
+                  ? 'Argument "input" of type "TestInputObject" has invalid value {b: ["A", null, "C"], c: false}.'
+                  : 'Argument "input" of type "TestInputObject" has invalid value { b: ["A", null, "C"], c: false }.',
               locations: [{ line: 3, column: 41 }]
             }
           ]

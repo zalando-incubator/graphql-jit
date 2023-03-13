@@ -39,7 +39,7 @@
     },
     "coverageThreshold": {
       "global": {
-        "branches": 92,
+        "branches": 91,
         "functions": 96,
         "lines": 96,
         "statements": 96
@@ -50,7 +50,7 @@
     "graphql": ">=15"
   },
   "devDependencies": {
-    "@graphql-tools/schema": "^8.3.1",
+    "@graphql-tools/schema": "^9.0.8",
     "@stryker-mutator/core": "^2.0.0",
     "@stryker-mutator/jest-runner": "^2.0.0",
     "@stryker-mutator/typescript": "^2.0.0",

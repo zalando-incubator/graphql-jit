@@ -1,6 +1,5 @@
 import fastJson from "fast-json-stringify";
 import {
-  formatError,
   GraphQLBoolean,
   GraphQLError,
   GraphQLID,
@@ -11,13 +10,13 @@ import {
   GraphQLString,
   parse,
   GraphQLInt,
-  GraphQLScalarType,
   versionInfo
 } from "graphql";
 import { buildExecutionContext } from "graphql/execution/execute";
 import { compileQuery } from "../index";
 import { queryToJSONSchema } from "../json";
 import { makeExecutableSchema } from "@graphql-tools/schema";
+import { formatError } from "../compat";
 
 describe("json schema creator", () => {
   const BlogAuthor = new GraphQLObjectType({

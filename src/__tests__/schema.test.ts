@@ -18,8 +18,7 @@ import {
   GraphQLString,
   IntrospectionQuery,
   parse,
-  printSchema,
-  versionInfo
+  printSchema
 } from "graphql";
 import { compileQuery, isCompiledQuery } from "../index";
 

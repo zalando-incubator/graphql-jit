@@ -47,7 +47,6 @@ import {
   ObjectPath,
   resolveFieldDef
 } from "./ast";
-import { getOperationRootType } from "./compat";
 import { GraphQLError as GraphqlJitError } from "./error";
 import createInspect from "./inspect";
 import { queryToJSONSchema } from "./json";
@@ -62,6 +61,7 @@ import {
   compileVariableParsing,
   failToParseVariables
 } from "./variables";
+import { getGraphQLErrorOptions, getOperationRootType } from "./compat";
 
 const inspect = createInspect();
 
@@ -1706,7 +1706,7 @@ function compileSubscriptionOperation(
   if (!field) {
     throw new GraphQLError(
       `The subscription field "${fieldName}" is not defined.`,
-      fieldNodes
+      getGraphQLErrorOptions(fieldNodes)
     );
   }
 

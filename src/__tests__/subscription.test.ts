@@ -8,6 +8,7 @@
  */
 
 import {
+  ExecutionArgs,
   ExecutionResult,
   GraphQLBoolean,
   GraphQLInt,
@@ -15,8 +16,7 @@ import {
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
-  parse,
-  SubscriptionArgs
+  parse
 } from "graphql";
 import { compileQuery, isAsyncIterable, isCompiledQuery } from "../execution";
 
@@ -68,7 +68,7 @@ async function subscribe({
   rootValue,
   contextValue,
   variableValues
-}: SubscriptionArgs): Promise<
+}: ExecutionArgs): Promise<
   AsyncIterableIterator<ExecutionResult> | ExecutionResult
 > {
   const prepared = compileQuery(schema, document, operationName || "");

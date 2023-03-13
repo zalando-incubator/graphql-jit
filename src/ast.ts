@@ -26,15 +26,13 @@ import {
   typeFromAST,
   valueFromASTUntyped,
   ValueNode,
-  VariableNode,
-  versionInfo
+  VariableNode
 } from "graphql";
-import { getFieldDef } from "graphql/execution/execute";
 import { Kind, SelectionNode, TypeNode } from "graphql/language";
 import { isAbstractType } from "graphql/type";
 import { CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution";
 import createInspect from "./inspect";
-import { Maybe } from "./types";
+import { getGraphQLErrorOptions, resolveFieldDef } from "./compat";
 
 export interface JitFieldNode extends FieldNode {
   __internalShouldInclude?: string;
@@ -414,7 +412,7 @@ function compileSkipIncludeDirective(
   if (ifNode == null) {
     throw new GraphQLError(
       `Directive '${directive.name.value}' is missing required arguments: 'if'`,
-      [directive]
+      getGraphQLErrorOptions([directive])
     );
   }
 
@@ -431,7 +429,7 @@ function compileSkipIncludeDirective(
         }' has an invalid value (${valueFromASTUntyped(
           ifNode.value
         )}). Expected type 'Boolean!'`,
-        [ifNode]
+        getGraphQLErrorOptions([ifNode])
       );
   }
 }
@@ -454,9 +452,10 @@ function validateSkipIncludeVariableType(
       (it) => it.variable.name.value === variable.name.value
     );
   if (variableDefinition == null) {
-    throw new GraphQLError(`Variable '${variable.name.value}' is not defined`, [
-      variable
-    ]);
+    throw new GraphQLError(
+      `Variable '${variable.name.value}' is not defined`,
+      getGraphQLErrorOptions([variable])
+    );
   }
 
   // Part of Spec text: https://spec.graphql.org/June2018/#sec-All-Variable-Usages-are-Allowed
@@ -478,7 +477,7 @@ function validateSkipIncludeVariableType(
       `Variable '${variable.name.value}' of type '${typeNodeToString(
         variableDefinition.type
       )}' used in position expecting type 'Boolean!'`,
-      [variableDefinition]
+      getGraphQLErrorOptions([variableDefinition])
     );
   }
 }
@@ -534,26 +533,7 @@ function getFieldEntryKey(node: FieldNode): string {
   return node.alias ? node.alias.value : node.name.value;
 }
 
-/**
- * Resolves the field on the given source object. In particular, this
- * figures out the value that the field returns by calling its resolve function,
- * then calls completeValue to complete promises, serialize scalars, or execute
- * the sub-selection-set for objects.
- */
-export function resolveFieldDef(
-  compilationContext: CompilationContext,
-  parentType: GraphQLObjectType,
-  fieldNodes: FieldNode[]
-): Maybe<GraphQLField<any, any>> {
-  const fieldNode = fieldNodes[0];
-
-  if (versionInfo.major < 16) {
-    const fieldName = fieldNode.name.value;
-    return getFieldDef(compilationContext.schema, parentType, fieldName as any);
-  }
-
-  return getFieldDef(compilationContext.schema, parentType, fieldNode as any);
-}
+export { resolveFieldDef };
 
 /**
  * A memoized collection of relevant subfields in the context of the return
@@ -694,7 +674,7 @@ export function getArgumentDefs(
           `Argument "${name}" of type "${argType}" has invalid value ${print(
             argumentNode.value
           )}.`,
-          argumentNode.value
+          getGraphQLErrorOptions(argumentNode.value)
         );
       }
 
@@ -717,7 +697,7 @@ export function getArgumentDefs(
             `"${argType}" must not be null.`
           : `Argument "${name}" of required type ` +
             `"${argType}" was not provided.`,
-        node
+        getGraphQLErrorOptions(node)
       );
     }
   }
