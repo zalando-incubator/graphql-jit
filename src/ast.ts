@@ -169,7 +169,7 @@ function collectFieldsImpl(
         break;
       }
 
-      case Kind.INLINE_FRAGMENT:
+      case Kind.INLINE_FRAGMENT: {
         if (
           !doesFragmentConditionMatch(
             compilationContext,
@@ -202,6 +202,7 @@ function collectFieldsImpl(
           previousPath
         );
         break;
+      }
 
       case Kind.FRAGMENT_SPREAD: {
         const fragName = selection.name.value;
