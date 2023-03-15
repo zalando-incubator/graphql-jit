@@ -83,6 +83,19 @@ export interface CompilerOptions {
   customSerializers: { [key: string]: (v: any) => any };
 
   resolverInfoEnricher?: (inp: ResolveInfoEnricherInput) => object;
+
+  /**
+   * This option is a temporary workaround to rollout and test the new skip/include behavior.
+   * It will be removed in the next version along with the old behavior.
+   *
+   * Set this to true if you face issues with skip/include in fragment spreads.
+   *
+   * default: false
+   *
+   * @see https://github.com/zalando-incubator/graphql-jit/pull/197
+   *
+   */
+  useExperimentalPathBasedSkipInclude: boolean;
 }
 
 interface ExecutionContext {
@@ -226,6 +239,7 @@ export function compileQuery<
       customJSONSerializer: false,
       disableLeafSerialization: false,
       customSerializers: {},
+      useExperimentalPathBasedSkipInclude: false,
       ...partialOptions
     };
 
@@ -871,20 +885,13 @@ function compileObjectType(
         .filter((it) => it)
         .join(" || ") || /* if(true) - default */ "true";
 
-    // for (const fieldNode of fieldNodes) {
-    //   console.log(fieldNode.__internalShouldIncludePath);
-    // }
-    // console.log(
-    //   serializedResponsePath,
-    //   "\nnew:\n",
-    //   fieldCondition,
-    //   "\nold:\n",
-    //   oldFieldCondition
-    // );
-
     body(`
       (
-        ${fieldCondition}
+        ${
+          context.options.useExperimentalPathBasedSkipInclude
+            ? fieldCondition
+            : oldFieldCondition
+        }
       )
     `);
 

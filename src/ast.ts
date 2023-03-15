@@ -650,50 +650,6 @@ function _collectSubfields(
   return subFieldNodes;
 }
 
-function memoize3(
-  fn: (
-    compilationContext: CompilationContext,
-    returnType: GraphQLObjectType,
-    fieldNodes: FieldNode[]
-  ) => { [key: string]: FieldNode[] }
-): (
-  compilationContext: CompilationContext,
-  returnType: GraphQLObjectType,
-  fieldNodes: FieldNode[]
-) => { [key: string]: FieldNode[] } {
-  let cache0: WeakMap<any, any>;
-
-  function memoized(a1: any, a2: any, a3: any) {
-    if (!cache0) {
-      cache0 = new WeakMap();
-    }
-    let cache1 = cache0.get(a1);
-    let cache2;
-    if (cache1) {
-      cache2 = cache1.get(a2);
-      if (cache2) {
-        const cachedValue = cache2.get(a3);
-        if (cachedValue !== undefined) {
-          return cachedValue;
-        }
-      }
-    } else {
-      cache1 = new WeakMap();
-      cache0.set(a1, cache1);
-    }
-    if (!cache2) {
-      cache2 = new WeakMap();
-      cache1.set(a2, cache2);
-    }
-    // eslint-disable-next-line prefer-rest-params
-    const newValue = (fn as any)(...arguments);
-    cache2.set(a3, newValue);
-    return newValue;
-  }
-
-  return memoized;
-}
-
 // response path is used for identifying
 // the info resolver function as well as the path in errros,
 // the meta type is used for elements that are only to be used for

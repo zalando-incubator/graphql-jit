@@ -4,7 +4,7 @@
 
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import { parse } from "graphql";
-import { isCompiledQuery } from "../execution";
+import { CompilerOptions, isCompiledQuery } from "../execution";
 import { compileQuery } from "../index";
 
 const testSchema = makeExecutableSchema({
@@ -36,9 +36,17 @@ const testSchema = makeExecutableSchema({
 
 const data = {};
 
-function executeTestQuery(query: string, variables = {}, schema = testSchema) {
+function executeTestQuery(
+  query: string,
+  variables = {},
+  schema = testSchema,
+  options: Partial<CompilerOptions> = {}
+) {
   const ast = parse(query);
-  const compiled: any = compileQuery(schema, ast, "", { debug: true } as any);
+  const compiled: any = compileQuery(schema, ast, "", {
+    debug: true,
+    ...options
+  } as any);
   if (!isCompiledQuery(compiled)) {
     return compiled;
   }
@@ -1430,6 +1438,377 @@ describe("Execute: handles directives", () => {
 
       expect(result).toEqual({
         data: { a: "a" }
+      });
+    });
+  });
+
+  describe("multiple paths to reach same field with different skip/include directives", () => {
+    const schema = makeExecutableSchema({
+      typeDefs: `
+        type Query {
+          foo: Foo
+        }
+        type Foo {
+          a: String
+          foo: Foo
+        }
+      `,
+      resolvers: {
+        Query: {
+          foo: () => ({ a: "a", foo: { a: "a" } })
+        },
+        Foo: {
+          foo: () => ({ a: "a", foo: { a: "a" } })
+        }
+      }
+    });
+
+    test("include directive on fragment spread", () => {
+      const result = executeTestQuery(
+        `
+          query myQuery($inc: Boolean = true) {
+            foo {
+              ...fooFragment
+              foo {
+                ...fooFragment @include(if: $inc)
+              }
+            }
+          }
+          fragment fooFragment on Foo {
+            a
+          }
+        `,
+        { inc: false },
+        schema
+      );
+
+      expect(result.data).toEqual({
+        foo: {
+          // fooFragment is included
+          a: "a",
+          foo: {
+            // fooFragment is not included
+          }
+        }
+      });
+    });
+
+    test("skip directive on fragment spread", () => {
+      const result = executeTestQuery(
+        `
+          query myQuery($skip: Boolean = false) {
+            foo {
+              ...fooFragment
+              foo {
+                ...fooFragment @skip(if: $skip)
+              }
+            }
+          }
+          fragment fooFragment on Foo {
+            a
+          }
+        `,
+        { skip: true },
+        schema
+      );
+
+      expect(result.data).toEqual({
+        foo: {
+          // fooFragment is included
+          a: "a",
+          foo: {
+            // fooFragment is not included
+          }
+        }
+      });
+    });
+  });
+
+  describe("issue-166 - skip directive on fragment spread", () => {
+    const testSchema = makeExecutableSchema({
+      typeDefs: `type Query {
+        detailContent: [Content!]
+      }
+
+      type Post implements Content {
+        id: ID!
+        title: String!
+        type: String!
+        related: [Content]
+      }
+
+      type Article implements Content {
+        id: ID!
+        title: String!
+        type: String!
+      }
+
+      interface Content {
+        id: ID!
+        title: String!
+        type: String!
+      }`,
+      resolvers: {
+        Query: {
+          detailContent: () => [
+            {
+              __typename: "Post",
+              id: "post:1",
+              title: "Introduction to GraphQL!",
+              related: [
+                {
+                  __typename: "Article",
+                  id: "article:1",
+                  title: "article Introduction to GraphQL!",
+                  type: "article"
+                }
+              ]
+            },
+            {
+              __typename: "Post",
+              id: "post:2",
+              title: "GraphQL-Jit a fast engine for GraphQL",
+              related: [
+                {
+                  __typename: "Article",
+                  id: "article:2",
+                  title: "article GraphQL-Jit a fast engine for GraphQL",
+                  type: "article"
+                }
+              ]
+            },
+            {
+              __typename: "Article",
+              id: "article:1",
+              title: "article Introduction to GraphQL!",
+              type: "article"
+            },
+            {
+              __typename: "Article",
+              id: "article:2",
+              title: "article GraphQL-Jit a fast engine for GraphQL",
+              type: "article"
+            }
+          ]
+        }
+      }
+    });
+
+    test("skip directive on fragment spread reached via two different inline fragments", () => {
+      const result = executeTestQuery(
+        `
+          query myQuery($skip: Boolean = false) {
+            detailContent {
+              id
+              ... on Post {
+                ...titleFragment
+              }
+              ... on Article {
+                ...titleFragment @skip(if: $skip)
+              }
+            }
+          }
+          fragment titleFragment on Content {
+            title
+          }
+        `,
+        { skip: true },
+        testSchema
+      );
+
+      expect(result.data).toEqual({
+        detailContent: [
+          {
+            id: "post:1",
+            title: "Introduction to GraphQL!"
+          },
+          {
+            id: "post:2",
+            title: "GraphQL-Jit a fast engine for GraphQL"
+          },
+          {
+            id: "article:1"
+          },
+          {
+            id: "article:2"
+          }
+        ]
+      });
+    });
+
+    test("include directive on fragment spread at nested places", async () => {
+      const query = `
+        query TEST($includeOnly: Boolean!) {
+          detailContent {
+            ...articleFragment
+            ... on Post {
+              id
+              related {
+                id
+                ...articleFragment @include(if: $includeOnly)
+              }
+            }
+          }
+        }
+
+        fragment articleFragment on Article {
+          title
+          type
+        }
+      `;
+      const result = executeTestQuery(
+        query,
+        { includeOnly: false },
+        testSchema,
+        {
+          useExperimentalPathBasedSkipInclude: true
+        }
+      );
+
+      expect(result.data).toEqual({
+        detailContent: [
+          {
+            id: "post:1",
+            related: [{ id: "article:1" }]
+          },
+          {
+            id: "post:2",
+            related: [{ id: "article:2" }]
+          },
+          {
+            title: "article Introduction to GraphQL!",
+            type: "article"
+          },
+          {
+            title: "article GraphQL-Jit a fast engine for GraphQL",
+            type: "article"
+          }
+        ]
+      });
+    });
+
+    describe("minimal reproduction", () => {
+      const schema = makeExecutableSchema({
+        typeDefs: `type Query {
+          someQuery: [X!]
+        }
+
+        interface X {
+          id: ID!
+          title: String!
+        }
+
+        type A implements X {
+          id: ID!
+          title: String!
+          related: [X]
+        }
+
+        type B implements X {
+          id: ID!
+          title: String!
+        }
+        `,
+        resolvers: {
+          Query: {
+            someQuery: () => [
+              {
+                __typename: "A",
+                id: "a:1",
+                title: "a - one",
+                related: [
+                  {
+                    __typename: "B",
+                    id: "b:1",
+                    title: "b - one"
+                  }
+                ]
+              },
+              {
+                __typename: "B",
+                id: "b:1",
+                title: "b - one"
+              }
+            ]
+          }
+        }
+      });
+
+      test("multiple paths to the same fieldnode in fragment - include directive", async () => {
+        const query = `query TEST($includeOnly: Boolean!) {
+          someQuery {
+            ...bFrag
+            ...on A {
+              id
+              related {
+                id
+                ...bFrag @include(if: $includeOnly)
+              }
+            }
+          }
+        }
+
+        fragment bFrag on B {
+          title
+        }`;
+        const result = executeTestQuery(query, { includeOnly: false }, schema, {
+          useExperimentalPathBasedSkipInclude: true
+        });
+
+        expect(result.data).toEqual({
+          someQuery: [
+            {
+              id: "a:1",
+              related: [
+                {
+                  id: "b:1"
+                }
+              ]
+            },
+            {
+              title: "b - one"
+            }
+          ]
+        });
+      });
+
+      test("multiple paths to the same fieldnode in fragment - skip directive", async () => {
+        const query = `query TEST($skipOnly: Boolean!) {
+          someQuery {
+            ...bFrag
+            ...on A {
+              id
+              related {
+                id
+                ...bFrag @skip(if: $skipOnly)
+              }
+            }
+          }
+        }
+
+        fragment bFrag on B {
+          title
+        }`;
+        const result = executeTestQuery(query, { skipOnly: true }, schema, {
+          useExperimentalPathBasedSkipInclude: true
+        });
+        expect(result.errors).toBeUndefined();
+
+        expect(result.data).toEqual({
+          someQuery: [
+            {
+              id: "a:1",
+              related: [
+                {
+                  id: "b:1"
+                }
+              ]
+            },
+            {
+              title: "b - one"
+            }
+          ]
+        });
       });
     });
   });
