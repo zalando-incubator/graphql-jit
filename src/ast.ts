@@ -72,7 +72,7 @@ export function collectFields(
   selectionSet: SelectionSetNode,
   fields: FieldsAndNodes,
   visitedFragmentNames: { [key: string]: boolean },
-  previousPath?: ObjectPath
+  parentResponsePath?: ObjectPath
 ): FieldsAndNodes {
   return collectFieldsImpl(
     compilationContext,
@@ -81,7 +81,7 @@ export function collectFields(
     fields,
     visitedFragmentNames,
     undefined,
-    serializeObjectPathForSkipInclude(previousPath)
+    serializeObjectPathForSkipInclude(parentResponsePath)
   );
 }
 
@@ -96,7 +96,7 @@ function collectFieldsImpl(
   fields: FieldsAndNodes,
   visitedFragmentNames: { [key: string]: boolean },
   previousShouldInclude = "",
-  previousPath = ""
+  parentResponsePath = ""
 ): FieldsAndNodes {
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
@@ -111,7 +111,7 @@ function collectFieldsImpl(
         // This is used to generate per path skip/include code
         // because the same field can be reached from different paths (e.g. fragment reuse)
         const currentPath = joinSkipIncludePath(
-          previousPath,
+          parentResponsePath,
 
           // use alias(instead of selection.name.value) if available as the responsePath used for lookup uses alias
           name
@@ -199,7 +199,7 @@ function collectFieldsImpl(
             // current fragment's shouldInclude
             compiledSkipInclude
           ),
-          previousPath
+          parentResponsePath
         );
         break;
       }
@@ -237,7 +237,7 @@ function collectFieldsImpl(
             // current fragment's shouldInclude
             compiledSkipInclude
           ),
-          previousPath
+          parentResponsePath
         );
 
         break;
@@ -292,14 +292,16 @@ function collectFieldsImpl(
  *
  * @param rootFieldNode {JitFieldNode} The root field to traverse from for
  * adding __internalShouldInclude to all sub field nodes.
+ *
+ * @param parentResponsePath {string} The response path of the parent field.
  */
 function augmentFieldNodeTree(
   compilationContext: CompilationContext,
   rootFieldNode: JitFieldNode,
-  previousPath: string
+  parentResponsePath: string
 ) {
   for (const selection of rootFieldNode.selectionSet?.selections ?? []) {
-    handle(rootFieldNode, selection, false, previousPath);
+    handle(rootFieldNode, selection, false, parentResponsePath);
   }
 
   /**
@@ -310,13 +312,13 @@ function augmentFieldNodeTree(
     parentFieldNode: JitFieldNode,
     selection: SelectionNode,
     comesFromFragmentSpread = false,
-    previousPath: string
+    parentResponsePath: string
   ) {
     switch (selection.kind) {
       case Kind.FIELD: {
         const jitFieldNode: JitFieldNode = selection;
         const currentPath = joinSkipIncludePath(
-          previousPath,
+          parentResponsePath,
 
           // use alias(instead of selection.name.value) if available as the responsePath used for lookup uses alias
           getFieldEntryKey(jitFieldNode)
@@ -328,7 +330,9 @@ function augmentFieldNodeTree(
 
           jitFieldNode.__internalShouldIncludePath[currentPath] =
             joinShouldIncludeCompilations(
-              parentFieldNode.__internalShouldIncludePath?.[previousPath] ?? "",
+              parentFieldNode.__internalShouldIncludePath?.[
+                parentResponsePath
+              ] ?? "",
               jitFieldNode.__internalShouldIncludePath?.[currentPath] ?? ""
             );
 
@@ -346,14 +350,14 @@ function augmentFieldNodeTree(
       }
       case Kind.INLINE_FRAGMENT: {
         for (const subSelection of selection.selectionSet.selections) {
-          handle(parentFieldNode, subSelection, true, previousPath);
+          handle(parentFieldNode, subSelection, true, parentResponsePath);
         }
         break;
       }
       case Kind.FRAGMENT_SPREAD: {
         const fragment = compilationContext.fragments[selection.name.value];
         for (const subSelection of fragment.selectionSet.selections) {
-          handle(parentFieldNode, subSelection, true, previousPath);
+          handle(parentFieldNode, subSelection, true, parentResponsePath);
         }
       }
     }
@@ -630,7 +634,7 @@ function _collectSubfields(
   compilationContext: CompilationContext,
   returnType: GraphQLObjectType,
   fieldNodes: FieldNode[],
-  previousPath?: ObjectPath
+  parentResponsePath?: ObjectPath
 ): { [key: string]: FieldNode[] } {
   let subFieldNodes = Object.create(null);
   const visitedFragmentNames = Object.create(null);
@@ -643,7 +647,7 @@ function _collectSubfields(
         selectionSet,
         subFieldNodes,
         visitedFragmentNames,
-        previousPath
+        parentResponsePath
       );
     }
   }
