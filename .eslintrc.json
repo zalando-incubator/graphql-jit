@@ -18,7 +18,8 @@
     "@typescript-eslint/interface-name-prefix": "off",
     "comma-dangle": "off",
     "sort-keys": "off",
-    "max-classes-per-file": "off"
+    "max-classes-per-file": "off",
+    "no-use-before-define": "off"
   },
   "env": {
     "es6": true,
