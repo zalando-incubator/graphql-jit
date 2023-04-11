@@ -44,10 +44,11 @@ import {
   flattenPath,
   getArgumentDefs,
   JitFieldNode,
+  joinSkipIncludePath,
   ObjectPath,
-  resolveFieldDef
+  resolveFieldDef,
+  serializeObjectPathForSkipInclude
 } from "./ast";
-import { getOperationRootType } from "./compat";
 import { GraphQLError as GraphqlJitError } from "./error";
 import createInspect from "./inspect";
 import { queryToJSONSchema } from "./json";
@@ -62,6 +63,7 @@ import {
   compileVariableParsing,
   failToParseVariables
 } from "./variables";
+import { getGraphQLErrorOptions, getOperationRootType } from "./compat";
 
 const inspect = createInspect();
 
@@ -81,6 +83,19 @@ export interface CompilerOptions {
   customSerializers: { [key: string]: (v: any) => any };
 
   resolverInfoEnricher?: (inp: ResolveInfoEnricherInput) => object;
+
+  /**
+   * This option is a temporary workaround to rollout and test the new skip/include behavior.
+   * It will be removed in the next version along with the old behavior.
+   *
+   * Set this to true if you face issues with skip/include in fragment spreads.
+   *
+   * default: false
+   *
+   * @see https://github.com/zalando-incubator/graphql-jit/pull/197
+   *
+   */
+  useExperimentalPathBasedSkipInclude: boolean;
 }
 
 interface ExecutionContext {
@@ -224,6 +239,7 @@ export function compileQuery<
       customJSONSerializer: false,
       disableLeafSerialization: false,
       customSerializers: {},
+      useExperimentalPathBasedSkipInclude: false,
       ...partialOptions
     };
 
@@ -686,7 +702,7 @@ function compileType(
       errorDestination
     );
   } else if (isObjectType(type)) {
-    const fieldMap = collectSubfields(context, type, fieldNodes);
+    const fieldMap = collectSubfields(context, type, fieldNodes, previousPath);
     body += compileObjectType(
       context,
       type,
@@ -852,13 +868,29 @@ function compileObjectType(
      *
      * `compilationFor($c1) || compilationFor($c2)`
      */
+    const serializedResponsePath = joinSkipIncludePath(
+      serializeObjectPathForSkipInclude(responsePath),
+      name
+    );
+
+    const oldFieldCondition =
+      fieldNodes
+        .map((it) => it.__internalShouldInclude)
+        .filter((it) => it)
+        .join(" || ") || /* if(true) - default */ "true";
+
+    const fieldCondition =
+      fieldNodes
+        .map((it) => it.__internalShouldIncludePath?.[serializedResponsePath])
+        .filter((it) => it)
+        .join(" || ") || /* if(true) - default */ "true";
+
     body(`
       (
         ${
-          fieldNodes
-            .map((it) => it.__internalShouldInclude)
-            .filter((it) => it)
-            .join(" || ") || /* if(true) - default */ "true"
+          context.options.useExperimentalPathBasedSkipInclude
+            ? fieldCondition
+            : oldFieldCondition
         }
       )
     `);
@@ -1706,7 +1738,7 @@ function compileSubscriptionOperation(
   if (!field) {
     throw new GraphQLError(
       `The subscription field "${fieldName}" is not defined.`,
-      fieldNodes
+      getGraphQLErrorOptions(fieldNodes)
     );
   }
 

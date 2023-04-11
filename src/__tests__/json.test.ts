@@ -1,6 +1,5 @@
 import fastJson from "fast-json-stringify";
 import {
-  formatError,
   GraphQLBoolean,
   GraphQLError,
   GraphQLID,
@@ -11,12 +10,13 @@ import {
   GraphQLString,
   parse,
   GraphQLInt,
-  GraphQLScalarType,
   versionInfo
 } from "graphql";
 import { buildExecutionContext } from "graphql/execution/execute";
 import { compileQuery } from "../index";
 import { queryToJSONSchema } from "../json";
+import { makeExecutableSchema } from "@graphql-tools/schema";
+import { formatError } from "../compat";
 
 describe("json schema creator", () => {
   const BlogAuthor = new GraphQLObjectType({
@@ -166,5 +166,56 @@ describe("json schema creator", () => {
       };
       expect(stringify(response)).toEqual(JSON.stringify(response));
     });
+  });
+});
+
+describe("JSON schema creation with abstract types", () => {
+  let inf: any;
+  const schema = makeExecutableSchema({
+    typeDefs: `
+        type Query {
+          foo: Foo
+          u: U
+        }
+        union U = Foo | Bar
+
+        type Foo {
+          a: String
+          b: Int
+          c: Boolean!
+          d: Bar
+        }
+        type Bar {
+          e: String!
+          f: Boolean!
+        }
+      `,
+    resolvers: {
+      Query: {
+        foo(_: any, _1: any, _2: any, info: any) {
+          inf = info;
+        },
+        u(_: any, _1: any, _2: any, info: any) {
+          inf = info;
+        }
+      }
+    }
+  });
+  const document = parse(/* GraphQL */ `
+    {
+      u
+    }
+  `);
+  const context: any =
+    versionInfo.major > 15
+      ? (buildExecutionContext as any)({
+          schema,
+          document
+        })
+      : (buildExecutionContext as any)(schema, document);
+
+  const jsonSchema = queryToJSONSchema(context);
+  test("json schema creation", () => {
+    expect(jsonSchema).toMatchSnapshot();
   });
 });

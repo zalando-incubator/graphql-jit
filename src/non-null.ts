@@ -32,7 +32,7 @@ export function createNullTrimmer(
 }
 
 /**
- * Trims a data response according to the field erros in non null fields.
+ * Trims a data response according to the field errors in non null fields.
  *
  * Errors are filtered to ensure a single field error per field.
  *
@@ -180,7 +180,7 @@ function parseQueryNullables(
  * @param {CompilationContext} compilationContext
  * @param {FieldNode[]} fieldNodes list of fields
  * @param {GraphQLType} type Current type being processed.
- * @returns {QueryMetadata | null} null if node is a leaf, otherwise a desciption of the node and its children.
+ * @returns {QueryMetadata | null} null if node is a leaf, otherwise a description of the node and its children.
  */
 function transformNode(
   compilationContext: CompilationContext,

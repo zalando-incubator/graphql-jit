@@ -12,9 +12,9 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [12, 14, 16]
+        node-version: [14, 16, 18]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
-        graphql-version: [15, 16]
+        graphql-version: [15, 16, 17.0.0-alpha.2]
 
     steps:
       - uses: actions/checkout@v2
