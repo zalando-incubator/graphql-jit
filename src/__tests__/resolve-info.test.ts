@@ -1234,7 +1234,7 @@ describe("resolver info", () => {
                   }
               `);
       });
-
+      // i guess i need to add few more tests for that with my own schema
       test("shouldInclude function is there and it works", async () => {
         const doc = parse(`
           query ($var: Boolean!) {
@@ -1266,5 +1266,75 @@ describe("resolver info", () => {
         expect(idShouldInclude).toBe(false);
       });
     });
+
+    describe.skip("lookahead resolution", () => {
+      let infNode: any;
+      let infElements: any;
+      let infMedia: any;
+      const schema = makeExecutableSchema(
+        {
+          typeDefs: `
+          type Query {
+            node(id: ID!): Node!
+          }
+
+          interface Node {
+            id: ID!
+          }
+
+          interface Media {
+            url: String!
+            tags: [Tag!]
+          }
+
+          type Image implements Node & Media {
+            id: ID!
+            url: String!
+            tags: [Tag!]
+            width: Int
+          }
+
+          type Video implements Node & Media {
+            id: ID!
+            url: String!
+            tags: [Tag!]
+
+          }
+
+        type Tag implements Node {
+          id: ID!
+          name: String!
+        }
+
+          `,
+          resolvers: {
+            Query: {
+              node: (root, args, context, info) => {
+                // can be either Video or Media? or is it just have id?
+                // should we check there if this is Video or Media?
+              }
+            },
+            Image: {
+              // eslint-disable-next-line @typescript-eslint/no-empty-function
+              url: (root, args, context, info) => {},
+              // eslint-disable-next-line @typescript-eslint/no-empty-function
+              tags: (root, args, context, info) => {},
+              // eslint-disable-next-line @typescript-eslint/no-empty-function
+              width: (root, args, context, info) => {}
+            },
+            Video: {
+              // eslint-disable-next-line @typescript-eslint/no-empty-function
+              url: (root, args, context, info) => {},
+              // eslint-disable-next-line @typescript-eslint/no-empty-function
+              tags: (root, args, context, info) => {}
+            },
+            Tag: {
+              // eslint-disable-next-line @typescript-eslint/no-empty-function
+              name: (root, args, context, info) => {}
+            },
+          }
+        }
+      )
+    })
   });
 });
