@@ -1314,9 +1314,8 @@ describe("resolver info", () => {
           Query: {
             node: (root, args, context, info) => {
               infNode = info;
-              // eslint-disable-next-line no-prototype-builtins
-              const lookaheadForUrl =
-                infNode.fieldExpansion.Image.hasOwnProperty("url");
+
+              const lookaheadForUrl = "url" in infNode.fieldExpansion.Image;
 
               if (lookaheadForUrl) {
                 expensiveFunction();
