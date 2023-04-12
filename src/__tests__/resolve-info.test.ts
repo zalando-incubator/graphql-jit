@@ -1271,6 +1271,9 @@ describe("resolver info", () => {
       let infNode: any;
       let infElements: any;
       let infMedia: any;
+
+      const expensiveFunction = jest.fn();
+
       const schema = makeExecutableSchema({
         typeDefs: `
           type Query {
@@ -1310,13 +1313,13 @@ describe("resolver info", () => {
         resolvers: {
           Query: {
             node: (root, args, context, info) => {
-
               infNode = info;
               // eslint-disable-next-line no-prototype-builtins
               const lookaheadForUrl =
                 infNode.fieldExpansion.Image.hasOwnProperty("url");
 
               if (lookaheadForUrl) {
+                expensiveFunction();
                 return {
                   id: "id",
                   url: "we looked and and found that url was requested"
@@ -1433,6 +1436,20 @@ describe("resolver info", () => {
             },
           }
         `);
+
+        doc = parse(`
+            query($var: Boolean!) {
+              node(id: "bla") {
+                ... on Image @skip(if: $var) {
+              url
+              }
+          }
+        }
+          `);
+
+        await executeQuery(schema, doc, rootValue, null, { var: true });
+        // currently is 2, but should be 1 since we skipping the field!
+        expect(expensiveFunction).toHaveBeenCalledTimes(2);
       });
     });
   });
