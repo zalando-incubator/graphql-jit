@@ -1267,13 +1267,12 @@ describe("resolver info", () => {
       });
     });
 
-    describe.skip("lookahead resolution", () => {
+    describe.only("lookahead resolution", () => {
       let infNode: any;
       let infElements: any;
       let infMedia: any;
-      const schema = makeExecutableSchema(
-        {
-          typeDefs: `
+      const schema = makeExecutableSchema({
+        typeDefs: `
           type Query {
             node(id: ID!): Node!
           }
@@ -1307,34 +1306,141 @@ describe("resolver info", () => {
         }
 
           `,
-          resolvers: {
-            Query: {
-              node: (root, args, context, info) => {
-                // can be either Video or Media? or is it just have id?
-                // should we check there if this is Video or Media?
+
+        resolvers: {
+          Query: {
+            node: (root, args, context, info) => {
+              // can be either Video or Media? or is it just have id?
+              // should we check there if this is Video or Media?
+
+              // i can't return interface.
+              // graphql returns only object types.
+              // if it doesn't sure what to return, it returns error.
+              // i can define `__resolveType()` in field so graphql
+              // would return this as default type for the field
+              infNode = info;
+              // eslint-disable-next-line no-prototype-builtins
+              const lookaheadForUrl =
+                infNode.fieldExpansion.Image.hasOwnProperty("url");
+
+              if (lookaheadForUrl) {
+                return {
+                  id: "id",
+                  url: "we looked and and found that url was requested"
+                };
+              } else {
+                return {
+                  id: "id without lookahead",
+                  url: "not lookahead"
+                };
               }
-            },
-            Image: {
-              // eslint-disable-next-line @typescript-eslint/no-empty-function
-              url: (root, args, context, info) => {},
-              // eslint-disable-next-line @typescript-eslint/no-empty-function
-              tags: (root, args, context, info) => {},
-              // eslint-disable-next-line @typescript-eslint/no-empty-function
-              width: (root, args, context, info) => {}
-            },
-            Video: {
-              // eslint-disable-next-line @typescript-eslint/no-empty-function
-              url: (root, args, context, info) => {},
-              // eslint-disable-next-line @typescript-eslint/no-empty-function
-              tags: (root, args, context, info) => {}
-            },
-            Tag: {
-              // eslint-disable-next-line @typescript-eslint/no-empty-function
-              name: (root, args, context, info) => {}
-            },
+            }
+          },
+          Node: {
+            __resolveType() {
+              return "Image";
+            }
+          },
+          Image: {
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            tags: (root, args, context, info) => {},
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            width: (root, args, context, info) => {}
+          },
+          Video: {
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            url: (root, args, context, info) => {},
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            tags: (root, args, context, info) => {}
+          },
+          Tag: {
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            name: (root, args, context, info) => {}
           }
         }
-      )
-    })
+      });
+
+      function executeQuery(
+        schema: GraphQLSchema,
+        document: DocumentNode,
+        rootValue?: any,
+        contextValue?: any,
+        variableValues?: any,
+        operationName?: string
+      ) {
+        const prepared: any = compileQuery(
+          schema,
+          document as any,
+          operationName || "",
+          { resolverInfoEnricher: fieldExpansionEnricher }
+        );
+        if (!isCompiledQuery(prepared)) {
+          return prepared;
+        }
+        return prepared.query(rootValue, contextValue, variableValues || {});
+      }
+
+      afterEach(() => {
+        infNode = undefined;
+        infElements = undefined;
+        infMedia = undefined;
+      });
+
+      test("basic test", async () => {
+        let doc = parse(`
+            query {
+              node(id: "bla") {
+                ... on Video {
+              url
+              }
+          }
+        }
+          `);
+        const rootValue = { root: "val" };
+
+        let result = await executeQuery(schema, doc, rootValue, null, {});
+
+        /*
+        * why we don't have there
+         {
+         data: {
+                  id: "id without lookahead",
+                  url: "not lookahead"
+                }
+          }
+
+        ???
+        * */
+        expect(result).toMatchInlineSnapshot(`
+          Object {
+            "data": Object {
+              "node": Object {},
+            },
+          }
+        `);
+
+        doc = parse(`
+            query {
+              node(id: "bla") {
+                ... on Image {
+              url
+              }
+          }
+        }
+          `);
+
+        result = await executeQuery(schema, doc, rootValue, null, {});
+
+        expect(result).toMatchInlineSnapshot(`
+          Object {
+            "data": Object {
+              "node": Object {
+                "url": "we looked and and found that url was requested",
+              },
+            },
+          }
+        `);
+      });
+    });
   });
 });
