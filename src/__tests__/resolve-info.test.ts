@@ -1310,14 +1310,7 @@ describe("resolver info", () => {
         resolvers: {
           Query: {
             node: (root, args, context, info) => {
-              // can be either Video or Media? or is it just have id?
-              // should we check there if this is Video or Media?
 
-              // i can't return interface.
-              // graphql returns only object types.
-              // if it doesn't sure what to return, it returns error.
-              // i can define `__resolveType()` in field so graphql
-              // would return this as default type for the field
               infNode = info;
               // eslint-disable-next-line no-prototype-builtins
               const lookaheadForUrl =
