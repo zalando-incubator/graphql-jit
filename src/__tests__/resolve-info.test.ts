@@ -1317,11 +1317,22 @@ describe("resolver info", () => {
 
               const lookaheadForUrl = "url" in infNode.fieldExpansion.Image;
 
-              if (lookaheadForUrl) {
+              const includeUrl =
+                infNode.fieldExpansion.Image?.url?.__shouldInclude({
+                  variables: info.variableValues
+                });
+              console.log("skipUrl", includeUrl);
+
+              if (lookaheadForUrl && !includeUrl) {
                 expensiveFunction();
                 return {
                   id: "id",
                   url: "we looked and and found that url was requested"
+                };
+              } else if (lookaheadForUrl) {
+                return {
+                  id: "id",
+                  url: "we looked and and found that url was requested, but we didn't do expensive function"
                 };
               } else {
                 return {
@@ -1430,12 +1441,12 @@ describe("resolver info", () => {
           Object {
             "data": Object {
               "node": Object {
-                "url": "we looked and and found that url was requested",
+                "url": "we looked and and found that url was requested, but we didn't do expensive function",
               },
             },
           }
         `);
-
+        console.log("starting query with the skip");
         doc = parse(`
             query($var: Boolean!) {
               node(id: "bla") {
@@ -1446,9 +1457,21 @@ describe("resolver info", () => {
         }
           `);
 
-        await executeQuery(schema, doc, rootValue, null, { var: true });
-        // currently is 2, but should be 1 since we skipping the field!
-        expect(expensiveFunction).toHaveBeenCalledTimes(2);
+        result = await executeQuery(schema, doc, rootValue, null, {
+          var: true
+        });
+
+        expect(result).toMatchInlineSnapshot(`
+          Object {
+            "data": Object {
+              "node": Object {
+                "url": undefined,
+              },
+            },
+          }
+        `);
+
+        expect(expensiveFunction).toHaveBeenCalledTimes(1);
       });
     });
   });

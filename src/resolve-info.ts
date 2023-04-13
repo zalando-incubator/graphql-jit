@@ -78,23 +78,11 @@ function createLeafField<T extends object>(
   props: T,
   shouldInclude: (variables: ShouldIncludeVariables) => boolean
 ): T & LeafField {
-  const leaf = Object.create(
-    {
-      __shouldInclude: shouldInclude
-    },
-    {}
-  );
-
-  Object.assign(leaf, props);
-
-  Object.defineProperty(leaf, LeafFieldSymbol, {
-    writable: true,
-    configurable: true,
-    enumerable: true,
-    value: true
-  });
-
-  return leaf;
+  return {
+    [LeafFieldSymbol]: true,
+    __shouldInclude: shouldInclude,
+    ...props
+  };
 }
 
 export function isLeafField(obj: LeafField | FieldExpansion): obj is LeafField {
@@ -234,12 +222,23 @@ function expandFieldNode(
   node: JitFieldNode,
   fieldType: GraphQLOutputType
 ): FieldExpansion | LeafField {
-  const shouldInclude = (variables: ShouldIncludeVariables): boolean => {
-    const expr = node.__internalShouldInclude as string;
-    // eslint-disable-next-line no-new-func
-    const fn = new Function(`__context`, `return ${expr}`);
 
-    return fn(variables);
+  const shouldInclude = (variables: ShouldIncludeVariables): boolean => {
+
+    const path = node.name.value;
+    const rightKey = Object.keys(node.__internalShouldIncludePath as object).find((key) => {
+      return key.split('.').pop() === path
+    }) || path;
+
+    if (node.__internalShouldIncludePath?.[rightKey]) {
+      // eslint-disable-next-line no-new-func
+      const fn = new Function(`__context`, `return ${node.__internalShouldIncludePath[rightKey]}`)
+
+      return fn(variables);
+    } else {
+      throw new Error(`No __internalShouldIncludePath found for ${path}`)
+    }
+
   };
 
   if (node.selectionSet == null) {
