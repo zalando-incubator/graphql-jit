@@ -1236,7 +1236,7 @@ describe("resolver info", () => {
       });
     });
 
-    describe.only("lookahead resolution", () => {
+    describe("lookahead resolution", () => {
       let infNode: any;
       let infElements: any;
       let infMedia: any;

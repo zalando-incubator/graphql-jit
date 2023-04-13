@@ -236,18 +236,13 @@ function expandFieldNode(
         return key.split(".").pop() === path;
       }) || path;
 
-    if (node.__internalShouldIncludePath?.[rightKey]) {
-      // eslint-disable-next-line no-new-func
-      const fn = new Function(
-        `__context`,
-        `return ${node.__internalShouldIncludePath[rightKey]}`
-      );
+    // eslint-disable-next-line no-new-func
+    const fn = new Function(
+      `__context`,
+      `return ${node.__internalShouldIncludePath?.[rightKey]}`
+    );
 
-      return fn(variables);
-    } else {
-      // TODO: (trkohler) this is bad
-      throw new Error(`No __internalShouldIncludePath found for ${path}`);
-    }
+    return fn(variables);
   };
 
   if (node.selectionSet == null) {
