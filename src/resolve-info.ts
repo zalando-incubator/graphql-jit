@@ -229,24 +229,25 @@ function expandFieldNode(
   node: JitFieldNode,
   fieldType: GraphQLOutputType
 ): FieldExpansion | LeafField {
-
   const shouldInclude = (variables: ShouldIncludeParams): boolean => {
-
     const path = node.name.value;
-    const rightKey = Object.keys(node.__internalShouldIncludePath as object).find((key) => {
-      return key.split('.').pop() === path
-    }) || path;
+    const rightKey =
+      Object.keys(node.__internalShouldIncludePath as object).find((key) => {
+        return key.split(".").pop() === path;
+      }) || path;
 
     if (node.__internalShouldIncludePath?.[rightKey]) {
       // eslint-disable-next-line no-new-func
-      const fn = new Function(`__context`, `return ${node.__internalShouldIncludePath[rightKey]}`)
+      const fn = new Function(
+        `__context`,
+        `return ${node.__internalShouldIncludePath[rightKey]}`
+      );
 
       return fn(variables);
     } else {
       // TODO: (trkohler) this is bad
-      throw new Error(`No __internalShouldIncludePath found for ${path}`)
+      throw new Error(`No __internalShouldIncludePath found for ${path}`);
     }
-
   };
 
   if (node.selectionSet == null) {
@@ -257,7 +258,7 @@ function expandFieldNode(
   const typ = memoizedResolveEndType(fieldType) as GraphQLCompositeType;
   const possibleTypes = memoizedGetPossibleTypes(schema, typ);
 
-  const fieldExpansion: FieldExpansion = {}
+  const fieldExpansion: FieldExpansion = {};
 
   Object.defineProperties(fieldExpansion, {
     __shouldInclude: {
@@ -266,7 +267,7 @@ function expandFieldNode(
       configurable: false,
       writable: false
     }
-  })
+  });
 
   for (const possibleType of possibleTypes) {
     if (!isUnionType(possibleType)) {

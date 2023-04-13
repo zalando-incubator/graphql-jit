@@ -1234,7 +1234,6 @@ describe("resolver info", () => {
                   }
               `);
       });
-
     });
 
     describe.only("lookahead resolution", () => {
@@ -1291,7 +1290,6 @@ describe("resolver info", () => {
                 infNode.fieldExpansion.Image?.url?.__shouldInclude({
                   variables: info.variableValues
                 });
-
 
               if (lookaheadForUrl && !includeUrl) {
                 expensiveFunction();
