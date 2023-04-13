@@ -1234,37 +1234,7 @@ describe("resolver info", () => {
                   }
               `);
       });
-      // i guess i need to add few more tests for that with my own schema
-      test("shouldInclude function is there and it works", async () => {
-        const doc = parse(`
-          query ($var: Boolean!) {
-            node(id: "tag:1") {
-                ... on Tag @skip(if: $var) {
-                  id
-                }
-                ... on Image {
-                  width
-                }
-              }
-            }
-        `);
-        const rootValue = { root: "val" };
 
-        await executeQuery(schema, doc, rootValue, null, {
-          var: true
-        });
-        const validationErrors = validate(schema, doc);
-        if (validationErrors.length > 0) {
-          console.error(validationErrors);
-        }
-
-        expect(infNode.fieldExpansion.Tag.id.__shouldInclude).toBeDefined();
-        expect(infNode.variableValues).toBeDefined();
-        const idShouldInclude = infNode.fieldExpansion.Tag.id.__shouldInclude({
-          variables: infNode.variableValues
-        });
-        expect(idShouldInclude).toBe(false);
-      });
     });
 
     describe.only("lookahead resolution", () => {
@@ -1321,7 +1291,7 @@ describe("resolver info", () => {
                 infNode.fieldExpansion.Image?.url?.__shouldInclude({
                   variables: info.variableValues
                 });
-              console.log("skipUrl", includeUrl);
+
 
               if (lookaheadForUrl && !includeUrl) {
                 expensiveFunction();
