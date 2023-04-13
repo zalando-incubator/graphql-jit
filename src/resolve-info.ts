@@ -42,12 +42,12 @@ export interface ResolveInfoEnricherInput {
   fieldNodes: JitFieldNode[];
 }
 
-export type ShouldIncludeVariables = {
+export type ShouldIncludeParams = {
   variables: CoercedVariableValues;
 };
 
 export interface ShouldIncludeExtension {
-  __shouldInclude: (variables: ShouldIncludeVariables) => boolean;
+  __shouldInclude: (variables: ShouldIncludeParams) => boolean;
 }
 
 export type FieldExpansion = ShouldIncludeExtension & {
@@ -76,7 +76,7 @@ export interface TypeExpansion {
 
 function createLeafField<T extends object>(
   props: T,
-  shouldInclude: (variables: ShouldIncludeVariables) => boolean
+  shouldInclude: (variables: ShouldIncludeParams) => boolean
 ): T & LeafField {
   return {
     [LeafFieldSymbol]: true,
@@ -223,7 +223,7 @@ function expandFieldNode(
   fieldType: GraphQLOutputType
 ): FieldExpansion | LeafField {
 
-  const shouldInclude = (variables: ShouldIncludeVariables): boolean => {
+  const shouldInclude = (variables: ShouldIncludeParams): boolean => {
 
     const path = node.name.value;
     const rightKey = Object.keys(node.__internalShouldIncludePath as object).find((key) => {
@@ -236,6 +236,7 @@ function expandFieldNode(
 
       return fn(variables);
     } else {
+      // TODO: (trkohler) this is bad
       throw new Error(`No __internalShouldIncludePath found for ${path}`)
     }
 
@@ -252,8 +253,7 @@ function expandFieldNode(
   const fieldExpansion: FieldExpansion = Object.create(
     {
       __shouldInclude: shouldInclude
-    },
-    {}
+    }
   );
   for (const possibleType of possibleTypes) {
     if (!isUnionType(possibleType)) {

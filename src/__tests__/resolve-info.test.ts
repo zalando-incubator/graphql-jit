@@ -1416,7 +1416,7 @@ describe("resolver info", () => {
             },
           }
         `);
-        console.log("starting query with the skip");
+
         doc = parse(`
             query($var: Boolean!) {
               node(id: "bla") {
