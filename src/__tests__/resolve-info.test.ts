@@ -1247,6 +1247,7 @@ describe("resolver info", () => {
         typeDefs: `
           type Query {
             node(id: ID!): Node!
+            tag(id: ID!): Tag!
           }
 
           interface Node {
@@ -1308,6 +1309,12 @@ describe("resolver info", () => {
                   url: "not lookahead"
                 };
               }
+            },
+            tag: (root, args, context, info) => {
+              return {
+                id: "simple id",
+                name: "simple tag name"
+              };
             }
           },
           Node: {
@@ -1326,10 +1333,6 @@ describe("resolver info", () => {
             url: (root, args, context, info) => {},
             // eslint-disable-next-line @typescript-eslint/no-empty-function
             tags: (root, args, context, info) => {}
-          },
-          Tag: {
-            // eslint-disable-next-line @typescript-eslint/no-empty-function
-            name: (root, args, context, info) => {}
           }
         }
       });
@@ -1440,6 +1443,40 @@ describe("resolver info", () => {
         `);
 
         expect(expensiveFunction).toHaveBeenCalledTimes(1);
+      });
+
+      test("node exclude tags and root include tag and it's fine (no lookahead)", async () => {
+        const doc = parse(`
+           query ($var: Boolean!) {
+              node(id: "bla") {
+                ... on Video {
+                  url
+                  tags @skip(if: $var) {
+                    name
+                  }
+                }
+              }
+              tag(id: "bla") {
+                name
+              }
+            }
+          `);
+        const rootValue = { root: "val" };
+
+        const result = await executeQuery(schema, doc, rootValue, null, {
+          var: true
+        });
+
+        expect(result).toMatchInlineSnapshot(`
+          Object {
+            "data": Object {
+              "node": Object {},
+              "tag": Object {
+                "name": "simple tag name",
+              },
+            },
+          }
+        `);
       });
     });
   });
