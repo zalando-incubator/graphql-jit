@@ -50,14 +50,9 @@ export interface ShouldIncludeExtension {
   __shouldInclude: (variables: ShouldIncludeParams) => boolean;
 }
 
-export type FieldExpansion = ShouldIncludeExtension & {
+export type FieldExpansion = Partial<ShouldIncludeExtension> & {
   // The possible return types that the field can return
   // It includes all the types in the Schema that intersect with the actual return type
-  // eslint-disable-next-line no-use-before-define
-  [returnType: string]: TypeExpansion;
-};
-
-type RootFieldExpansion = {
   // eslint-disable-next-line no-use-before-define
   [returnType: string]: TypeExpansion;
 };
@@ -78,11 +73,23 @@ function createLeafField<T extends object>(
   props: T,
   shouldInclude: (variables: ShouldIncludeParams) => boolean
 ): T & LeafField {
-  return {
-    [LeafFieldSymbol]: true,
-    __shouldInclude: shouldInclude,
-    ...props
-  };
+  const leaf = Object.create(
+    {
+      __shouldInclude: shouldInclude
+    },
+    {}
+  );
+
+  Object.assign(leaf, props);
+
+  Object.defineProperty(leaf, LeafFieldSymbol, {
+    writable: true,
+    configurable: true,
+    enumerable: true,
+    value: true
+  });
+
+  return leaf;
 }
 
 export function isLeafField(obj: LeafField | FieldExpansion): obj is LeafField {
@@ -175,7 +182,7 @@ export function createResolveInfoThunk<T>(
 
 export function fieldExpansionEnricher(input: ResolveInfoEnricherInput) {
   const { schema, fragments, returnType, fieldNodes } = input;
-  const fieldExpansion: RootFieldExpansion = {};
+  const fieldExpansion: FieldExpansion = {};
 
   for (const fieldNode of fieldNodes) {
     deepMerge(
@@ -250,11 +257,17 @@ function expandFieldNode(
   const typ = memoizedResolveEndType(fieldType) as GraphQLCompositeType;
   const possibleTypes = memoizedGetPossibleTypes(schema, typ);
 
-  const fieldExpansion: FieldExpansion = Object.create(
-    {
-      __shouldInclude: shouldInclude
+  const fieldExpansion: FieldExpansion = {}
+
+  Object.defineProperties(fieldExpansion, {
+    __shouldInclude: {
+      value: shouldInclude,
+      enumerable: false,
+      configurable: false,
+      writable: false
     }
-  );
+  })
+
   for (const possibleType of possibleTypes) {
     if (!isUnionType(possibleType)) {
       fieldExpansion[possibleType.name] = memoizedExpandFieldNodeType(
