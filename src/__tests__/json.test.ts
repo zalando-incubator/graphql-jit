@@ -136,6 +136,7 @@ describe("json schema creator", () => {
           document
         })
       : (buildExecutionContext as any)(blogSchema, document);
+  context.options = {};
   const jsonSchema = queryToJSONSchema(context);
   test("json schema creation", () => {
     expect(jsonSchema).toMatchSnapshot();
@@ -213,6 +214,7 @@ describe("JSON schema creation with abstract types", () => {
           document
         })
       : (buildExecutionContext as any)(schema, document);
+  context.options = {};
 
   const jsonSchema = queryToJSONSchema(context);
   test("json schema creation", () => {

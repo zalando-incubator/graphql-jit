@@ -873,25 +873,19 @@ function compileObjectType(
       name
     );
 
-    const oldFieldCondition =
-      fieldNodes
-        .map((it) => it.__internalShouldInclude)
-        .filter((it) => it)
-        .join(" || ") || /* if(true) - default */ "true";
-
-    const fieldCondition =
-      fieldNodes
-        .map((it) => it.__internalShouldIncludePath?.[serializedResponsePath])
-        .filter((it) => it)
-        .join(" || ") || /* if(true) - default */ "true";
+    const fieldCondition = context.options.useExperimentalPathBasedSkipInclude
+      ? fieldNodes
+          .map((it) => it.__internalShouldIncludePath?.[serializedResponsePath])
+          .filter((it) => it)
+          .join(" || ") || /* if(true) - default */ "true"
+      : fieldNodes
+          .map((it) => it.__internalShouldInclude)
+          .filter((it) => it)
+          .join(" || ") || /* if(true) - default */ "true";
 
     body(`
       (
-        ${
-          context.options.useExperimentalPathBasedSkipInclude
-            ? fieldCondition
-            : oldFieldCondition
-        }
+        ${fieldCondition}
       )
     `);
 

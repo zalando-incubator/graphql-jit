@@ -142,20 +142,21 @@ function collectFieldsImpl(
          * -----------------------------
          * `should include`s generated for the current fieldNode
          */
-        fieldNode.__internalShouldIncludePath[currentPath] =
-          joinShouldIncludeCompilations(
-            fieldNode.__internalShouldIncludePath?.[currentPath] ?? "",
+        if (compilationContext.options.useExperimentalPathBasedSkipInclude) {
+          fieldNode.__internalShouldIncludePath[currentPath] =
+            joinShouldIncludeCompilations(
+              fieldNode.__internalShouldIncludePath?.[currentPath] ?? "",
+              previousShouldInclude,
+              compiledSkipInclude
+            );
+        } else {
+          // @deprecated
+          fieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
+            fieldNode.__internalShouldInclude ?? "",
             previousShouldInclude,
             compiledSkipInclude
           );
-
-        // @deprecated
-        fieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
-          fieldNode.__internalShouldInclude ?? "",
-          previousShouldInclude,
-          compiledSkipInclude
-        );
-
+        }
         /**
          * We augment the entire subtree as the parent object's skip/include
          * directives influence the child even if the child doesn't have
@@ -328,19 +329,22 @@ function augmentFieldNodeTree(
           if (!jitFieldNode.__internalShouldIncludePath)
             jitFieldNode.__internalShouldIncludePath = {};
 
-          jitFieldNode.__internalShouldIncludePath[currentPath] =
-            joinShouldIncludeCompilations(
-              parentFieldNode.__internalShouldIncludePath?.[
-                parentResponsePath
-              ] ?? "",
-              jitFieldNode.__internalShouldIncludePath?.[currentPath] ?? ""
-            );
-
-          // @deprecated
-          jitFieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
-            parentFieldNode.__internalShouldInclude ?? "",
-            jitFieldNode.__internalShouldInclude ?? ""
-          );
+          if (compilationContext.options.useExperimentalPathBasedSkipInclude) {
+            jitFieldNode.__internalShouldIncludePath[currentPath] =
+              joinShouldIncludeCompilations(
+                parentFieldNode.__internalShouldIncludePath?.[
+                  parentResponsePath
+                ] ?? "",
+                jitFieldNode.__internalShouldIncludePath?.[currentPath] ?? ""
+              );
+          } else {
+            // @deprecated
+            jitFieldNode.__internalShouldInclude =
+              joinShouldIncludeCompilations(
+                parentFieldNode.__internalShouldInclude ?? "",
+                jitFieldNode.__internalShouldInclude ?? ""
+              );
+          }
         }
         // go further down the query tree
         for (const selection of jitFieldNode.selectionSet?.selections ?? []) {
