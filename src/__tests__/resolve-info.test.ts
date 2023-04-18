@@ -1361,6 +1361,8 @@ describe("resolver info", () => {
         infNode = undefined;
         infElements = undefined;
         infMedia = undefined;
+
+        expensiveFunction.mockClear();
       });
 
       test("basic test", async () => {
