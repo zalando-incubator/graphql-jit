@@ -37,6 +37,9 @@ jobs:
           key: ${{ runner.os }}-${{matrix.node-version}}-${{matrix.graphql-version}}-yarn-${{ hashFiles('yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{matrix.node-version}}-${{matrix.graphql-version}}-yarn-
+      
+      - name: check the state
+        run: git log -5
 
       - name: Use GraphQL v${{matrix.graphql-version}}
         run: node ./scripts/match-graphql.js ${{matrix.graphql-version}}

@@ -1357,12 +1357,14 @@ describe("resolver info", () => {
         return prepared.query(rootValue, contextValue, variableValues || {});
       }
 
+      beforeEach(() => {
+        expensiveFunction.mockClear();
+      })
+
       afterEach(() => {
         infNode = undefined;
         infElements = undefined;
         infMedia = undefined;
-
-        expensiveFunction.mockClear();
       });
 
       test("basic test", async () => {
