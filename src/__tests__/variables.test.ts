@@ -546,7 +546,7 @@ describe("Execute: Handles inputs", () => {
             }
           ]
         });
-        expect(result.errors![0].originalError?.message).toBe(
+        expect(result.errors?.[0].originalError?.message).toBe(
           "complex-scalar-error"
         );
       });
