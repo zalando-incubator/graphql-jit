@@ -126,7 +126,7 @@ function transformNode(
   compilationContext: CompilationContext,
   fieldNodes: FieldNode[],
   type: GraphQLType
-): Schema {
+): Exclude<Schema, RefSchema> {
   if (isObjectType(type)) {
     const subfields = collectSubfields(compilationContext, type, fieldNodes);
     const properties = Object.create(null);
@@ -162,7 +162,7 @@ function transformNode(
   }
   if (isNonNullType(type)) {
     const nullable = transformNode(compilationContext, fieldNodes, type.ofType);
-    (nullable as Exclude<Schema, RefSchema>).nullable = false;
+    nullable.nullable = false;
     return nullable;
   }
   if (isEnumType(type)) {
