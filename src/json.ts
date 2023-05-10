@@ -22,9 +22,9 @@ import {
   Schema,
   StringSchema
 } from "fast-json-stringify";
-import {collectFields, collectSubfields, resolveFieldDef} from "./ast";
-import {getOperationRootType} from "./compat";
-import {CompilationContext} from "./execution";
+import { collectFields, collectSubfields, resolveFieldDef } from "./ast";
+import { getOperationRootType } from "./compat";
+import { CompilationContext } from "./execution";
 
 const PRIMITIVES: {
   [key: string]:
@@ -174,7 +174,7 @@ function transformNode(
   if (isScalarType(type)) {
     const jsonSchemaType = PRIMITIVES[type.name];
     if (!jsonSchemaType) {
-      throw new Error(`unexpected PRIMITIVES name ${type.name}`)
+      throw new Error(`Got unexpected PRIMITIVES type: ${type.name}`);
     }
     return {
       type: jsonSchemaType,
