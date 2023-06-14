@@ -188,21 +188,21 @@ describe("resolver info", () => {
         );
         expect(result.errors).not.toBeDefined();
         expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Foo": Object {
-                      "a": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "d": Object {
-                        "Bar": Object {
-                          "e": Object {
-                            Symbol(LeafFieldSymbol): true,
-                          },
-                        },
-                      },
-                    },
-                  }
-              `);
+          {
+            "Foo": {
+              "a": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "d": {
+                "Bar": {
+                  "e": {
+                    Symbol(LeafFieldSymbol): true,
+                  },
+                },
+              },
+            },
+          }
+        `);
       });
 
       test("with fragments", async () => {
@@ -230,20 +230,20 @@ describe("resolver info", () => {
         );
 
         expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Foo": Object {
-                      "a": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "b": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "c": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                  }
-              `);
+          {
+            "Foo": {
+              "a": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "b": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "c": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+          }
+        `);
       });
 
       test("inline fragments", async () => {
@@ -269,18 +269,18 @@ describe("resolver info", () => {
         );
 
         expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Foo": Object {
-                      "d": Object {
-                        "Bar": Object {
-                          "e": Object {
-                            Symbol(LeafFieldSymbol): true,
-                          },
-                        },
-                      },
-                    },
-                  }
-              `);
+          {
+            "Foo": {
+              "d": {
+                "Bar": {
+                  "e": {
+                    Symbol(LeafFieldSymbol): true,
+                  },
+                },
+              },
+            },
+          }
+        `);
       });
 
       test("aggregate multiple selections of the same field", async () => {
@@ -304,20 +304,20 @@ describe("resolver info", () => {
         );
 
         expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Foo": Object {
-                      "a": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "b": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "c": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                  }
-              `);
+          {
+            "Foo": {
+              "a": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "b": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "c": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+          }
+        `);
       });
     });
 
@@ -379,33 +379,33 @@ describe("resolver info", () => {
         expect(result.errors).not.toBeDefined();
 
         expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Bar1": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "title": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Bar2": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "title": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "IBar": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "title": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                  }
-              `);
+          {
+            "Bar1": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "title": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Bar2": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "title": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "IBar": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "title": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+          }
+        `);
       });
 
       test("fields per type", async () => {
@@ -430,39 +430,39 @@ describe("resolver info", () => {
         );
         expect(result.errors).not.toBeDefined();
         expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Bar1": Object {
-                      "b1": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "title": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Bar2": Object {
-                      "b2": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "title": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "IBar": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "title": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                  }
-              `);
+          {
+            "Bar1": {
+              "b1": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "title": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Bar2": {
+              "b2": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "title": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "IBar": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "title": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+          }
+        `);
       });
 
       test("fields per type - with fragments", async () => {
@@ -498,39 +498,39 @@ describe("resolver info", () => {
 
         expect(result.errors).not.toBeDefined();
         expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Bar1": Object {
-                      "b1": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "title": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Bar2": Object {
-                      "b2": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "title": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "IBar": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "title": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                  }
-              `);
+          {
+            "Bar1": {
+              "b1": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "title": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Bar2": {
+              "b2": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "title": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "IBar": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "title": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+          }
+        `);
       });
 
       test("aggregate multiple selections of the same field", async () => {
@@ -563,39 +563,39 @@ describe("resolver info", () => {
         expect(result.errors).not.toBeDefined();
 
         expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Bar1": Object {
-                      "b1": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "title": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Bar2": Object {
-                      "b2": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "title": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "IBar": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "title": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                  }
-              `);
+          {
+            "Bar1": {
+              "b1": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "title": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Bar2": {
+              "b2": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "title": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "IBar": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "title": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+          }
+        `);
       });
     });
 
@@ -655,19 +655,19 @@ describe("resolver info", () => {
 
         expect(result.errors).not.toBeDefined();
         expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Bar": Object {
-                      "bar": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Foo": Object {
-                      "foo": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                  }
-              `);
+          {
+            "Bar": {
+              "bar": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Foo": {
+              "foo": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+          }
+        `);
       });
 
       test("union field nodes - repeating names", async () => {
@@ -692,22 +692,22 @@ describe("resolver info", () => {
 
         expect(result.errors).not.toBeDefined();
         expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Bar": Object {
-                      "bar": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Foo": Object {
-                      "common": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "foo": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                  }
-              `);
+          {
+            "Bar": {
+              "bar": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Foo": {
+              "common": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "foo": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+          }
+        `);
       });
 
       test("__typename", async () => {
@@ -724,11 +724,11 @@ describe("resolver info", () => {
         );
         expect(result.errors).not.toBeDefined();
         expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Bar": Object {},
-                    "Foo": Object {},
-                  }
-              `);
+          {
+            "Bar": {},
+            "Foo": {},
+          }
+        `);
       });
 
       test("unions with fragments", async () => {
@@ -754,19 +754,19 @@ describe("resolver info", () => {
 
         expect(result.errors).not.toBeDefined();
         expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Bar": Object {
-                      "bar": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Foo": Object {
-                      "foo": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                  }
-              `);
+          {
+            "Bar": {
+              "bar": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Foo": {
+              "foo": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+          }
+        `);
       });
 
       test("aggregate multiple selections of the same field", async () => {
@@ -796,19 +796,19 @@ describe("resolver info", () => {
 
         expect(result.errors).not.toBeDefined();
         expect(inf.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Bar": Object {
-                      "bar": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Foo": Object {
-                      "foo": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                  }
-              `);
+          {
+            "Bar": {
+              "bar": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Foo": {
+              "foo": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+          }
+        `);
       });
     });
 
@@ -932,61 +932,61 @@ describe("resolver info", () => {
         expect(validationErrors.length).toBe(0);
         expect(result.errors).not.toBeDefined();
         expect(infNode.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Image": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "tags": Object {
-                        "Tag": Object {
-                          "id": Object {
-                            Symbol(LeafFieldSymbol): true,
-                          },
-                          "name": Object {
-                            Symbol(LeafFieldSymbol): true,
-                          },
-                        },
-                      },
-                      "url": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "width": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Media": Object {
-                      "tags": Object {
-                        "Tag": Object {
-                          "id": Object {
-                            Symbol(LeafFieldSymbol): true,
-                          },
-                        },
-                      },
-                    },
-                    "Node": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Tag": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Video": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "tags": Object {
-                        "Tag": Object {
-                          "id": Object {
-                            Symbol(LeafFieldSymbol): true,
-                          },
-                        },
-                      },
-                    },
-                  }
-              `);
+          {
+            "Image": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "tags": {
+                "Tag": {
+                  "id": {
+                    Symbol(LeafFieldSymbol): true,
+                  },
+                  "name": {
+                    Symbol(LeafFieldSymbol): true,
+                  },
+                },
+              },
+              "url": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "width": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Media": {
+              "tags": {
+                "Tag": {
+                  "id": {
+                    Symbol(LeafFieldSymbol): true,
+                  },
+                },
+              },
+            },
+            "Node": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Tag": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Video": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "tags": {
+                "Tag": {
+                  "id": {
+                    Symbol(LeafFieldSymbol): true,
+                  },
+                },
+              },
+            },
+          }
+        `);
       });
 
       test("elements", async () => {
@@ -1027,76 +1027,76 @@ describe("resolver info", () => {
 
         expect(result.errors).not.toBeDefined();
         expect(infElements.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Div": Object {
-                      "children": Object {
-                        "Div": Object {
-                          "children": Object {
-                            "Div": Object {},
-                            "Image": Object {
-                              "url": Object {
-                                Symbol(LeafFieldSymbol): true,
-                              },
-                            },
-                            "Media": Object {
-                              "url": Object {
-                                Symbol(LeafFieldSymbol): true,
-                              },
-                            },
-                            "Node": Object {},
-                            "Video": Object {
-                              "url": Object {
-                                Symbol(LeafFieldSymbol): true,
-                              },
-                            },
-                          },
-                        },
-                        "Image": Object {
-                          "id": Object {
-                            Symbol(LeafFieldSymbol): true,
-                          },
-                        },
-                        "Media": Object {},
-                        "Node": Object {
-                          "id": Object {
-                            Symbol(LeafFieldSymbol): true,
-                          },
-                        },
-                        "Video": Object {
-                          "id": Object {
-                            Symbol(LeafFieldSymbol): true,
-                          },
-                        },
-                      },
-                    },
-                    "Image": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "url": Object {
+          {
+            "Div": {
+              "children": {
+                "Div": {
+                  "children": {
+                    "Div": {},
+                    "Image": {
+                      "url": {
                         Symbol(LeafFieldSymbol): true,
                       },
                     },
-                    "Media": Object {
-                      "url": Object {
+                    "Media": {
+                      "url": {
                         Symbol(LeafFieldSymbol): true,
                       },
                     },
-                    "Node": Object {
-                      "id": Object {
+                    "Node": {},
+                    "Video": {
+                      "url": {
                         Symbol(LeafFieldSymbol): true,
                       },
                     },
-                    "Video": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "url": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                  }
-              `);
+                  },
+                },
+                "Image": {
+                  "id": {
+                    Symbol(LeafFieldSymbol): true,
+                  },
+                },
+                "Media": {},
+                "Node": {
+                  "id": {
+                    Symbol(LeafFieldSymbol): true,
+                  },
+                },
+                "Video": {
+                  "id": {
+                    Symbol(LeafFieldSymbol): true,
+                  },
+                },
+              },
+            },
+            "Image": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "url": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Media": {
+              "url": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Node": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Video": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "url": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+          }
+        `);
       });
 
       test("alias 1", async () => {
@@ -1121,33 +1121,33 @@ describe("resolver info", () => {
         expect(validationErrors.length).toBe(0);
         expect(result.errors).not.toBeDefined();
         expect(infNode.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Image": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Media": Object {},
-                    "Node": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Tag": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "name": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Video": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                  }
-              `);
+          {
+            "Image": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Media": {},
+            "Node": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Tag": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "name": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Video": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+          }
+        `);
       });
 
       test("aliases and __typename should not be included in resolveInfo", async () => {
@@ -1184,55 +1184,55 @@ describe("resolver info", () => {
         expect(validationErrors.length).toBe(0);
         expect(result.errors).not.toBeDefined();
         expect(infNode.fieldExpansion).toMatchInlineSnapshot(`
-                  Object {
-                    "Image": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "tags": Object {
-                        "Tag": Object {
-                          "name": Object {
-                            Symbol(LeafFieldSymbol): true,
-                          },
-                        },
-                      },
-                    },
-                    "Media": Object {
-                      "tags": Object {
-                        "Tag": Object {
-                          "name": Object {
-                            Symbol(LeafFieldSymbol): true,
-                          },
-                        },
-                      },
-                    },
-                    "Node": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Tag": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "name": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                    },
-                    "Video": Object {
-                      "id": Object {
-                        Symbol(LeafFieldSymbol): true,
-                      },
-                      "tags": Object {
-                        "Tag": Object {
-                          "name": Object {
-                            Symbol(LeafFieldSymbol): true,
-                          },
-                        },
-                      },
-                    },
-                  }
-              `);
+          {
+            "Image": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "tags": {
+                "Tag": {
+                  "name": {
+                    Symbol(LeafFieldSymbol): true,
+                  },
+                },
+              },
+            },
+            "Media": {
+              "tags": {
+                "Tag": {
+                  "name": {
+                    Symbol(LeafFieldSymbol): true,
+                  },
+                },
+              },
+            },
+            "Node": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Tag": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "name": {
+                Symbol(LeafFieldSymbol): true,
+              },
+            },
+            "Video": {
+              "id": {
+                Symbol(LeafFieldSymbol): true,
+              },
+              "tags": {
+                "Tag": {
+                  "name": {
+                    Symbol(LeafFieldSymbol): true,
+                  },
+                },
+              },
+            },
+          }
+        `);
       });
     });
   });

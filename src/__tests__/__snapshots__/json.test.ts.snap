@@ -1,30 +1,30 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`JSON schema creation with abstract types json schema creation 1`] = `
-Object {
-  "properties": Object {
-    "data": Object {
+{
+  "properties": {
+    "data": {
       "nullable": true,
-      "properties": Object {
-        "u": Object {
+      "properties": {
+        "u": {
           "nullable": true,
-          "properties": Object {},
+          "properties": {},
           "type": "object",
         },
       },
       "type": "object",
     },
-    "errors": Object {
-      "items": Object {
+    "errors": {
+      "items": {
         "additionalProperties": true,
-        "properties": Object {
-          "locations": Object {
-            "items": Object {
-              "properties": Object {
-                "column": Object {
+        "properties": {
+          "locations": {
+            "items": {
+              "properties": {
+                "column": {
                   "type": "number",
                 },
-                "line": Object {
+                "line": {
                   "type": "number",
                 },
               },
@@ -32,12 +32,12 @@ Object {
             },
             "type": "array",
           },
-          "message": Object {
+          "message": {
             "type": "string",
           },
-          "path": Object {
-            "items": Object {
-              "type": Array [
+          "path": {
+            "items": {
+              "type": [
                 "string",
                 "number",
               ],
@@ -55,59 +55,59 @@ Object {
 `;
 
 exports[`json schema creator json schema creation 1`] = `
-Object {
-  "properties": Object {
-    "data": Object {
+{
+  "properties": {
+    "data": {
       "nullable": true,
-      "properties": Object {
-        "article": Object {
+      "properties": {
+        "article": {
           "nullable": true,
-          "properties": Object {
-            "author": Object {
+          "properties": {
+            "author": {
               "nullable": false,
-              "properties": Object {
-                "id": Object {
+              "properties": {
+                "id": {
                   "nullable": false,
                   "type": "string",
                 },
-                "name": Object {
+                "name": {
                   "nullable": true,
                   "type": "string",
                 },
-                "pic": Object {
+                "pic": {
                   "nullable": true,
-                  "properties": Object {
-                    "height": Object {
+                  "properties": {
+                    "height": {
                       "nullable": true,
                       "type": "integer",
                     },
-                    "url": Object {
+                    "url": {
                       "nullable": true,
                       "type": "string",
                     },
-                    "width": Object {
+                    "width": {
                       "nullable": true,
                       "type": "integer",
                     },
                   },
                   "type": "object",
                 },
-                "recentArticle": Object {
+                "recentArticle": {
                   "nullable": true,
-                  "properties": Object {
-                    "body": Object {
+                  "properties": {
+                    "body": {
                       "nullable": true,
                       "type": "string",
                     },
-                    "id": Object {
+                    "id": {
                       "nullable": false,
                       "type": "string",
                     },
-                    "isPublished": Object {
+                    "isPublished": {
                       "nullable": true,
                       "type": "boolean",
                     },
-                    "title": Object {
+                    "title": {
                       "nullable": true,
                       "type": "string",
                     },
@@ -117,34 +117,34 @@ Object {
               },
               "type": "object",
             },
-            "body": Object {
+            "body": {
               "nullable": true,
               "type": "string",
             },
-            "id": Object {
+            "id": {
               "nullable": false,
               "type": "string",
             },
-            "isPublished": Object {
+            "isPublished": {
               "nullable": true,
               "type": "boolean",
             },
-            "title": Object {
+            "title": {
               "nullable": true,
               "type": "string",
             },
           },
           "type": "object",
         },
-        "feed": Object {
-          "items": Object {
+        "feed": {
+          "items": {
             "nullable": true,
-            "properties": Object {
-              "id": Object {
+            "properties": {
+              "id": {
                 "nullable": false,
                 "type": "string",
               },
-              "title": Object {
+              "title": {
                 "nullable": true,
                 "type": "string",
               },
@@ -157,17 +157,17 @@ Object {
       },
       "type": "object",
     },
-    "errors": Object {
-      "items": Object {
+    "errors": {
+      "items": {
         "additionalProperties": true,
-        "properties": Object {
-          "locations": Object {
-            "items": Object {
-              "properties": Object {
-                "column": Object {
+        "properties": {
+          "locations": {
+            "items": {
+              "properties": {
+                "column": {
                   "type": "number",
                 },
-                "line": Object {
+                "line": {
                   "type": "number",
                 },
               },
@@ -175,12 +175,12 @@ Object {
             },
             "type": "array",
           },
-          "message": Object {
+          "message": {
             "type": "string",
           },
-          "path": Object {
-            "items": Object {
-              "type": Array [
+          "path": {
+            "items": {
+              "type": [
                 "string",
                 "number",
               ],
