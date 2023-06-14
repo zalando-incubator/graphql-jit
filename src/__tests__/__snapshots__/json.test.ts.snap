@@ -1,34 +1,34 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`JSON schema creation with abstract types json schema creation 1`] = `
-Object {
-  "properties": Object {
-    "data": Object {
-      "properties": Object {
-        "u": Object {
-          "properties": Object {},
-          "type": Array [
+{
+  "properties": {
+    "data": {
+      "properties": {
+        "u": {
+          "properties": {},
+          "type": [
             "object",
             "null",
           ],
         },
       },
-      "type": Array [
+      "type": [
         "object",
         "null",
       ],
     },
-    "errors": Object {
-      "items": Object {
+    "errors": {
+      "items": {
         "additionalProperties": true,
-        "properties": Object {
-          "locations": Object {
-            "items": Object {
-              "properties": Object {
-                "column": Object {
+        "properties": {
+          "locations": {
+            "items": {
+              "properties": {
+                "column": {
                   "type": "number",
                 },
-                "line": Object {
+                "line": {
                   "type": "number",
                 },
               },
@@ -36,12 +36,12 @@ Object {
             },
             "type": "array",
           },
-          "message": Object {
+          "message": {
             "type": "string",
           },
-          "path": Object {
-            "items": Object {
-              "type": Array [
+          "path": {
+            "items": {
+              "type": [
                 "string",
                 "number",
               ],
@@ -59,74 +59,74 @@ Object {
 `;
 
 exports[`json schema creator json schema creation 1`] = `
-Object {
-  "properties": Object {
-    "data": Object {
-      "properties": Object {
-        "article": Object {
-          "properties": Object {
-            "author": Object {
-              "properties": Object {
-                "id": Object {
+{
+  "properties": {
+    "data": {
+      "properties": {
+        "article": {
+          "properties": {
+            "author": {
+              "properties": {
+                "id": {
                   "type": "string",
                 },
-                "name": Object {
-                  "type": Array [
+                "name": {
+                  "type": [
                     "string",
                     "null",
                   ],
                 },
-                "pic": Object {
-                  "properties": Object {
-                    "height": Object {
-                      "type": Array [
+                "pic": {
+                  "properties": {
+                    "height": {
+                      "type": [
                         "integer",
                         "null",
                       ],
                     },
-                    "url": Object {
-                      "type": Array [
+                    "url": {
+                      "type": [
                         "string",
                         "null",
                       ],
                     },
-                    "width": Object {
-                      "type": Array [
+                    "width": {
+                      "type": [
                         "integer",
                         "null",
                       ],
                     },
                   },
-                  "type": Array [
+                  "type": [
                     "object",
                     "null",
                   ],
                 },
-                "recentArticle": Object {
-                  "properties": Object {
-                    "body": Object {
-                      "type": Array [
+                "recentArticle": {
+                  "properties": {
+                    "body": {
+                      "type": [
                         "string",
                         "null",
                       ],
                     },
-                    "id": Object {
+                    "id": {
                       "type": "string",
                     },
-                    "isPublished": Object {
-                      "type": Array [
+                    "isPublished": {
+                      "type": [
                         "boolean",
                         "null",
                       ],
                     },
-                    "title": Object {
-                      "type": Array [
+                    "title": {
+                      "type": [
                         "string",
                         "null",
                       ],
                     },
                   },
-                  "type": Array [
+                  "type": [
                     "object",
                     "null",
                   ],
@@ -134,73 +134,73 @@ Object {
               },
               "type": "object",
             },
-            "body": Object {
-              "type": Array [
+            "body": {
+              "type": [
                 "string",
                 "null",
               ],
             },
-            "id": Object {
+            "id": {
               "type": "string",
             },
-            "isPublished": Object {
-              "type": Array [
+            "isPublished": {
+              "type": [
                 "boolean",
                 "null",
               ],
             },
-            "title": Object {
-              "type": Array [
+            "title": {
+              "type": [
                 "string",
                 "null",
               ],
             },
           },
-          "type": Array [
+          "type": [
             "object",
             "null",
           ],
         },
-        "feed": Object {
-          "items": Object {
-            "properties": Object {
-              "id": Object {
+        "feed": {
+          "items": {
+            "properties": {
+              "id": {
                 "type": "string",
               },
-              "title": Object {
-                "type": Array [
+              "title": {
+                "type": [
                   "string",
                   "null",
                 ],
               },
             },
-            "type": Array [
+            "type": [
               "object",
               "null",
             ],
           },
-          "type": Array [
+          "type": [
             "array",
             "null",
           ],
         },
       },
-      "type": Array [
+      "type": [
         "object",
         "null",
       ],
     },
-    "errors": Object {
-      "items": Object {
+    "errors": {
+      "items": {
         "additionalProperties": true,
-        "properties": Object {
-          "locations": Object {
-            "items": Object {
-              "properties": Object {
-                "column": Object {
+        "properties": {
+          "locations": {
+            "items": {
+              "properties": {
+                "column": {
                   "type": "number",
                 },
-                "line": Object {
+                "line": {
                   "type": "number",
                 },
               },
@@ -208,12 +208,12 @@ Object {
             },
             "type": "array",
           },
-          "message": Object {
+          "message": {
             "type": "string",
           },
-          "path": Object {
-            "items": Object {
-              "type": Array [
+          "path": {
+            "items": {
+              "type": [
                 "string",
                 "number",
               ],
