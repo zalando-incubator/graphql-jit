@@ -4,19 +4,15 @@ exports[`JSON schema creation with abstract types json schema creation 1`] = `
 {
   "properties": {
     "data": {
+      "nullable": true,
       "properties": {
         "u": {
+          "nullable": true,
           "properties": {},
-          "type": [
-            "object",
-            "null",
-          ],
+          "type": "object",
         },
       },
-      "type": [
-        "object",
-        "null",
-      ],
+      "type": "object",
     },
     "errors": {
       "items": {
@@ -62,133 +58,104 @@ exports[`json schema creator json schema creation 1`] = `
 {
   "properties": {
     "data": {
+      "nullable": true,
       "properties": {
         "article": {
+          "nullable": true,
           "properties": {
             "author": {
+              "nullable": false,
               "properties": {
                 "id": {
+                  "nullable": false,
                   "type": "string",
                 },
                 "name": {
-                  "type": [
-                    "string",
-                    "null",
-                  ],
+                  "nullable": true,
+                  "type": "string",
                 },
                 "pic": {
+                  "nullable": true,
                   "properties": {
                     "height": {
-                      "type": [
-                        "integer",
-                        "null",
-                      ],
+                      "nullable": true,
+                      "type": "integer",
                     },
                     "url": {
-                      "type": [
-                        "string",
-                        "null",
-                      ],
+                      "nullable": true,
+                      "type": "string",
                     },
                     "width": {
-                      "type": [
-                        "integer",
-                        "null",
-                      ],
+                      "nullable": true,
+                      "type": "integer",
                     },
                   },
-                  "type": [
-                    "object",
-                    "null",
-                  ],
+                  "type": "object",
                 },
                 "recentArticle": {
+                  "nullable": true,
                   "properties": {
                     "body": {
-                      "type": [
-                        "string",
-                        "null",
-                      ],
+                      "nullable": true,
+                      "type": "string",
                     },
                     "id": {
+                      "nullable": false,
                       "type": "string",
                     },
                     "isPublished": {
-                      "type": [
-                        "boolean",
-                        "null",
-                      ],
+                      "nullable": true,
+                      "type": "boolean",
                     },
                     "title": {
-                      "type": [
-                        "string",
-                        "null",
-                      ],
+                      "nullable": true,
+                      "type": "string",
                     },
                   },
-                  "type": [
-                    "object",
-                    "null",
-                  ],
+                  "type": "object",
                 },
               },
               "type": "object",
             },
             "body": {
-              "type": [
-                "string",
-                "null",
-              ],
+              "nullable": true,
+              "type": "string",
             },
             "id": {
+              "nullable": false,
               "type": "string",
             },
             "isPublished": {
-              "type": [
-                "boolean",
-                "null",
-              ],
+              "nullable": true,
+              "type": "boolean",
             },
             "title": {
-              "type": [
-                "string",
-                "null",
-              ],
+              "nullable": true,
+              "type": "string",
             },
           },
-          "type": [
-            "object",
-            "null",
-          ],
+          "type": "object",
         },
         "feed": {
           "items": {
+            "nullable": true,
             "properties": {
               "id": {
+                "nullable": false,
                 "type": "string",
               },
               "title": {
-                "type": [
-                  "string",
-                  "null",
-                ],
+                "nullable": true,
+                "type": "string",
               },
             },
-            "type": [
-              "object",
-              "null",
-            ],
+            "type": "object",
           },
-          "type": [
-            "array",
-            "null",
-          ],
+          "nullable": true,
+          "type": "array",
         },
       },
-      "type": [
-        "object",
-        "null",
-      ],
+      "type": "object",
     },
     "errors": {
       "items": {
