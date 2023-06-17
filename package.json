@@ -81,7 +81,7 @@
     "typescript": "^4.4.4"
   },
   "dependencies": {
-    "@graphql-typed-document-node/core": "^3.1.2",
+    "@graphql-typed-document-node/core": "^3.2.0",
     "fast-json-stringify": "^5.7.0",
     "generate-function": "^2.3.1",
     "lodash.memoize": "^4.1.2",
