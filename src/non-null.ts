@@ -81,6 +81,10 @@ function trimData(nullable: QueryMetadata): NullTrimmer {
  */
 function removeBranch(tree: any, branch: Array<number | string>): void {
   for (let i = 0; i < branch.length - 1; ++i) {
+    // if ancestor has already been removed, there's nothing to do
+    if (tree[branch[i]] === null) {
+      return;
+    }
     tree = tree[branch[i]];
   }
   const toNull = branch[branch.length - 1];
