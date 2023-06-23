@@ -37,12 +37,12 @@ const throwingData = {
     });
   },
   latePromise() {
-    return new Promise((_, reject) =>
+    return new Promise((resolve, reject) =>
       setTimeout(() => reject(latePromiseError), 0)
     );
   },
   latePromiseNonNull() {
-    return new Promise((_, reject) =>
+    return new Promise((resolve, reject) =>
       setTimeout(() => reject(latePromiseNonNullError), 0)
     );
   },
