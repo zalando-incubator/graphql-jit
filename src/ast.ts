@@ -123,9 +123,6 @@ function collectFieldsImpl(
           selection
         );
 
-        if (!fieldNode.__internalShouldIncludePath)
-          fieldNode.__internalShouldIncludePath = {};
-
         /**
          * Carry over fragment's skip and include code
          *
@@ -143,6 +140,9 @@ function collectFieldsImpl(
          * `should include`s generated for the current fieldNode
          */
         if (compilationContext.options.useExperimentalPathBasedSkipInclude) {
+          if (!fieldNode.__internalShouldIncludePath)
+            fieldNode.__internalShouldIncludePath = {};
+
           fieldNode.__internalShouldIncludePath[currentPath] =
             joinShouldIncludeCompilations(
               fieldNode.__internalShouldIncludePath?.[currentPath] ?? "",
@@ -326,10 +326,10 @@ function augmentFieldNodeTree(
         );
 
         if (!comesFromFragmentSpread) {
-          if (!jitFieldNode.__internalShouldIncludePath)
-            jitFieldNode.__internalShouldIncludePath = {};
-
           if (compilationContext.options.useExperimentalPathBasedSkipInclude) {
+            if (!jitFieldNode.__internalShouldIncludePath)
+              jitFieldNode.__internalShouldIncludePath = {};
+
             jitFieldNode.__internalShouldIncludePath[currentPath] =
               joinShouldIncludeCompilations(
                 parentFieldNode.__internalShouldIncludePath?.[
