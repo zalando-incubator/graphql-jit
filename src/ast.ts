@@ -33,7 +33,6 @@ import { isAbstractType } from "graphql/type";
 import { CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution";
 import createInspect from "./inspect";
 import { getGraphQLErrorOptions, resolveFieldDef } from "./compat";
-import { memoize4 } from "./memoize";
 
 export interface JitFieldNode extends FieldNode {
   /**
@@ -627,14 +626,7 @@ function getFieldEntryKey(node: FieldNode): string {
 
 export { resolveFieldDef };
 
-/**
- * A memoized collection of relevant subfields in the context of the return
- * type. Memoizing ensures the subfields are not repeatedly calculated, which
- * saves overhead when resolving lists of values.
- */
-export const collectSubfields = memoize4(_collectSubfields);
-
-function _collectSubfields(
+export function collectSubfields(
   compilationContext: CompilationContext,
   returnType: GraphQLObjectType,
   fieldNodes: FieldNode[],
