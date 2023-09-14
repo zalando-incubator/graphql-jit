@@ -1,0 +1,4 @@
+dist/
+.stryker-tmp
+examples/
+node_modules
