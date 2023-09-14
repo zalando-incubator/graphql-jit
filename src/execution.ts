@@ -1557,7 +1557,7 @@ function buildCompilationContext(
   operationName?: string
 ): CompilationContext {
   const errors: GraphQLError[] = [];
-  let operation: OperationDefinitionNode | void;
+  let operation: OperationDefinitionNode | void = undefined;
   let hasMultipleAssumedOperations = false;
   const fragments: { [key: string]: FragmentDefinitionNode } =
     Object.create(null);
