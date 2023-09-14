@@ -11,6 +11,7 @@ code which yields much better performance. `graphql-jit` leverages this behaviou
 #### Benchmarks
 
 GraphQL-JS 16 on Node 16.13.0
+
 ```bash
 $ yarn benchmark skip-json
 Starting introspection
@@ -37,6 +38,8 @@ The goal is to support the [June 2018 version of the GraphQL spec](https://faceb
 In order to achieve better performance, the `graphql-jit` compiler introduces some limitations.
 The primary limitation is that all computed properties must have a resolver and only these can return a `Promise`.
 
+More details here - [GraphQL-JS.md](./GraphQL-JS.md)
+
 ## Install
 
 ```sh
@@ -58,7 +61,7 @@ type Query {
 const resolvers = {
   Query: {
     hello() {
-      return new Promise(resolve => setTimeout(() => resolve("World!"), 200));
+      return new Promise((resolve) => setTimeout(() => resolve("World!"), 200));
     }
   }
 };
