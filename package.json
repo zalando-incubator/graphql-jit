@@ -13,8 +13,8 @@
   "scripts": {
     "precommit": "lint-staged",
     "prepublishOnly": "yarn && yarn build",
-    "format": "prettier --write 'src/**/*.ts' '*.js'",
-    "check-format": "prettier -l 'src/**/*.ts' '*.js'",
+    "format": "prettier --write 'src/**/*.ts'",
+    "check-format": "prettier -l 'src/**/*.ts'",
     "lint": "eslint --ext .ts .",
     "lint-fix": "eslint --ext .ts . --fix",
     "build": "tsc --project tsconfig.build.json",
