@@ -26,17 +26,27 @@ function graphql(schema: GraphQLSchema, query: string) {
 
 class Dog {
   // eslint-disable-next-line no-useless-constructor
-  constructor(public name: string, public woofs: boolean, public other?: any) {}
+  constructor(
+    public name: string,
+    public woofs: boolean,
+    public other?: any
+  ) {}
 }
 
 class Cat {
   // eslint-disable-next-line no-useless-constructor
-  constructor(public name: string, public meows: boolean) {}
+  constructor(
+    public name: string,
+    public meows: boolean
+  ) {}
 }
 
 class Human {
   // eslint-disable-next-line no-useless-constructor
-  constructor(public name: string, public pets?: any) {}
+  constructor(
+    public name: string,
+    public pets?: any
+  ) {}
 }
 
 // eslint-disable-next-line

@@ -17,11 +17,17 @@ import {
 import { compileQuery } from "../index";
 
 class Dog {
-  constructor(public name: string, public barks: boolean) {}
+  constructor(
+    public name: string,
+    public barks: boolean
+  ) {}
 }
 
 class Cat {
-  constructor(public name: string, public meows: boolean) {}
+  constructor(
+    public name: string,
+    public meows: boolean
+  ) {}
 }
 
 class Person {
