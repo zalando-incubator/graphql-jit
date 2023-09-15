@@ -428,7 +428,7 @@ function executeQuery(
   variableValues?: any
 ) {
   const prepared: any = compileQuery(schema, document as any, undefined, {
-    useJitVariablesParser: true
+    variableParser: "jit-new"
   });
   if (!isCompiledQuery(prepared)) {
     return prepared;

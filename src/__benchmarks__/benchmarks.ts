@@ -60,20 +60,28 @@ const benchmarks: { [key: string]: BenchmarkMaterial } = {
     query: nestedArrayQuery,
     variables: { id: "2", width: 300, height: 500 }
   },
-  variablesShallowWithCompilation: {
+  variablesWithNewJit: {
     schema: variablesShallowSchema(),
     query: variablesShallowQuery,
     variables: variablesShallowVariables,
     options: {
-      useJitVariablesParser: true
+      variableParser: "jit-new"
     }
   },
-  variablesShallowWithoutCompilation: {
+  variablesWithOldJit: {
+    schema: variablesShallowSchema(false),
+    query: variablesShallowQuery,
+    variables: variablesShallowVariables,
+    options: {
+      variableParser: "jit-old"
+    }
+  },
+  variablesWithGraphQLJS: {
     schema: variablesShallowSchema(),
     query: variablesShallowQuery,
     variables: variablesShallowVariables,
     options: {
-      useJitVariablesParser: false
+      variableParser: "graphql-js"
     }
   }
 };

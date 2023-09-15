@@ -24,9 +24,48 @@ type Product {
 }
 `;
 
-export function schema() {
+const typeDefsOld = `
+type Query {
+  products(filter: Filter): [Product]
+}
+input Filter {
+  and: AndFilter
+  or: OrFilter
+  like: String
+}
+input AndFilter {
+  left: L2Filter
+  right: L2Filter
+}
+input OrFilter {
+  left: L2Filter
+  right: L2Filter
+}
+input L2Filter {
+  and: L2AndFilter
+  or: L2OrFilter
+  like: String
+}
+input L2AndFilter {
+  left: L3Filter
+  right: L3Filter
+}
+input L2OrFilter {
+  left: L3Filter
+  right: L3Filter
+}
+input L3Filter {
+  like: String
+}
+type Product {
+  id: ID!
+  name: String!
+}
+`;
+
+export function schema(withRecursion = true) {
   const schema = makeExecutableSchema({
-    typeDefs,
+    typeDefs: withRecursion ? typeDefs : typeDefsOld,
     resolvers: {
       Query: {
         async products(_, { filter }) {
