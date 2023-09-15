@@ -163,7 +163,7 @@ export function compileVariableParsing(
 
   const generatedFn = gen.toString();
 
-  return Function.apply(
+  const ret = Function.apply(
     null,
     ["GraphQLJITError", "inspect"]
       .concat(Array.from(dependencies.keys()))
@@ -172,6 +172,14 @@ export function compileVariableParsing(
     null,
     [GraphQLJITError, inspect].concat(Array.from(dependencies.values()))
   );
+
+  Object.defineProperties(ret, {
+    rawFunctionBody: {
+      value: generatedFn
+    }
+  });
+
+  return ret;
 }
 
 // Int Scalars represent 32 bits

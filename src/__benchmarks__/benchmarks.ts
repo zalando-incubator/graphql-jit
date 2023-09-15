@@ -113,94 +113,106 @@ ${availableBenchmarks.map(([bench]) => `  - ${bench}`).join("\n")}
     : availableBenchmarks;
 
   const benchs = await Promise.all(
-    filteredBenchmarks.map(async ([bench, { query, schema, variables }]) => {
-      const compiledQuery = compileQuery(schema, query, undefined, {
-        debug: true
-      } as any);
-      if (!isCompiledQuery(compiledQuery)) {
+    filteredBenchmarks.map(
+      async ([bench, { query, schema, variables, options }]) => {
+        const compiledQuery = compileQuery(schema, query, undefined, {
+          ...options,
+          debug: true
+        } as any);
+        if (!isCompiledQuery(compiledQuery)) {
+          // eslint-disable-next-line no-console
+          console.error(`${bench} failed to compile`);
+          return null;
+        }
         // eslint-disable-next-line no-console
-        console.error(`${bench} failed to compile`);
-        return null;
-      }
-      // eslint-disable-next-line no-console
-      console.log(
-        `size of function for ${bench}: ${
-          (compiledQuery as any)
-            .__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation.length
-        }`
-      );
-      const graphqlJsResult = await execute({
-        schema,
-        document: query,
-        variableValues: variables || {}
-      });
-      const graphqlJitResult = await compiledQuery.query(
-        undefined,
-        undefined,
-        variables || {}
-      );
-      if (
-        JSON.stringify(graphqlJitResult) !== JSON.stringify(graphqlJsResult)
-      ) {
-        // eslint-disable-next-line no-console
-        console.error(
-          JSON.stringify(graphqlJitResult),
-          "is different of",
-          JSON.stringify(graphqlJsResult)
+        console.log(
+          `size of function for ${bench}: ${
+            (compiledQuery as any)
+              .__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation.length
+          }`
         );
-        return null;
-      }
-      const suite = new Benchmark.Suite(bench);
-      if (!skipJS) {
-        suite.add("graphql-js", {
-          minSamples: 150,
-          defer: true,
-          fn(deferred: any) {
-            const result = execute({
-              schema,
-              document: query,
-              variableValues: variables || {}
-            });
-            if (isPromise(result)) {
-              return result.then((res) =>
-                deferred.resolve(skipJSON ? res : JSON.stringify(res))
+        console.log(
+          `size of function for variableCompilation ${bench}: ${(
+            compiledQuery as any
+          ).__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_variableCompilation?.length}`
+        );
+        const graphqlJsResult = await execute({
+          schema,
+          document: query,
+          variableValues: variables || {}
+        });
+        const graphqlJitResult = await compiledQuery.query(
+          undefined,
+          undefined,
+          variables || {}
+        );
+        if (
+          JSON.stringify(graphqlJitResult) !== JSON.stringify(graphqlJsResult)
+        ) {
+          // eslint-disable-next-line no-console
+          console.error(
+            JSON.stringify(graphqlJitResult),
+            "is different of",
+            JSON.stringify(graphqlJsResult)
+          );
+          return null;
+        }
+        const suite = new Benchmark.Suite(bench);
+        if (!skipJS) {
+          suite.add("graphql-js", {
+            minSamples: 150,
+            defer: true,
+            fn(deferred: any) {
+              const result = execute({
+                schema,
+                document: query,
+                variableValues: variables || {}
+              });
+              if (isPromise(result)) {
+                return result.then((res) =>
+                  deferred.resolve(skipJSON ? res : JSON.stringify(res))
+                );
+              }
+              return deferred.resolve(
+                skipJSON ? result : JSON.stringify(result)
               );
             }
-            return deferred.resolve(skipJSON ? result : JSON.stringify(result));
-          }
-        });
-      }
-      suite
-        .add("graphql-jit", {
-          minSamples: 150,
-          defer: true,
-          fn(deferred: any) {
-            const result = compiledQuery.query(
-              undefined,
-              undefined,
-              variables || {}
-            );
-            if (isPromise(result)) {
-              return result.then((res) =>
-                deferred.resolve(skipJSON ? res : compiledQuery.stringify(res))
+          });
+        }
+        suite
+          .add("graphql-jit", {
+            minSamples: 150,
+            defer: true,
+            fn(deferred: any) {
+              const result = compiledQuery.query(
+                undefined,
+                undefined,
+                variables || {}
+              );
+              if (isPromise(result)) {
+                return result.then((res) =>
+                  deferred.resolve(
+                    skipJSON ? res : compiledQuery.stringify(res)
+                  )
+                );
+              }
+              return deferred.resolve(
+                skipJSON ? result : compiledQuery.stringify(result)
               );
             }
-            return deferred.resolve(
-              skipJSON ? result : compiledQuery.stringify(result)
-            );
-          }
-        })
-        // add listeners
-        .on("cycle", (event: any) => {
-          // eslint-disable-next-line no-console
-          console.log(String(event.target));
-        })
-        .on("start", () => {
-          // eslint-disable-next-line no-console
-          console.log("Starting", bench);
-        });
-      return suite;
-    })
+          })
+          // add listeners
+          .on("cycle", (event: any) => {
+            // eslint-disable-next-line no-console
+            console.log(String(event.target));
+          })
+          .on("start", () => {
+            // eslint-disable-next-line no-console
+            console.log("Starting", bench);
+          });
+        return suite;
+      }
+    )
   );
 
   const benchsToRun = benchs.filter(isNotNull);

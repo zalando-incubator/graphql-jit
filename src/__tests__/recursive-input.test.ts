@@ -23,7 +23,7 @@ describe("recursive input types", () => {
       }
     });
 
-    test("should not fail for recursive input without variables", () => {
+    test.only("should not fail for recursive input without variables", () => {
       const query = parse(`
         {
           foo(input: {

@@ -61,7 +61,8 @@ import { Maybe } from "./types";
 import {
   CoercedVariableValues,
   getVariablesParser,
-  failToParseVariables
+  failToParseVariables,
+  compileVariableParsing
 } from "./variables";
 import { getGraphQLErrorOptions, getOperationRootType } from "./compat";
 
@@ -163,6 +164,7 @@ export interface CompilationContext extends GraphQLContext {
   deferred: DeferredField[];
   options: CompilerOptions;
   depth: number;
+  variableCompliationFnLength?: number;
 }
 
 // prefix for the variable used ot cache validation results
@@ -204,6 +206,7 @@ export interface CompiledQuery<
 
 interface InternalCompiledQuery extends CompiledQuery {
   __DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation?: string;
+  __DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_variableCompilation?: string;
 }
 
 /**
@@ -265,10 +268,12 @@ export function compileQuery<
       stringify = JSON.stringify;
     }
 
-    const getVariables = getVariablesParser(
-      schema,
-      context.operation.variableDefinitions || []
-    );
+    const getVariables = context.options.useJitVariablesParser
+      ? compileVariableParsing(
+          schema,
+          context.operation.variableDefinitions || []
+        )
+      : getVariablesParser(schema, context.operation.variableDefinitions || []);
 
     const type = getOperationRootType(context.schema, context.operation);
     const fieldMap = collectFields(
@@ -317,6 +322,8 @@ export function compileQuery<
       // and visualization tools like try-jit.
       compiledQuery.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation =
         functionBody;
+      compiledQuery.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_variableCompilation =
+        (getVariables as any).rawFunctionBody;
     }
     return compiledQuery as CompiledQuery<TResult, TVariables>;
   } catch (err: any) {

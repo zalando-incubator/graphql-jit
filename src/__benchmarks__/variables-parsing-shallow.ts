@@ -30,21 +30,9 @@ export function schema() {
     resolvers: {
       Query: {
         async products(_, { filter }) {
-          return products.filter((product) => {
-            if (filter.and) {
-              return (
-                product.name.includes(filter.and.left.like) &&
-                product.name.includes(filter.and.right.like)
-              );
-            } else if (filter.or) {
-              return (
-                product.name.includes(filter.or.left.like) ||
-                product.name.includes(filter.or.right.like)
-              );
-            } else {
-              return product.name.includes(filter.like);
-            }
-          });
+          return products.filter((product) =>
+            productSatisfiesFilter(product, filter)
+          );
         }
       }
     }
@@ -55,7 +43,10 @@ export function schema() {
 
 export const query = parse(`
 query ($filter1: Filter) {
-  products(filter: $filter1)
+  products(filter: $filter1) {
+    id
+    name
+  }
 }
 `);
 
@@ -78,6 +69,25 @@ export const variables = {
     }
   }
 };
+
+function productSatisfiesFilter(
+  product: (typeof products)[0],
+  filter: any
+): boolean {
+  if (filter.and) {
+    return (
+      productSatisfiesFilter(product, filter.and.left) &&
+      productSatisfiesFilter(product, filter.and.right)
+    );
+  } else if (filter.or) {
+    return (
+      productSatisfiesFilter(product, filter.or.left) ||
+      productSatisfiesFilter(product, filter.or.right)
+    );
+  } else {
+    return product.name.includes(filter.like);
+  }
+}
 
 const products = [
   {
