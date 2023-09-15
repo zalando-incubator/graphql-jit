@@ -1,3 +1,5 @@
+#!/usr/bin/env node -r @swc-node/register
+
 import Benchmark from "benchmark";
 import {
   DocumentNode,

@@ -1017,21 +1017,21 @@ function compileAbstractType(
   {
     if (err != null) {
       ${errorDestination}.push(${createErrorObject(
-    context,
-    fieldNodes,
-    previousPath,
-    "err.message != null ? err.message : err",
-    "err"
-  )});
+        context,
+        fieldNodes,
+        previousPath,
+        "err.message != null ? err.message : err",
+        "err"
+      )});
       return null;
     }
     if (nodeType == null) {
       ${errorDestination}.push(${createErrorObject(
-    context,
-    fieldNodes,
-    previousPath,
-    nullTypeError
-  )})
+        context,
+        fieldNodes,
+        previousPath,
+        nullTypeError
+      )})
       return null;
     }
     const ${finalTypeName} = typeof nodeType === "string" ? nodeType : nodeType.name;
@@ -1039,17 +1039,17 @@ function compileAbstractType(
       ${collectedTypes}
       default:
       ${errorDestination}.push(${createErrorObject(
-    context,
-    fieldNodes,
-    previousPath,
-    noTypeError
-  )})
+        context,
+        fieldNodes,
+        previousPath,
+        noTypeError
+      )})
       return null;
     }
   })(
     ${GLOBAL_EXECUTION_CONTEXT}.typeResolvers.${typeResolverName}(${originPaths.join(
-    "."
-  )},
+      "."
+    )},
     ${GLOBAL_CONTEXT_NAME},
     ${getExecutionInfo(
       context,
@@ -1557,7 +1557,7 @@ function buildCompilationContext(
   operationName?: string
 ): CompilationContext {
   const errors: GraphQLError[] = [];
-  let operation: OperationDefinitionNode | void;
+  let operation: OperationDefinitionNode | undefined = undefined;
   let hasMultipleAssumedOperations = false;
   const fragments: { [key: string]: FragmentDefinitionNode } =
     Object.create(null);

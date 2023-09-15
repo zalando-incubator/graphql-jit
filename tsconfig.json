@@ -1,20 +1,21 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
-    "target": "es2021",
+    "module": "NodeNext",
+    "target": "ES2022",
+    "outDir": "./dist",
     "noEmitOnError": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
     "noImplicitThis": false,
-    "moduleResolution": "node",
+    "moduleResolution": "NodeNext",
     "sourceMap": true,
     "strict": true,
     "declaration": true,
     "alwaysStrict": true,
     "strictPropertyInitialization": true,
     "esModuleInterop": true,
-    "outDir": "./dist",
-    "lib": ["esnext.asynciterable", "es2018"],
+    "lib": ["esnext.asynciterable", "ES2022"],
     "typeRoots": ["./types", "./node_modules/@types"]
-  }
+  },
+  "include": ["src/**/*", "types/**/*"]
 }

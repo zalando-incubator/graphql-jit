@@ -44,7 +44,6 @@ class Root {
   }
 
   promiseAndFailToChangeTheNumber(): Promise<NumberHolder> {
-    // eslint-disable-next-line promise/param-names
     return new Promise((_, reject) => {
       process.nextTick(() => {
         reject(new Error("Cannot change the number"));
