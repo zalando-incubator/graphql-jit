@@ -96,6 +96,10 @@ export interface CompilerOptions {
    *
    */
   useExperimentalPathBasedSkipInclude: boolean;
+
+  // Choose between compiled variables parser in JIT
+  // vs GraphQL-JS variables parser
+  useJitVariablesParser: boolean;
 }
 
 interface ExecutionContext {
@@ -240,6 +244,7 @@ export function compileQuery<
       disableLeafSerialization: false,
       customSerializers: {},
       useExperimentalPathBasedSkipInclude: false,
+      useJitVariablesParser: false,
       ...partialOptions
     };
 
@@ -259,6 +264,7 @@ export function compileQuery<
     } else {
       stringify = JSON.stringify;
     }
+
     const getVariables = getVariablesParser(
       schema,
       context.operation.variableDefinitions || []
