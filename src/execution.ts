@@ -51,7 +51,7 @@ import {
 } from "./ast";
 import { GraphQLError as GraphqlJitError } from "./error";
 import createInspect from "./inspect";
-import { queryToJSONSchema } from "./json";
+import { CustomScalarTypes, queryToJSONSchema } from "./json";
 import { createNullTrimmer, NullTrimmer } from "./non-null";
 import {
   createResolveInfoThunk,
@@ -69,6 +69,9 @@ const inspect = createInspect();
 
 export interface CompilerOptions {
   customJSONSerializer: boolean;
+
+  // To support serializing custom scalar type using fast-json-stringify
+  customJSONSerializerScalarTypes?: CustomScalarTypes;
 
   // Disable builtin scalars and enum serialization
   // which is responsible for coercion,
@@ -254,7 +257,10 @@ export function compileQuery<
 
     let stringify: (v: any) => string;
     if (options.customJSONSerializer) {
-      const jsonSchema = queryToJSONSchema(context);
+      const jsonSchema = queryToJSONSchema(
+        context,
+        options.customJSONSerializerScalarTypes
+      );
       stringify = fastJson(jsonSchema);
     } else {
       stringify = JSON.stringify;
