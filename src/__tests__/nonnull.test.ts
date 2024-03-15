@@ -16,6 +16,8 @@ const syncError = new Error("sync");
 const syncNonNullError = new Error("syncNonNull");
 const promiseError = new Error("promise");
 const promiseNonNullError = new Error("promiseNonNull");
+const latePromiseError = new Error("latePromise");
+const latePromiseNonNullError = new Error("latePromiseNonNull");
 
 const throwingData = {
   sync() {
@@ -33,6 +35,16 @@ const throwingData = {
     return new Promise(() => {
       throw promiseNonNullError;
     });
+  },
+  latePromise() {
+    return new Promise((resolve, reject) =>
+      setTimeout(() => reject(latePromiseError), 0)
+    );
+  },
+  latePromiseNonNull() {
+    return new Promise((resolve, reject) =>
+      setTimeout(() => reject(latePromiseNonNullError), 0)
+    );
   },
   syncNest() {
     return throwingData;
@@ -61,6 +73,12 @@ const nullingData = {
   promiseNonNull() {
     return Promise.resolve(null);
   },
+  latePromise() {
+    return new Promise((resolve) => setTimeout(() => resolve(null), 0));
+  },
+  latePromiseNonNull() {
+    return new Promise((resolve) => setTimeout(() => resolve(null), 0));
+  },
   syncNest() {
     return nullingData;
   },
@@ -87,6 +105,14 @@ const dataType: GraphQLObjectType = new GraphQLObjectType({
     promiseNonNull: {
       type: new GraphQLNonNull(GraphQLString),
       resolve: (root: any) => root.promiseNonNull()
+    },
+    latePromise: {
+      type: GraphQLString,
+      resolve: (root: any) => root.latePromise()
+    },
+    latePromiseNonNull: {
+      type: new GraphQLNonNull(GraphQLString),
+      resolve: (root: any) => root.latePromiseNonNull()
     },
     syncNest: { type: dataType, resolve: (root: any) => root.syncNest() },
     syncNonNullNest: {
@@ -275,14 +301,16 @@ describe("Execute: handles non-nullable types", () => {
         syncNest {
           sync
           promise
-          syncNest { sync promise }
-          promiseNest { sync promise }
+          latePromise
+          syncNest { sync promise latePromise }
+          promiseNest { sync promise latePromise }
         }
         promiseNest {
           sync
           promise
-          syncNest { sync promise }
-          promiseNest { sync promise }
+          latePromise
+          syncNest { sync promise latePromise }
+          promiseNest { sync promise latePromise }
         }
       }
     `;
@@ -290,14 +318,16 @@ describe("Execute: handles non-nullable types", () => {
       syncNest: {
         sync: null,
         promise: null,
-        syncNest: { sync: null, promise: null },
-        promiseNest: { sync: null, promise: null }
+        latePromise: null,
+        syncNest: { sync: null, promise: null, latePromise: null },
+        promiseNest: { sync: null, promise: null, latePromise: null }
       },
       promiseNest: {
         sync: null,
         promise: null,
-        syncNest: { sync: null, promise: null },
-        promiseNest: { sync: null, promise: null }
+        latePromise: null,
+        syncNest: { sync: null, promise: null, latePromise: null },
+        promiseNest: { sync: null, promise: null, latePromise: null }
       }
     };
 
@@ -319,7 +349,7 @@ describe("Execute: handles non-nullable types", () => {
           {
             message: syncError.message,
             path: ["syncNest", "syncNest", "sync"],
-            locations: [{ line: 6, column: 22 }]
+            locations: [{ line: 7, column: 22 }]
           },
           {
             message: promiseError.message,
@@ -329,47 +359,77 @@ describe("Execute: handles non-nullable types", () => {
           {
             message: promiseError.message,
             path: ["syncNest", "syncNest", "promise"],
-            locations: [{ line: 6, column: 27 }]
+            locations: [{ line: 7, column: 27 }]
           },
           {
             message: syncError.message,
             path: ["syncNest", "promiseNest", "sync"],
-            locations: [{ line: 7, column: 25 }]
+            locations: [{ line: 8, column: 25 }]
           },
           {
             message: syncError.message,
             path: ["promiseNest", "sync"],
-            locations: [{ line: 10, column: 11 }]
+            locations: [{ line: 11, column: 11 }]
           },
           {
             message: syncError.message,
             path: ["promiseNest", "syncNest", "sync"],
-            locations: [{ line: 12, column: 22 }]
+            locations: [{ line: 14, column: 22 }]
           },
           {
             message: promiseError.message,
             path: ["syncNest", "promiseNest", "promise"],
-            locations: [{ line: 7, column: 30 }]
+            locations: [{ line: 8, column: 30 }]
           },
           {
             message: promiseError.message,
             path: ["promiseNest", "promise"],
-            locations: [{ line: 11, column: 11 }]
+            locations: [{ line: 12, column: 11 }]
           },
           {
             message: promiseError.message,
             path: ["promiseNest", "syncNest", "promise"],
-            locations: [{ line: 12, column: 27 }]
+            locations: [{ line: 14, column: 27 }]
           },
           {
             message: syncError.message,
             path: ["promiseNest", "promiseNest", "sync"],
-            locations: [{ line: 13, column: 25 }]
+            locations: [{ line: 15, column: 25 }]
           },
           {
             message: promiseError.message,
             path: ["promiseNest", "promiseNest", "promise"],
-            locations: [{ line: 13, column: 30 }]
+            locations: [{ line: 15, column: 30 }]
+          },
+          {
+            message: latePromiseError.message,
+            path: ["syncNest", "latePromise"],
+            locations: [{ line: 6, column: 11 }]
+          },
+          {
+            message: latePromiseError.message,
+            path: ["syncNest", "syncNest", "latePromise"],
+            locations: [{ line: 7, column: 35 }]
+          },
+          {
+            message: latePromiseError.message,
+            path: ["syncNest", "promiseNest", "latePromise"],
+            locations: [{ line: 8, column: 38 }]
+          },
+          {
+            message: latePromiseError.message,
+            path: ["promiseNest", "latePromise"],
+            locations: [{ line: 13, column: 11 }]
+          },
+          {
+            message: latePromiseError.message,
+            path: ["promiseNest", "syncNest", "latePromise"],
+            locations: [{ line: 14, column: 35 }]
+          },
+          {
+            message: latePromiseError.message,
+            locations: [{ line: 15, column: 38 }],
+            path: ["promiseNest", "promiseNest", "latePromise"]
           }
         ]
       });
@@ -768,6 +828,117 @@ describe("Execute: handles non-nullable types", () => {
               'Argument "cannotBeNull" of non-null type "String!" must not be null.',
             locations: [{ line: 3, column: 43 }],
             path: ["withNonNullArg"]
+          }
+        ]
+      });
+    });
+  });
+
+  describe("handles late resolution of non-null fields", () => {
+    const query = `
+      {
+        syncNest {
+          syncNest {
+            latePromiseNonNull
+          }
+          syncNonNull
+        }
+        anotherNest: syncNest {
+          syncNest {
+            syncNonNullNest {
+              syncNest {
+                syncNest {
+                  latePromiseNonNull
+                }
+              }
+              promiseNonNull
+            }
+          }
+        }
+      }
+    `;
+
+    test("that nulls first nullable object after common ancestor when non-null sibling field of any ancestor returns null", async () => {
+      const result = await executeSyncAndAsync(query, nullingData);
+      expect(result).toMatchObject({
+        data: { syncNest: null, anotherNest: { syncNest: null } },
+        errors: [
+          {
+            message:
+              "Cannot return null for non-nullable field DataType.syncNonNull.",
+            locations: [{ line: 7, column: 11 }],
+            path: ["syncNest", "syncNonNull"]
+          },
+          {
+            message:
+              "Cannot return null for non-nullable field DataType.promiseNonNull.",
+            locations: [{ line: 17, column: 15 }],
+            path: [
+              "anotherNest",
+              "syncNest",
+              "syncNonNullNest",
+              "promiseNonNull"
+            ]
+          },
+          {
+            message:
+              "Cannot return null for non-nullable field DataType.latePromiseNonNull.",
+            locations: [{ line: 5, column: 13 }],
+            path: ["syncNest", "syncNest", "latePromiseNonNull"]
+          },
+          {
+            message:
+              "Cannot return null for non-nullable field DataType.latePromiseNonNull.",
+            locations: [{ line: 14, column: 19 }],
+            path: [
+              "anotherNest",
+              "syncNest",
+              "syncNonNullNest",
+              "syncNest",
+              "syncNest",
+              "latePromiseNonNull"
+            ]
+          }
+        ]
+      });
+    });
+
+    test("that throws", async () => {
+      const result = await executeSyncAndAsync(query, throwingData);
+      expect(result).toMatchObject({
+        data: { syncNest: null, anotherNest: { syncNest: null } },
+        errors: [
+          {
+            message: syncNonNullError.message,
+            locations: [{ line: 7, column: 11 }],
+            path: ["syncNest", "syncNonNull"]
+          },
+          {
+            message: promiseNonNullError.message,
+            locations: [{ line: 17, column: 15 }],
+            path: [
+              "anotherNest",
+              "syncNest",
+              "syncNonNullNest",
+              "promiseNonNull"
+            ]
+          },
+          {
+            message: latePromiseNonNullError.message,
+            locations: [{ line: 5, column: 13 }],
+            path: ["syncNest", "syncNest", "latePromiseNonNull"]
+          },
+          {
+            message: latePromiseNonNullError.message,
+            locations: [{ line: 14, column: 19 }],
+            path: [
+              "anotherNest",
+              "syncNest",
+              "syncNonNullNest",
+              "syncNest",
+              "syncNest",
+              "latePromiseNonNull"
+            ]
           }
         ]
       });
