@@ -11,8 +11,22 @@
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "exports": {
-    "import": "./dist/esm/index.js",
-    "require": "./dist/cjs/index.js"
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    },
+    "./dist": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    },
+    "./dist/*": {
+      "import": "./dist/esm/*.js",
+      "require": "./dist/cjs/*.js"
+    },
+    "./dist/*.js": {
+      "import": "./dist/esm/*.js",
+      "require": "./dist/cjs/*.js"
+    }
   },
   "scripts": {
     "precommit": "lint-staged",
