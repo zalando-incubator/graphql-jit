@@ -1,6 +1,6 @@
 # Blog
 
-An example blog schema using GraphQL-Jit implementing the concepts of [persisted-queries][apollo-pq]
+An example blog schema using GraphQL-Jit implementing the concepts of [persisted-queries](https://www.apollographql.com/docs/kotlin/advanced/persisted-queries/)
 
 ## Compile
 
