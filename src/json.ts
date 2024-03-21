@@ -40,6 +40,15 @@ const PRIMITIVES: {
   ID: "string"
 };
 
+export type CustomScalarTypes = {
+  [key: string]:
+    | IntegerSchema["type"]
+    | NumberSchema["type"]
+    | StringSchema["type"]
+    | BooleanSchema["type"]
+    | ObjectSchema["type"];
+};
+
 /**
  * GQL -> JSON Schema transform
  *
@@ -47,7 +56,8 @@ const PRIMITIVES: {
  * @return     {object}  A plain JavaScript object which conforms to JSON Schema
  */
 export function queryToJSONSchema(
-  compilationContext: CompilationContext
+  compilationContext: CompilationContext,
+  customScalarTypes?: CustomScalarTypes
 ): Schema {
   const type = getOperationRootType(
     compilationContext.schema,
@@ -75,7 +85,8 @@ export function queryToJSONSchema(
     fieldProperties[responseName] = transformNode(
       compilationContext,
       fields[responseName],
-      fieldType.type
+      fieldType.type,
+      customScalarTypes
     );
   }
   return {
@@ -125,7 +136,8 @@ export function queryToJSONSchema(
 function transformNode(
   compilationContext: CompilationContext,
   fieldNodes: FieldNode[],
-  type: GraphQLType
+  type: GraphQLType,
+  customScalarTypes?: CustomScalarTypes
 ): Exclude<Schema, RefSchema> {
   if (isObjectType(type)) {
     const subfields = collectSubfields(compilationContext, type, fieldNodes);
@@ -144,7 +156,8 @@ function transformNode(
       properties[responseName] = transformNode(
         compilationContext,
         subfields[responseName],
-        fieldType.type
+        fieldType.type,
+        customScalarTypes
       );
     }
     return {
@@ -156,12 +169,22 @@ function transformNode(
   if (isListType(type)) {
     return {
       type: "array",
-      items: transformNode(compilationContext, fieldNodes, type.ofType),
+      items: transformNode(
+        compilationContext,
+        fieldNodes,
+        type.ofType,
+        customScalarTypes
+      ),
       nullable: true
     };
   }
   if (isNonNullType(type)) {
-    const nullable = transformNode(compilationContext, fieldNodes, type.ofType);
+    const nullable = transformNode(
+      compilationContext,
+      fieldNodes,
+      type.ofType,
+      customScalarTypes
+    );
     nullable.nullable = false;
     return nullable;
   }
@@ -172,19 +195,31 @@ function transformNode(
     };
   }
   if (isScalarType(type)) {
-    const jsonSchemaType = PRIMITIVES[type.name];
+    const jsonSchemaType =
+      PRIMITIVES[type.name] ?? customScalarTypes?.[type.name];
     if (!jsonSchemaType) {
       throw new Error(`Got unexpected PRIMITIVES type: ${type.name}`);
     }
+
+    const additionalProperties =
+      jsonSchemaType.toString() === "object"
+        ? { additionalProperties: true }
+        : undefined;
     return {
       type: jsonSchemaType,
-      nullable: true
+      nullable: true,
+      ...additionalProperties
     };
   }
   if (isAbstractType(type)) {
     return compilationContext.schema.getPossibleTypes(type).reduce(
       (res, t) => {
-        const jsonSchema = transformNode(compilationContext, fieldNodes, t);
+        const jsonSchema = transformNode(
+          compilationContext,
+          fieldNodes,
+          t,
+          customScalarTypes
+        );
         (res as ObjectSchema).properties = {
           ...(res as ObjectSchema).properties,
           ...(jsonSchema as ObjectSchema).properties
