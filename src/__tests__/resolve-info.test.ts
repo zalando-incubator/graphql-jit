@@ -1235,5 +1235,253 @@ describe("resolver info", () => {
         `);
       });
     });
+
+    describe("lookahead resolution", () => {
+      let infNode: any;
+      let infElements: any;
+      let infMedia: any;
+
+      const expensiveFunction = jest.fn();
+
+      const schema = makeExecutableSchema({
+        typeDefs: `
+          type Query {
+            node(id: ID!): Node!
+            tag(id: ID!): Tag!
+          }
+
+          interface Node {
+            id: ID!
+          }
+
+          interface Media {
+            url: String!
+            tags: [Tag!]
+          }
+
+          type Image implements Node & Media {
+            id: ID!
+            url: String!
+            tags: [Tag!]
+            width: Int
+          }
+
+          type Video implements Node & Media {
+            id: ID!
+            url: String!
+            tags: [Tag!]
+
+          }
+
+        type Tag implements Node {
+          id: ID!
+          name: String!
+        }
+
+          `,
+
+        resolvers: {
+          Query: {
+            node: (root, args, context, info) => {
+              infNode = info;
+
+              const lookaheadForUrl = "url" in infNode.fieldExpansion.Image;
+
+              const includeUrl =
+                infNode.fieldExpansion.Image?.url?.__shouldInclude({
+                  variables: info.variableValues
+                });
+
+              if (lookaheadForUrl && !includeUrl) {
+                expensiveFunction();
+                return {
+                  id: "id",
+                  url: "we looked and and found that url was requested"
+                };
+              } else if (lookaheadForUrl) {
+                return {
+                  id: "id",
+                  url: "we looked and and found that url was requested, but we didn't do expensive function"
+                };
+              } else {
+                return {
+                  id: "id without lookahead",
+                  url: "not lookahead"
+                };
+              }
+            },
+            tag: (root, args, context, info) => {
+              return {
+                id: "simple id",
+                name: "simple tag name"
+              };
+            }
+          },
+          Node: {
+            __resolveType() {
+              return "Image";
+            }
+          },
+          Image: {
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            tags: (root, args, context, info) => {},
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            width: (root, args, context, info) => {}
+          },
+          Video: {
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            url: (root, args, context, info) => {},
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            tags: (root, args, context, info) => {}
+          }
+        }
+      });
+
+      function executeQuery(
+        schema: GraphQLSchema,
+        document: DocumentNode,
+        rootValue?: any,
+        contextValue?: any,
+        variableValues?: any,
+        operationName?: string
+      ) {
+        const prepared: any = compileQuery(
+          schema,
+          document as any,
+          operationName || "",
+          { resolverInfoEnricher: fieldExpansionEnricher }
+        );
+        if (!isCompiledQuery(prepared)) {
+          return prepared;
+        }
+        return prepared.query(rootValue, contextValue, variableValues || {});
+      }
+
+      beforeEach(() => {
+        expensiveFunction.mockClear();
+      })
+
+      afterEach(() => {
+        infNode = undefined;
+        infElements = undefined;
+        infMedia = undefined;
+      });
+
+      test("basic test", async () => {
+        let doc = parse(`
+            query {
+              node(id: "bla") {
+                ... on Video {
+              url
+              }
+          }
+        }
+          `);
+        const rootValue = { root: "val" };
+
+        let result = await executeQuery(schema, doc, rootValue, null, {});
+
+        /*
+        * why we don't have there
+         {
+         data: {
+                  id: "id without lookahead",
+                  url: "not lookahead"
+                }
+          }
+
+        ???
+        * */
+        expect(result).toMatchInlineSnapshot(`
+          Object {
+            "data": Object {
+              "node": Object {},
+            },
+          }
+        `);
+
+        doc = parse(`
+            query {
+              node(id: "bla") {
+                ... on Image {
+              url
+              }
+          }
+        }
+          `);
+
+        result = await executeQuery(schema, doc, rootValue, null, {});
+
+        expect(result).toMatchInlineSnapshot(`
+          Object {
+            "data": Object {
+              "node": Object {
+                "url": "we looked and and found that url was requested, but we didn't do expensive function",
+              },
+            },
+          }
+        `);
+
+        doc = parse(`
+            query($var: Boolean!) {
+              node(id: "bla") {
+                ... on Image @skip(if: $var) {
+              url
+              }
+          }
+        }
+          `);
+
+        result = await executeQuery(schema, doc, rootValue, null, {
+          var: true
+        });
+
+        expect(result).toMatchInlineSnapshot(`
+          Object {
+            "data": Object {
+              "node": Object {
+                "url": undefined,
+              },
+            },
+          }
+        `);
+
+        expect(expensiveFunction).toHaveBeenCalledTimes(1);
+      });
+
+      test("node exclude tags and root include tag and it's fine (no lookahead)", async () => {
+        const doc = parse(`
+           query ($var: Boolean!) {
+              node(id: "bla") {
+                ... on Video {
+                  url
+                  tags @skip(if: $var) {
+                    name
+                  }
+                }
+              }
+              tag(id: "bla") {
+                name
+              }
+            }
+          `);
+        const rootValue = { root: "val" };
+
+        const result = await executeQuery(schema, doc, rootValue, null, {
+          var: true
+        });
+
+        expect(result).toMatchInlineSnapshot(`
+          Object {
+            "data": Object {
+              "node": Object {},
+              "tag": Object {
+                "name": "simple tag name",
+              },
+            },
+          }
+        `);
+      });
+    });
   });
 });
