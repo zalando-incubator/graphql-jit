@@ -541,13 +541,13 @@ describe("Execute: Handles inputs", () => {
           errors: [
             {
               message:
-                'Variable "$a" got invalid value "SerializedValue"; Expected type ComplexThrowingScalar.',
+                'Variable "$input" got invalid value "SerializedValue" at "input.a"; Expected type "ComplexThrowingScalar". complex-scalar-error',
               locations: [{ line: 2, column: 16 }]
             }
           ]
         });
         expect(result.errors?.[0].originalError?.message).toBe(
-          "complex-scalar-error"
+          'Expected type "ComplexThrowingScalar". complex-scalar-error'
         );
       });
 
@@ -559,8 +559,7 @@ describe("Execute: Handles inputs", () => {
           errors: [
             {
               message:
-                'Variable "$input" got invalid value { a: "foo", b: "bar", c: null }; ' +
-                "Expected non-nullable type String! not to be null at value.c.",
+                'Variable "$input" got invalid value null at "input.c"; Expected non-nullable type "String!" not to be null.',
               locations: [{ line: 2, column: 16 }]
             }
           ]
@@ -574,8 +573,7 @@ describe("Execute: Handles inputs", () => {
           errors: [
             {
               message:
-                'Variable "$input" got invalid value "foo bar"; ' +
-                "Expected type TestInputObject to be an object.",
+                'Variable "$input" got invalid value "foo bar"; Expected type "TestInputObject" to be an object.',
               locations: [{ line: 2, column: 16 }]
             }
           ]
@@ -591,8 +589,7 @@ describe("Execute: Handles inputs", () => {
           errors: [
             {
               message:
-                'Variable "$input" got invalid value { a: "foo", b: "bar" }; ' +
-                "Field value.c of required type String! was not provided.",
+                'Variable "$input" got invalid value { a: "foo", b: "bar" }; Field "c" of required type "String!" was not provided.',
               locations: [{ line: 2, column: 16 }]
             }
           ]
@@ -609,8 +606,7 @@ describe("Execute: Handles inputs", () => {
           errors: [
             {
               message:
-                'Variable "$input" got invalid value { a: "foo", b: "bar", c: "baz", extra: "dog" }; ' +
-                'Field "extra" is not defined by type TestInputObject.',
+                'Variable "$input" got invalid value { a: "foo", b: "bar", c: "baz", extra: "dog" }; Field "extra" is not defined by type "TestInputObject".',
               locations: [{ line: 2, column: 16 }]
             }
           ]
@@ -802,7 +798,7 @@ describe("Execute: Handles inputs", () => {
           errors: [
             {
               message:
-                'Variable "$input" got invalid value "foo bar"; Expected type TestEnum.',
+                'Variable "$input" got invalid value "foo bar"; Value "foo bar" does not exist in "TestEnum" enum.',
               locations: [{ line: 2, column: 16 }]
             }
           ]
@@ -998,8 +994,7 @@ describe("Execute: Handles inputs", () => {
               }
             ],
             message:
-              'Variable "$int" got invalid value 9007199254740992; Expected type Int; ' +
-              "Int cannot represent non 32-bit signed integer value: 9007199254740992"
+              'Variable "$int" got invalid value 9007199254740992; Int cannot represent non 32-bit signed integer value: 9007199254740992'
           }
         ]
       });
@@ -1024,8 +1019,7 @@ describe("Execute: Handles inputs", () => {
               }
             ],
             message:
-              'Variable "$string" got invalid value ["a"]; Expected type String; ' +
-              'String cannot represent a non string value: ["a"]'
+              'Variable "$string" got invalid value ["a"]; String cannot represent a non string value: ["a"]'
           },
           {
             locations: [
@@ -1035,8 +1029,7 @@ describe("Execute: Handles inputs", () => {
               }
             ],
             message:
-              'Variable "$id" got invalid value ["id"]; Expected type ID; ' +
-              'ID cannot represent value: ["id"]'
+              'Variable "$id" got invalid value ["id"]; ID cannot represent value: ["id"]'
           },
           {
             locations: [
@@ -1046,8 +1039,7 @@ describe("Execute: Handles inputs", () => {
               }
             ],
             message:
-              'Variable "$int" got invalid value 1.5; Expected type Int; ' +
-              "Int cannot represent non-integer value: 1.5"
+              'Variable "$int" got invalid value 1.5; Int cannot represent non-integer value: 1.5'
           },
           {
             locations: [
@@ -1057,8 +1049,7 @@ describe("Execute: Handles inputs", () => {
               }
             ],
             message:
-              'Variable "$float" got invalid value NaN; Expected type Float; ' +
-              "Float cannot represent non numeric value: NaN"
+              'Variable "$float" got invalid value NaN; Float cannot represent non numeric value: NaN'
           },
           {
             locations: [
@@ -1068,8 +1059,7 @@ describe("Execute: Handles inputs", () => {
               }
             ],
             message:
-              'Variable "$boolean" got invalid value "hello"; Expected type Boolean; ' +
-              'Boolean cannot represent a non boolean value: "hello"'
+              'Variable "$boolean" got invalid value "hello"; Boolean cannot represent a non boolean value: "hello"'
           }
         ]
       });
@@ -1283,8 +1273,7 @@ describe("Execute: Handles inputs", () => {
         errors: [
           {
             message:
-              'Variable "$value" got invalid value [1, 2, 3]; ' +
-              "Expected type String; String cannot represent a non string value: [1, 2, 3]",
+              'Variable "$value" got invalid value [1, 2, 3]; String cannot represent a non string value: [1, 2, 3]',
             locations: [{ line: 2, column: 16 }]
           }
         ]
@@ -1492,8 +1481,7 @@ describe("Execute: Handles inputs", () => {
         errors: [
           {
             message:
-              'Variable "$input" got invalid value ["A", null, "B"]; ' +
-              "Expected non-nullable type String! not to be null at value[1].",
+              'Variable "$input" got invalid value null at "input[1]"; Expected non-nullable type "String!" not to be null.',
             locations: [{ line: 2, column: 16 }]
           }
         ]
@@ -1542,8 +1530,7 @@ describe("Execute: Handles inputs", () => {
         errors: [
           {
             message:
-              'Variable "$input" got invalid value ["A", null, "B"]; ' +
-              "Expected non-nullable type String! not to be null at value[1].",
+              'Variable "$input" got invalid value null at "input[1]"; Expected non-nullable type "String!" not to be null.',
             locations: [{ line: 2, column: 16 }]
           }
         ]
