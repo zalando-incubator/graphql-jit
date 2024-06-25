@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18, 20]
+        node-version: [18, 20, 22]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
         graphql-version: [15, 16, 17.0.0-alpha.3]
 
