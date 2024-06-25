@@ -66,6 +66,15 @@ exports[`json schema creator json schema creation 1`] = `
             "author": {
               "nullable": false,
               "properties": {
+                "email": {
+                  "nullable": true,
+                  "type": "string",
+                },
+                "extra": {
+                  "additionalProperties": true,
+                  "nullable": true,
+                  "type": "object",
+                },
                 "id": {
                   "nullable": false,
                   "type": "string",
