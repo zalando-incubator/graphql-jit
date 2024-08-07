@@ -2,7 +2,9 @@ export {
   compileQuery,
   isCompiledQuery,
   CompilerOptions,
-  CompiledQuery
+  CompiledQuery,
+  CreateSourceEventStream,
+  compileSourceEventStream
 } from "./execution";
 
 export {
