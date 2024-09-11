@@ -11,5 +11,6 @@ export {
   LeafField,
   TypeExpansion,
   fieldExpansionEnricher,
-  isLeafField
+  isLeafField,
+  ResolveInfoEnricherInput
 } from "./resolve-info";
