@@ -17,5 +17,5 @@
     "lib": ["esnext.asynciterable", "ES2022"],
     "typeRoots": ["./types", "./node_modules/@types"]
   },
-  "include": ["src/**/*", "types/**/*"]
+  "include": ["src/**/*", "types/**/*", "tsup.config.ts"]
 }
