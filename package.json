@@ -8,40 +8,46 @@
     "type": "git",
     "url": "https://github.com/zalando-incubator/graphql-jit.git"
   },
-  "main": "dist/cjs/index.js",
-  "module": "dist/esm/index.js",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
   "exports": {
+    "./package.json": "./package.json",
     ".": {
-      "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js"
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
     },
     "./dist": {
-      "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js"
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
     },
     "./dist/*": {
-      "import": "./dist/esm/*.js",
-      "require": "./dist/cjs/*.js"
+      "import": "./dist/*.mjs",
+      "require": "./dist/*.js"
+    },
+    "./dist/*.mjs": {
+      "import": "./dist/*.mjs",
+      "require": "./dist/*.js"
     },
     "./dist/*.js": {
-      "import": "./dist/esm/*.js",
-      "require": "./dist/cjs/*.js"
+      "import": "./dist/*.mjs",
+      "require": "./dist/*.js"
     }
   },
   "scripts": {
+    "benchmark": "NODE_ENV=production ./src/__benchmarks__/benchmarks.ts",
+    "build": "yarn tsup-node",
+    "check-exports": "attw --pack .",
+    "check-format": "prettier -l 'src/**/*.ts'",
+    "check-tsc": "tsc --noEmit",
+    "codecov": "codecov",
+    "eslint": "eslint --ext .ts .",
+    "format": "prettier --write 'src/**/*.ts'",
+    "lint-fix": "yarn eslint --fix",
+    "lint": "yarn eslint",
+    "mutation-test": "stryker run",
     "precommit": "lint-staged",
     "prepublishOnly": "yarn && yarn build",
-    "format": "prettier --write 'src/**/*.ts'",
-    "check-format": "prettier -l 'src/**/*.ts'",
-    "lint": "eslint --ext .ts .",
-    "lint-fix": "eslint --ext .ts . --fix",
-    "build": "yarn build:esm && yarn build:cjs",
-    "build:esm": "tsc --project tsconfig.esm.json",
-    "build:cjs": "tsc --project tsconfig.cjs.json",
-    "test": "jest",
-    "mutation-test": "stryker run",
-    "codecov": "codecov",
-    "benchmark": "NODE_ENV=production ./src/__benchmarks__/benchmarks.ts"
+    "test": "jest"
   },
   "files": [
     "dist/*"
@@ -75,6 +81,7 @@
     "graphql": ">=15"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.16.2",
     "@graphql-tools/schema": "^10.0.0",
     "@stryker-mutator/core": "^7.1.1",
     "@stryker-mutator/jest-runner": "^7.1.1",
@@ -99,6 +106,7 @@
     "jest": "^29.7.0",
     "lint-staged": "^14.0.1",
     "prettier": "^3.0.3",
+    "tsup": "^8.2.4",
     "typescript": "^5.2.2"
   },
   "dependencies": {

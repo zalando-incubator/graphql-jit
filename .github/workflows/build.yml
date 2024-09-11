@@ -50,7 +50,7 @@ jobs:
         run: yarn install --ignore-optional --offline
 
       - name: Format and Lint check
-        run: yarn check-format && yarn lint
+        run: yarn check-format && yarn check-tsc && yarn check-exports && yarn lint
 
       - name: Tests and Coverage
         run: yarn test --coverage
