@@ -60,7 +60,7 @@ import {
 import { Maybe } from "./types";
 import {
   CoercedVariableValues,
-  compileVariableParsing,
+  getVariablesParser,
   failToParseVariables
 } from "./variables";
 import { getGraphQLErrorOptions, getOperationRootType } from "./compat";
@@ -259,7 +259,7 @@ export function compileQuery<
     } else {
       stringify = JSON.stringify;
     }
-    const getVariables = compileVariableParsing(
+    const getVariables = getVariablesParser(
       schema,
       context.operation.variableDefinitions || []
     );
