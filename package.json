@@ -100,6 +100,7 @@
     "@typescript-eslint/parser": "6.7.0",
     "benchmark": "^2.1.4",
     "codecov": "^3.8.2",
+    "compare-versions": "^6.1.1",
     "eslint": "^8.49.0",
     "eslint-config-prettier": "^9.0.0",
     "graphql": "^16.8.0",
