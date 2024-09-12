@@ -488,7 +488,7 @@ describe("Subscription Initialization Phase", () => {
         {
           message:
             // DIFF: 'Variable "$arg" got invalid value "meow"; Int cannot represent non-integer value: "meow"',
-            'Variable "$arg" got invalid value "meow"; Expected type Int; Int cannot represent non-integer value: "meow"',
+            'Variable "$arg" got invalid value "meow"; Int cannot represent non-integer value: "meow"',
           locations: [{ line: 2, column: 21 }]
         }
       ]

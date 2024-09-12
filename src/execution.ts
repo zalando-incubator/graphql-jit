@@ -60,10 +60,12 @@ import {
 import { Maybe } from "./types";
 import {
   CoercedVariableValues,
-  compileVariableParsing,
-  failToParseVariables
+  getVariablesParser,
+  failToParseVariables,
+  compileVariableParsing
 } from "./variables";
 import { getGraphQLErrorOptions, getOperationRootType } from "./compat";
+import { compileVariableParsing as oldCompileVariableParsing } from "./old-variables";
 
 const inspect = createInspect();
 
@@ -96,6 +98,10 @@ export interface CompilerOptions {
    *
    */
   useExperimentalPathBasedSkipInclude: boolean;
+
+  // Choose between compiled variables parser in JIT
+  // vs GraphQL-JS variables parser
+  variableParser: "graphql-js" | "jit-new" | "jit-old";
 }
 
 interface ExecutionContext {
@@ -159,6 +165,7 @@ export interface CompilationContext extends GraphQLContext {
   deferred: DeferredField[];
   options: CompilerOptions;
   depth: number;
+  variableCompliationFnLength?: number;
 }
 
 // prefix for the variable used ot cache validation results
@@ -200,6 +207,7 @@ export interface CompiledQuery<
 
 interface InternalCompiledQuery extends CompiledQuery {
   __DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation?: string;
+  __DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_variableCompilation?: string;
 }
 
 /**
@@ -240,6 +248,7 @@ export function compileQuery<
       disableLeafSerialization: false,
       customSerializers: {},
       useExperimentalPathBasedSkipInclude: false,
+      variableParser: "graphql-js" as const,
       ...partialOptions
     };
 
@@ -259,10 +268,29 @@ export function compileQuery<
     } else {
       stringify = JSON.stringify;
     }
-    const getVariables = compileVariableParsing(
-      schema,
-      context.operation.variableDefinitions || []
-    );
+
+    let getVariables: (inputs: { [key: string]: any }) => CoercedVariableValues;
+
+    switch (options.variableParser) {
+      case "graphql-js":
+        getVariables = getVariablesParser(
+          schema,
+          context.operation.variableDefinitions || []
+        );
+        break;
+      case "jit-new":
+        getVariables = compileVariableParsing(
+          schema,
+          context.operation.variableDefinitions || []
+        );
+        break;
+      case "jit-old":
+        getVariables = oldCompileVariableParsing(
+          schema,
+          context.operation.variableDefinitions || []
+        );
+        break;
+    }
 
     const type = getOperationRootType(context.schema, context.operation);
     const fieldMap = collectFields(
@@ -281,7 +309,7 @@ export function compileQuery<
         document,
         // eslint-disable-next-line no-new-func
         new Function("return " + functionBody)(),
-        getVariables,
+        getVariables!,
         context.operation.name != null
           ? context.operation.name.value
           : undefined
@@ -299,7 +327,7 @@ export function compileQuery<
           fieldMap,
           compiledQuery.query
         ),
-        getVariables,
+        getVariables!,
         context.operation.name != null
           ? context.operation.name.value
           : undefined
@@ -311,6 +339,8 @@ export function compileQuery<
       // and visualization tools like try-jit.
       compiledQuery.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation =
         functionBody;
+      compiledQuery.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_variableCompilation =
+        (getVariables! as any).rawFunctionBody;
     }
     return compiledQuery as CompiledQuery<TResult, TVariables>;
   } catch (err: any) {

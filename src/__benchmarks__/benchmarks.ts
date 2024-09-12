@@ -1,6 +1,7 @@
 #!/usr/bin/env node -r @swc-node/register
 
 import Benchmark from "benchmark";
+import minimist from "minimist";
 import {
   DocumentNode,
   execute,
@@ -8,7 +9,12 @@ import {
   GraphQLSchema,
   parse
 } from "graphql";
-import { compileQuery, isCompiledQuery, isPromise } from "../execution";
+import {
+  compileQuery,
+  CompilerOptions,
+  isCompiledQuery,
+  isPromise
+} from "../execution";
 import {
   query as fewResolversQuery,
   schema as fewResolversSchema
@@ -21,11 +27,17 @@ import {
   query as nestedArrayQuery,
   schema as nestedArraySchema
 } from "./schema-nested-array";
+import {
+  query as variablesShallowQuery,
+  schema as variablesShallowSchema,
+  variables as variablesShallowVariables
+} from "./variables-parsing-shallow";
 
 interface BenchmarkMaterial {
   query: DocumentNode;
   schema: GraphQLSchema;
   variables?: any;
+  options?: Partial<CompilerOptions>;
 }
 
 const benchmarks: { [key: string]: BenchmarkMaterial } = {
@@ -47,16 +59,72 @@ const benchmarks: { [key: string]: BenchmarkMaterial } = {
     schema: nestedArraySchema(),
     query: nestedArrayQuery,
     variables: { id: "2", width: 300, height: 500 }
+  },
+  variablesWithNewJit: {
+    schema: variablesShallowSchema(),
+    query: variablesShallowQuery,
+    variables: variablesShallowVariables,
+    options: {
+      variableParser: "jit-new"
+    }
+  },
+  variablesWithOldJit: {
+    schema: variablesShallowSchema(false),
+    query: variablesShallowQuery,
+    variables: variablesShallowVariables,
+    options: {
+      variableParser: "jit-old"
+    }
+  },
+  variablesWithGraphQLJS: {
+    schema: variablesShallowSchema(),
+    query: variablesShallowQuery,
+    variables: variablesShallowVariables,
+    options: {
+      variableParser: "graphql-js"
+    }
   }
 };
 
-async function runBenchmarks() {
-  const skipJS = process.argv[2] === "skip-js";
-  const skipJSON = process.argv[2] === "skip-json";
+async function runBenchmarks(argv: string[]) {
+  const args = minimist(argv);
+  const help = args["help"];
+
+  const availableBenchmarks = Object.entries(benchmarks);
+
+  if (help) {
+    console.log(
+      `
+Usage: yarn benchmark [options]
+
+Options:
+  --skip-js    Skip graphql-js benchmarks
+  --skip-json  Skip JSON.stringify benchmarks
+  --help       Show this help
+  --bench      Run only the specified benchmarks (comma separated)
+
+Available benchmarks:
+${availableBenchmarks.map(([bench]) => `  - ${bench}`).join("\n")}
+`.trim()
+    );
+    return;
+  }
+
+  const skipJS = args["skip-js"];
+  const skipJSON = args["skip-json"];
+  const benchsToRunArg = args["bench"];
+  const benchmarksToRun =
+    benchsToRunArg && benchsToRunArg.split(",").filter((b: string) => b);
+
+  const filteredBenchmarks = benchmarksToRun
+    ? availableBenchmarks.filter(([bench]) => benchmarksToRun.includes(bench))
+    : availableBenchmarks;
+
   const benchs = await Promise.all(
-    Object.entries(benchmarks).map(
-      async ([bench, { query, schema, variables }]) => {
+    filteredBenchmarks.map(
+      async ([bench, { query, schema, variables, options }]) => {
         const compiledQuery = compileQuery(schema, query, undefined, {
+          ...options,
           debug: true
         } as any);
         if (!isCompiledQuery(compiledQuery)) {
@@ -70,6 +138,11 @@ async function runBenchmarks() {
             (compiledQuery as any)
               .__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation.length
           }`
+        );
+        console.log(
+          `size of function for variableCompilation ${bench}: ${(
+            compiledQuery as any
+          ).__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_variableCompilation?.length}`
         );
         const graphqlJsResult = await execute({
           schema,
@@ -168,7 +241,7 @@ async function runBenchmarks() {
 }
 
 // eslint-disable-next-line
-runBenchmarks().catch(console.error);
+runBenchmarks(process.argv.slice(2)).catch(console.error);
 
 function isNotNull<T>(a: T | null | undefined): a is T {
   return a != null;
