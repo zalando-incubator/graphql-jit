@@ -16,7 +16,7 @@ jobs:
           node-version: 20
           registry-url: "https://registry.npmjs.org"
       - run: yarn install
-      - run: yarn version --prerelease --preid=canary
+      - run: yarn version --prerelease --preid=canary --no-git-tag-version
       - run: yarn publish --tag canary --non-interactive
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
