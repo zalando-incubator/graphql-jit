@@ -2,6 +2,7 @@
 
 import Benchmark from "benchmark";
 import {
+  createSourceEventStream,
   DocumentNode,
   execute,
   getIntrospectionQuery,
@@ -9,6 +10,7 @@ import {
   parse
 } from "graphql";
 import { compileQuery, isCompiledQuery, isPromise } from "../execution";
+import { benchmarkCreateSourceEventStream } from "./createSourceEventStream";
 import {
   query as fewResolversQuery,
   schema as fewResolversSchema
@@ -53,8 +55,8 @@ const benchmarks: { [key: string]: BenchmarkMaterial } = {
 async function runBenchmarks() {
   const skipJS = process.argv[2] === "skip-js";
   const skipJSON = process.argv[2] === "skip-json";
-  const benchs = await Promise.all(
-    Object.entries(benchmarks).map(
+  const benchs = await Promise.all([
+    ...Object.entries(benchmarks).map(
       async ([bench, { query, schema, variables }]) => {
         const compiledQuery = compileQuery(schema, query, undefined, {
           debug: true
@@ -147,7 +149,9 @@ async function runBenchmarks() {
           });
         return suite;
       }
-    )
+    ),
+    benchmarkCreateSourceEventStream(),
+    ]
   );
 
   const benchsToRun = benchs.filter(isNotNull);
