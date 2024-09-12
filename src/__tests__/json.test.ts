@@ -10,8 +10,10 @@ import {
   GraphQLString,
   parse,
   GraphQLInt,
-  versionInfo
+  versionInfo,
+  GraphQLScalarType
 } from "graphql";
+import { GraphQLEmailAddress, GraphQLJSONObject } from "graphql-scalars";
 import { buildExecutionContext } from "graphql/execution/execute";
 import { compileQuery } from "../index";
 import { queryToJSONSchema } from "../json";
@@ -36,6 +38,12 @@ describe("json schema creator", () => {
       },
       recentArticle: {
         type: BlogArticle
+      },
+      email: {
+        type: GraphQLEmailAddress
+      },
+      extra: {
+        type: GraphQLJSONObject
       }
     })
   });
@@ -83,7 +91,11 @@ describe("json schema creator", () => {
       isPublished: true,
       author: {
         id: 123,
-        name: "John Smith"
+        name: "John Smith",
+        email: "john-smith@abc.com",
+        extra: {
+          foo: "bar"
+        }
       },
       title: "My Article " + id,
       body: "This is a post",
@@ -106,6 +118,8 @@ describe("json schema creator", () => {
         author {
           id
           name
+          email
+          extra
           pic(width: 640, height: 480) {
             url
             width
@@ -137,7 +151,10 @@ describe("json schema creator", () => {
         })
       : (buildExecutionContext as any)(blogSchema, document);
   context.options = {};
-  const jsonSchema = queryToJSONSchema(context);
+  const jsonSchema = queryToJSONSchema(context, {
+    EmailAddress: "string",
+    JSONObject: "object"
+  });
   test("json schema creation", () => {
     expect(jsonSchema).toMatchSnapshot();
   });
@@ -148,7 +165,11 @@ describe("json schema creator", () => {
     });
     test("valid response serialization", async () => {
       const prepared: any = compileQuery(blogSchema, document, "", {
-        customJSONSerializer: true
+        customJSONSerializer: true,
+        customJSONSerializerScalarTypes: {
+          EmailAddress: "string",
+          JSONObject: "object"
+        }
       });
       const response = await prepared.query(undefined, undefined, {});
       expect(prepared.stringify).not.toBe(JSON.stringify);
