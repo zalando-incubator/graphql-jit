@@ -2,18 +2,18 @@ import {
   GraphQLSchema,
   GraphQLError,
   versionInfo,
-  FieldNode,
-  GraphQLField
+  type FieldNode,
+  type GraphQLField,
+  type ASTNode,
+  type OperationDefinitionNode,
+  type GraphQLObjectType,
+  type GraphQLFormattedError
 } from "graphql";
-import { GraphQLObjectType } from "graphql/type/definition";
-import { Maybe } from "graphql/jsutils/Maybe";
-
-import { ASTNode, OperationDefinitionNode } from "graphql/language/ast";
-import * as errorUtilities from "graphql/error";
-import * as utilities from "graphql/utilities";
-import { GraphQLFormattedError } from "graphql/error";
-import { CompilationContext } from "./execution";
-import * as execute from "graphql/execution/execute";
+import { type Maybe } from "./types.js";
+import * as errorUtilities from "graphql/error/index.js";
+import * as utilities from "graphql/utilities/index.js";
+import { type CompilationContext } from "./execution.js";
+import * as execute from "graphql/execution/execute.js";
 
 /**
  * A helper file to support backward compatibility for different versions of graphql-js.

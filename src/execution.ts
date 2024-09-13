@@ -1,25 +1,25 @@
-import { TypedDocumentNode } from "@graphql-typed-document-node/core";
+import { type TypedDocumentNode } from "@graphql-typed-document-node/core";
 import fastJson from "fast-json-stringify";
 import genFn from "generate-function";
 import {
-  ASTNode,
-  DocumentNode,
-  ExecutionResult,
-  FragmentDefinitionNode,
-  GraphQLAbstractType,
+  type ASTNode,
+  type DocumentNode,
+  type ExecutionResult,
+  type FragmentDefinitionNode,
+  type GraphQLAbstractType,
   GraphQLEnumType,
   GraphQLError,
-  GraphQLFieldResolver,
-  GraphQLIsTypeOfFn,
-  GraphQLLeafType,
+  type GraphQLFieldResolver,
+  type GraphQLIsTypeOfFn,
+  type GraphQLLeafType,
   GraphQLList,
   GraphQLObjectType,
-  GraphQLOutputType,
-  GraphQLResolveInfo,
-  GraphQLScalarSerializer,
+  type GraphQLOutputType,
+  type GraphQLResolveInfo,
+  type GraphQLScalarSerializer,
   GraphQLScalarType,
   GraphQLSchema,
-  GraphQLType,
+  type GraphQLType,
   isAbstractType,
   isLeafType,
   isListType,
@@ -28,42 +28,43 @@ import {
   isSpecifiedScalarType,
   Kind,
   locatedError,
-  TypeNameMetaFieldDef
+  TypeNameMetaFieldDef,
+  type FieldNode,
+  type OperationDefinitionNode,
+  type GraphQLTypeResolver
 } from "graphql";
-import { ExecutionContext as GraphQLContext } from "graphql/execution/execute";
-import { pathToArray } from "graphql/jsutils/Path";
-import { FieldNode, OperationDefinitionNode } from "graphql/language/ast";
-import { GraphQLTypeResolver } from "graphql/type/definition";
+import { type ExecutionContext as GraphQLContext } from "graphql/execution/execute.js";
+import { pathToArray } from "graphql/jsutils/Path.js";
 import {
   addPath,
-  Arguments,
+  type Arguments,
   collectFields,
   collectSubfields,
   computeLocations,
-  FieldsAndNodes,
+  type FieldsAndNodes,
   flattenPath,
   getArgumentDefs,
-  JitFieldNode,
+  type JitFieldNode,
   joinSkipIncludePath,
-  ObjectPath,
+  type ObjectPath,
   resolveFieldDef,
   serializeObjectPathForSkipInclude
-} from "./ast";
-import { GraphQLError as GraphqlJitError } from "./error";
-import createInspect from "./inspect";
-import { queryToJSONSchema } from "./json";
-import { createNullTrimmer, NullTrimmer } from "./non-null";
+} from "./ast.js";
+import { GraphQLError as GraphqlJitError } from "./error.js";
+import createInspect from "./inspect.js";
+import { queryToJSONSchema } from "./json.js";
+import { createNullTrimmer, type NullTrimmer } from "./non-null.js";
 import {
   createResolveInfoThunk,
-  ResolveInfoEnricherInput
-} from "./resolve-info";
-import { Maybe } from "./types";
+  type ResolveInfoEnricherInput
+} from "./resolve-info.js";
+import { type Maybe } from "./types.js";
 import {
-  CoercedVariableValues,
+  type CoercedVariableValues,
   compileVariableParsing,
   failToParseVariables
-} from "./variables";
-import { getGraphQLErrorOptions, getOperationRootType } from "./compat";
+} from "./variables.js";
+import { getGraphQLErrorOptions, getOperationRootType } from "./compat.js";
 
 const inspect = createInspect();
 

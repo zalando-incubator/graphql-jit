@@ -2,7 +2,10 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/error/GraphQLError.js
  */
 
-import { GraphQLError as UpstreamGraphQLError, SourceLocation } from "graphql";
+import {
+  GraphQLError as UpstreamGraphQLError,
+  type SourceLocation
+} from "graphql";
 
 export function GraphQLError(
   message: string,

@@ -1,16 +1,16 @@
 export {
   compileQuery,
   isCompiledQuery,
-  CompilerOptions,
-  CompiledQuery
-} from "./execution";
+  type CompilerOptions,
+  type CompiledQuery
+} from "./execution.js";
 
 export {
-  GraphQLJitResolveInfo,
-  FieldExpansion,
-  LeafField,
-  TypeExpansion,
+  type GraphQLJitResolveInfo,
+  type FieldExpansion,
+  type LeafField,
+  type TypeExpansion,
   fieldExpansionEnricher,
   isLeafField,
-  ResolveInfoEnricherInput
-} from "./resolve-info";
+  type ResolveInfoEnricherInput
+} from "./resolve-info.js";
