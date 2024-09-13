@@ -2,7 +2,6 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/schema-test.js
  */
 
-/* eslint-disable max-lines-per-function */
 import {
   buildClientSchema,
   DocumentNode,

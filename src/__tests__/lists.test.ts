@@ -1,4 +1,3 @@
-/* eslint-disable prefer-promise-reject-errors */
 /**
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/lists-test.js
  */
@@ -118,7 +117,6 @@ describe("Execute: Accepts any iterable as list value", () => {
 const containsValues = "Contains values";
 const containsNull = "Contains null";
 
-// eslint-disable-next-line
 describe("Execute: Handles list nullability", () => {
   describe("[T]", () => {
     const type = new GraphQLList(GraphQLInt);
@@ -277,7 +275,6 @@ describe("Execute: Handles list nullability", () => {
       );
     });
 
-    // eslint-disable-next-line
     describe("Array<Promise<T>>", () => {
       test(
         containsValues,

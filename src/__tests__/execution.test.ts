@@ -1,4 +1,3 @@
-/* eslint-disable prefer-promise-reject-errors */
 /**
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/execution-test.js
  */
@@ -371,7 +370,7 @@ describe("Execute: Handles basic execution tasks", () => {
       },
       syncRawError() {
         // eslint-disable-next-line no-throw-literal
-        throw new Error("Error getting syncRawError");
+        throw "Error getting syncRawError";
       },
       syncReturnError() {
         return new Error("Error getting syncReturnError");
@@ -401,12 +400,9 @@ describe("Execute: Handles basic execution tasks", () => {
           throw new Error("Error getting asyncError");
         });
       },
-      // eslint-disable-next-line
       asyncRawError() {
         return new Promise(() => {
-          /* eslint-disable */
           throw new Error("Error getting asyncRawError");
-          /* eslint-enable */
         });
       },
       asyncReturnError() {
@@ -727,7 +723,6 @@ describe("Execute: Handles basic execution tasks", () => {
     expect(result).toEqual({ data: { a: "b" } });
   });
 
-  // eslint-disable-next-line
   test("uses the only operation if no operation name is provided", async () => {
     const doc = "query Example { a }";
     const data = { a: "b" };
@@ -789,7 +784,6 @@ describe("Execute: Handles basic execution tasks", () => {
     });
   });
 
-  // eslint-disable-next-line
   test("errors if no op name is provided with multiple operations", async () => {
     const doc = "query Example { a } query OtherExample { a }";
     const data = { a: "b" };
@@ -1090,12 +1084,10 @@ describe("Execute: Handles basic execution tasks", () => {
 
   it("fails when an isTypeOf check is not met", async () => {
     class Special {
-      // eslint-disable-next-line no-useless-constructor
       constructor(public value: any) {}
     }
 
     class NotSpecial {
-      // eslint-disable-next-line no-useless-constructor
       constructor(public value: any) {}
     }
 

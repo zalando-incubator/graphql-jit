@@ -60,11 +60,10 @@ async function runBenchmarks() {
           debug: true
         } as any);
         if (!isCompiledQuery(compiledQuery)) {
-          // eslint-disable-next-line no-console
           console.error(`${bench} failed to compile`);
           return null;
         }
-        // eslint-disable-next-line no-console
+
         console.log(
           `size of function for ${bench}: ${
             (compiledQuery as any)
@@ -84,7 +83,6 @@ async function runBenchmarks() {
         if (
           JSON.stringify(graphqlJitResult) !== JSON.stringify(graphqlJsResult)
         ) {
-          // eslint-disable-next-line no-console
           console.error(
             JSON.stringify(graphqlJitResult),
             "is different of",
@@ -138,11 +136,9 @@ async function runBenchmarks() {
           })
           // add listeners
           .on("cycle", (event: any) => {
-            // eslint-disable-next-line no-console
             console.log(String(event.target));
           })
           .on("start", () => {
-            // eslint-disable-next-line no-console
             console.log("Starting", bench);
           });
         return suite;
@@ -162,12 +158,10 @@ async function runBenchmarks() {
   if (benchsToRun.length > 0) {
     benchsToRun[0].run();
   } else {
-    // eslint-disable-next-line
     console.log("No benchmarks to run");
   }
 }
 
-// eslint-disable-next-line
 runBenchmarks().catch(console.error);
 
 function isNotNull<T>(a: T | null | undefined): a is T {

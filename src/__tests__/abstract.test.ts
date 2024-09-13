@@ -25,7 +25,6 @@ function graphql(schema: GraphQLSchema, query: string) {
 }
 
 class Dog {
-  // eslint-disable-next-line no-useless-constructor
   constructor(
     public name: string,
     public woofs: boolean,
@@ -34,7 +33,6 @@ class Dog {
 }
 
 class Cat {
-  // eslint-disable-next-line no-useless-constructor
   constructor(
     public name: string,
     public meows: boolean
@@ -42,14 +40,12 @@ class Cat {
 }
 
 class Human {
-  // eslint-disable-next-line no-useless-constructor
   constructor(
     public name: string,
     public pets?: any
   ) {}
 }
 
-// eslint-disable-next-line
 describe("Execute: Handles execution of abstract types", () => {
   test("isTypeOf used to resolve runtime type for Interface", () => {
     const PetType = new GraphQLInterfaceType({
@@ -319,7 +315,6 @@ describe("Execute: Handles execution of abstract types", () => {
 
     const PetType = new GraphQLUnionType({
       name: "Pet",
-      // eslint-disable-next-line
       resolveType(obj) {
         return obj instanceof Dog
           ? DogType.toString()
@@ -338,7 +333,6 @@ describe("Execute: Handles execution of abstract types", () => {
         fields: {
           pets: {
             type: new GraphQLList(PetType),
-            // eslint-disable-next-line
             resolve() {
               return [
                 new Dog("Odie", true),
@@ -545,7 +539,6 @@ describe("Execute: Handles execution of abstract types", () => {
                     friend: {
                       type: new GraphQLUnionType({
                         name: "DogFriend",
-                        // eslint-disable-next-line
                         resolveType(obj) {
                           return obj instanceof Dog
                             ? DogType.toString()
@@ -569,7 +562,6 @@ describe("Execute: Handles execution of abstract types", () => {
 
     const PetType = new GraphQLUnionType({
       name: "Pet",
-      // eslint-disable-next-line
       resolveType(obj) {
         return obj instanceof Dog
           ? DogType.toString()

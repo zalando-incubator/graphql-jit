@@ -1,4 +1,3 @@
-/* eslint-disable no-useless-constructor */
 /**
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/union-interface-test.js
  */
@@ -110,7 +109,6 @@ const odie = new Dog("Odie", true);
 const liz = new Person("Liz");
 const john = new Person("John", [garfield, odie], [liz, odie]);
 
-// eslint-disable-next-line
 describe("Execute: Union and intersection types", () => {
   test("can introspect on union and intersection types", () => {
     const ast = parse(`
