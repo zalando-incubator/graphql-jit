@@ -7,13 +7,12 @@ import {
   type ASTNode,
   type OperationDefinitionNode,
   type GraphQLObjectType,
-  formatError as formatErrorV15,
-  getOperationRootType as getOperationRootTypeV15
+  type GraphQLFormattedError
 } from "graphql";
 import { type Maybe } from "./types.js";
-import { type GraphQLFormattedError } from "graphql/error";
+import * as errorUtilities from "graphql/error/index.js";
+import * as utilities from "graphql/utilities/index.js";
 import { type CompilationContext } from "./execution.js";
-// uses internal graphql-js APIs
 import * as execute from "graphql/execution/execute.js";
 
 /**
@@ -37,7 +36,7 @@ export function getOperationRootType(
   operation: OperationDefinitionNode
 ): GraphQLObjectType {
   if (versionInfo.major < 16) {
-    return getOperationRootTypeV15(schema, operation);
+    return (utilities as any).getOperationRootType(schema, operation);
   }
 
   const type = (schema as any).getRootType(operation.operation);
@@ -55,7 +54,7 @@ export function getOperationRootType(
  */
 export function formatError(error: GraphQLError): GraphQLFormattedError {
   if (versionInfo.major < 16) {
-    return formatErrorV15(error);
+    return (errorUtilities as any).formatError(error);
   }
 
   return (error as any).toJSON();
