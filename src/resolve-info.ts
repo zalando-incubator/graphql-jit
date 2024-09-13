@@ -1,14 +1,14 @@
 import genFn from "generate-function";
 import {
   doTypesOverlap,
-  FieldNode,
-  GraphQLCompositeType,
+  type FieldNode,
+  type GraphQLCompositeType,
   GraphQLError,
   GraphQLInterfaceType,
-  GraphQLNamedType,
+  type GraphQLNamedType,
   GraphQLObjectType,
-  GraphQLOutputType,
-  GraphQLResolveInfo,
+  type GraphQLOutputType,
+  type GraphQLResolveInfo,
   GraphQLSchema,
   isAbstractType,
   isCompositeType,
@@ -17,11 +17,11 @@ import {
   isObjectType,
   isUnionType,
   Kind,
-  SelectionSetNode
+  type SelectionSetNode
 } from "graphql";
 import memoize from "lodash.memoize";
 import mergeWith from "lodash.mergewith";
-import { memoize2, memoize4 } from "./memoize";
+import { memoize2, memoize4 } from "./memoize.js";
 
 // TODO(boopathi): Use negated types to express
 // Enrichments<T> = { [key in (string & not keyof GraphQLResolveInfo)]: T[key] }

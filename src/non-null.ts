@@ -1,17 +1,17 @@
 import {
-  ExecutionResult,
-  FieldNode,
-  GraphQLError,
-  GraphQLType,
+  type ExecutionResult,
+  type FieldNode,
+  type GraphQLError,
+  type GraphQLType,
   isListType,
   isNonNullType,
-  isObjectType
+  isObjectType,
+  isAbstractType
 } from "graphql";
-import { isAbstractType } from "graphql/type";
 import merge from "lodash.merge";
-import { collectFields, collectSubfields, resolveFieldDef } from "./ast";
-import { getOperationRootType } from "./compat";
-import { CompilationContext } from "./execution";
+import { collectFields, collectSubfields, resolveFieldDef } from "./ast.js";
+import { getOperationRootType } from "./compat.js";
+import { type CompilationContext } from "./execution.js";
 
 interface QueryMetadata {
   isNullable: boolean;

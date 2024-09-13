@@ -4,7 +4,7 @@ import {
   GraphQLError,
   GraphQLFloat,
   GraphQLID,
-  GraphQLInputType,
+  type GraphQLInputType,
   GraphQLInt,
   GraphQLSchema,
   GraphQLString,
@@ -14,14 +14,14 @@ import {
   isNonNullType,
   isScalarType,
   print,
-  SourceLocation,
+  type SourceLocation,
   typeFromAST,
   valueFromAST,
-  VariableDefinitionNode
+  type VariableDefinitionNode
 } from "graphql";
-import { addPath, computeLocations, ObjectPath } from "./ast";
-import { GraphQLError as GraphQLJITError } from "./error";
-import createInspect from "./inspect";
+import { addPath, computeLocations, type ObjectPath } from "./ast.js";
+import { GraphQLError as GraphQLJITError } from "./error.js";
+import createInspect from "./inspect.js";
 
 const inspect = createInspect();
 

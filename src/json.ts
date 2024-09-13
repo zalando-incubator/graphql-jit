@@ -4,8 +4,8 @@
  * @type       {<type>}
  */
 import {
-  FieldNode,
-  GraphQLType,
+  type FieldNode,
+  type GraphQLType,
   isAbstractType,
   isEnumType,
   isListType,
@@ -14,17 +14,17 @@ import {
   isScalarType
 } from "graphql";
 import {
-  BooleanSchema,
-  IntegerSchema,
-  NumberSchema,
-  ObjectSchema,
-  RefSchema,
-  Schema,
-  StringSchema
+  type BooleanSchema,
+  type IntegerSchema,
+  type NumberSchema,
+  type ObjectSchema,
+  type RefSchema,
+  type Schema,
+  type StringSchema
 } from "fast-json-stringify";
-import { collectFields, collectSubfields, resolveFieldDef } from "./ast";
-import { getOperationRootType } from "./compat";
-import { CompilationContext } from "./execution";
+import { collectFields, collectSubfields, resolveFieldDef } from "./ast.js";
+import { getOperationRootType } from "./compat.js";
+import { type CompilationContext } from "./execution.js";
 
 const PRIMITIVES: {
   [key: string]:

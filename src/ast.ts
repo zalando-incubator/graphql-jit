@@ -1,38 +1,40 @@
 import genFn from "generate-function";
 import {
-  ArgumentNode,
-  ASTNode,
-  DirectiveNode,
-  FieldNode,
-  FragmentDefinitionNode,
+  type ArgumentNode,
+  type ASTNode,
+  type DirectiveNode,
+  type FieldNode,
+  type FragmentDefinitionNode,
   getLocation,
-  GraphQLArgument,
+  type GraphQLArgument,
   GraphQLDirective,
   GraphQLError,
-  GraphQLField,
+  type GraphQLField,
   GraphQLIncludeDirective,
-  GraphQLInputType,
+  type GraphQLInputType,
   GraphQLObjectType,
   GraphQLSkipDirective,
-  InlineFragmentNode,
+  type InlineFragmentNode,
   isEnumType,
   isInputObjectType,
   isListType,
   isNonNullType,
   isScalarType,
   print,
-  SelectionSetNode,
-  SourceLocation,
+  type SelectionSetNode,
+  type SourceLocation,
   typeFromAST,
   valueFromASTUntyped,
-  ValueNode,
-  VariableNode
+  type ValueNode,
+  type VariableNode,
+  Kind,
+  type SelectionNode,
+  type TypeNode,
+  isAbstractType
 } from "graphql";
-import { Kind, SelectionNode, TypeNode } from "graphql/language";
-import { isAbstractType } from "graphql/type";
-import { CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution";
-import createInspect from "./inspect";
-import { getGraphQLErrorOptions, resolveFieldDef } from "./compat";
+import { type CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution.js";
+import createInspect from "./inspect.js";
+import { getGraphQLErrorOptions, resolveFieldDef } from "./compat.js";
 
 export interface JitFieldNode extends FieldNode {
   /**
