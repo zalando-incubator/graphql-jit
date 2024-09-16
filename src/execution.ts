@@ -341,7 +341,6 @@ export function createBoundQuery(
   const trimmer = createNullTrimmer(compilationContext);
   const fnName = operationName || "query";
 
-  /* eslint-disable */
   /**
    * In-order to assign a debuggable name to the bound query function,
    * we create an intermediate object with a method named as the
@@ -352,7 +351,6 @@ export function createBoundQuery(
    *
    * section: 14.3.9.3 - calls SetFunctionName
    */
-  /* eslint-enable */
   const ret = {
     [fnName](
       rootValue: any,
@@ -1000,7 +998,7 @@ function compileAbstractType(
     .join("\n");
   const finalTypeName = "finalType";
   const nullTypeError = `"Runtime Object type is not a possible type for \\"${type.name}\\"."`;
-  /* eslint-disable max-len */
+
   const notPossibleTypeError =
     // eslint-disable-next-line no-template-curly-in-string
     '`Runtime Object type "${nodeType}" is not a possible type for "' +
@@ -1013,7 +1011,7 @@ function compileAbstractType(
   }.${getFieldNodesName(fieldNodes)}. Either the ${
     type.name
   } type should provide a \\"resolveType\\" function or each possible types should provide an \\"isTypeOf\\" function."`;
-  /* eslint-enable max-len */
+
   return `((nodeType, err) =>
   {
     if (err != null) {

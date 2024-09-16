@@ -2,7 +2,6 @@
  * Based on https://github.com/graphql/graphql-js/blob/master/src/execution/__tests__/variables-test.js
  */
 
-/* eslint-disable max-lines-per-function */
 import {
   GraphQLBoolean,
   GraphQLEnumType,
@@ -33,7 +32,6 @@ const TestComplexScalar = new GraphQLScalarType({
     }
     return null;
   },
-  // eslint-disable-next-line
   parseValue(value: any) {
     if (value === "SerializedValue") {
       return "DeserializedValue";

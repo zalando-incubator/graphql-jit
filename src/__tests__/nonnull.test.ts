@@ -177,7 +177,6 @@ function patch(data: any) {
   );
 }
 
-// eslint-disable-next-line
 async function executeSyncAndAsync(query: string, rootValue: any) {
   const syncResult = await executeQuery(query, rootValue);
   const asyncResult = await executeQuery(patch(query), rootValue);
@@ -186,7 +185,6 @@ async function executeSyncAndAsync(query: string, rootValue: any) {
   return syncResult;
 }
 
-// eslint-disable-next-line
 describe("Execute: handles non-nullable types", () => {
   describe("nulls a nullable field", () => {
     const query = `

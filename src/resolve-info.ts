@@ -43,7 +43,6 @@ export interface ResolveInfoEnricherInput {
 export interface FieldExpansion {
   // The possible return types that the field can return
   // It includes all the types in the Schema that intersect with the actual return type
-  // eslint-disable-next-line no-use-before-define
   [returnType: string]: TypeExpansion;
 }
 

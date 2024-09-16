@@ -53,7 +53,6 @@ function executeTestQuery(
   return compiled.query(data, undefined, variables);
 }
 
-// eslint-disable-next-line
 describe("Execute: handles directives", () => {
   describe("works without directives", () => {
     test("basic query works", () => {
@@ -66,7 +65,6 @@ describe("Execute: handles directives", () => {
   });
 
   describe("works on scalars", () => {
-    // eslint-disable-next-line
     test("if true includes scalar", () => {
       const result = executeTestQuery("{ a, b @include(if: true) }");
 
@@ -83,7 +81,6 @@ describe("Execute: handles directives", () => {
       });
     });
 
-    // eslint-disable-next-line
     test("unless false includes scalar", () => {
       const result = executeTestQuery("{ a, b @skip(if: false) }");
 
@@ -92,7 +89,6 @@ describe("Execute: handles directives", () => {
       });
     });
 
-    // eslint-disable-next-line
     test("unless true omits scalar", () => {
       const result = executeTestQuery("{ a, b @skip(if: true) }");
 
