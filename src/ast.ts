@@ -1,4 +1,4 @@
-import genFn from "generate-function";
+import { genFn } from "./generate";
 import {
   type ArgumentNode,
   type ASTNode,
@@ -41,7 +41,7 @@ export interface JitFieldNode extends FieldNode {
    * @deprecated Use __internalShouldIncludePath instead
    * @see __internalShouldIncludePath
    */
-  __internalShouldInclude?: string;
+  __internalShouldInclude?: string[];
 
   // The shouldInclude logic is specific to the current path
   // This is because the same fieldNode can be reached from different paths
@@ -49,7 +49,7 @@ export interface JitFieldNode extends FieldNode {
   __internalShouldIncludePath?: {
     // Key is the stringified ObjectPath,
     // Value is the shouldInclude logic for that path
-    [path: string]: string;
+    [path: string]: string[];
   };
 }
 
@@ -96,7 +96,7 @@ function collectFieldsImpl(
   selectionSet: SelectionSetNode,
   fields: FieldsAndNodes,
   visitedFragmentNames: { [key: string]: boolean },
-  previousShouldInclude = "",
+  previousShouldInclude: string[] = [],
   parentResponsePath = ""
 ): FieldsAndNodes {
   for (const selection of selectionSet.selections) {
@@ -146,16 +146,16 @@ function collectFieldsImpl(
 
           fieldNode.__internalShouldIncludePath[currentPath] =
             joinShouldIncludeCompilations(
-              fieldNode.__internalShouldIncludePath?.[currentPath] ?? "",
+              fieldNode.__internalShouldIncludePath?.[currentPath] ?? [],
               previousShouldInclude,
-              compiledSkipInclude
+              [compiledSkipInclude]
             );
         } else {
           // @deprecated
           fieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
-            fieldNode.__internalShouldInclude ?? "",
+            fieldNode.__internalShouldInclude ?? [],
             previousShouldInclude,
-            compiledSkipInclude
+            [compiledSkipInclude]
           );
         }
         /**
@@ -199,7 +199,7 @@ function collectFieldsImpl(
             // `should include`s from previous fragments
             previousShouldInclude,
             // current fragment's shouldInclude
-            compiledSkipInclude
+            [compiledSkipInclude]
           ),
           parentResponsePath
         );
@@ -237,7 +237,7 @@ function collectFieldsImpl(
             // `should include`s from previous fragments
             previousShouldInclude,
             // current fragment's shouldInclude
-            compiledSkipInclude
+            [compiledSkipInclude]
           ),
           parentResponsePath
         );
@@ -335,15 +335,15 @@ function augmentFieldNodeTree(
               joinShouldIncludeCompilations(
                 parentFieldNode.__internalShouldIncludePath?.[
                   parentResponsePath
-                ] ?? "",
-                jitFieldNode.__internalShouldIncludePath?.[currentPath] ?? ""
+                ] ?? [],
+                jitFieldNode.__internalShouldIncludePath?.[currentPath] ?? []
               );
           } else {
             // @deprecated
             jitFieldNode.__internalShouldInclude =
               joinShouldIncludeCompilations(
-                parentFieldNode.__internalShouldInclude ?? "",
-                jitFieldNode.__internalShouldInclude ?? ""
+                parentFieldNode.__internalShouldInclude ?? [],
+                jitFieldNode.__internalShouldInclude ?? []
               );
           }
         }
@@ -392,7 +392,7 @@ function augmentFieldNodeTree(
  *
  * @param compilations
  */
-function joinShouldIncludeCompilations(...compilations: string[]) {
+function joinShouldIncludeCompilations(...compilations: string[][]): string[] {
   // remove "true" since we are joining with '&&' as `true && X` = `X`
   // This prevents an explosion of `&& true` which could break
   // V8's internal size limit for string.
@@ -404,16 +404,16 @@ function joinShouldIncludeCompilations(...compilations: string[]) {
   // Failing to do this results in [RangeError: invalid array length]
   // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Invalid_array_length
 
-  // remove empty strings
-  let filteredCompilations = compilations.filter((it) => it);
+  const conditionsSet = new Set<string>();
+  for (const conditions of compilations) {
+    for (const condition of conditions) {
+      if (condition !== "true") {
+        conditionsSet.add(condition);
+      }
+    }
+  }
 
-  // Split conditions by && and flatten it
-  filteredCompilations = ([] as string[]).concat(
-    ...filteredCompilations.map((e) => e.split(" && ").map((it) => it.trim()))
-  );
-  // Deduplicate items
-  filteredCompilations = Array.from(new Set(filteredCompilations));
-  return filteredCompilations.join(" && ");
+  return Array.from(conditionsSet);
 }
 
 /**
@@ -427,8 +427,6 @@ function compileSkipInclude(
   compilationContext: CompilationContext,
   node: SelectionNode
 ): string {
-  const gen = genFn();
-
   const { skipValue, includeValue } = compileSkipIncludeDirectiveValues(
     compilationContext,
     node
@@ -446,16 +444,14 @@ function compileSkipInclude(
    * condition is true or the @include condition is false.
    */
   if (skipValue != null && includeValue != null) {
-    gen(`${skipValue} === false && ${includeValue} === true`);
+    return `${skipValue} === false && ${includeValue} === true`;
   } else if (skipValue != null) {
-    gen(`(${skipValue} === false)`);
+    return `(${skipValue} === false)`;
   } else if (includeValue != null) {
-    gen(`(${includeValue} === true)`);
+    return `(${includeValue} === true)`;
   } else {
-    gen(`true`);
+    return `true`;
   }
-
-  return gen.toString();
 }
 
 /**

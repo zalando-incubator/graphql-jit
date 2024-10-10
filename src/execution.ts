@@ -1,6 +1,6 @@
 import { type TypedDocumentNode } from "@graphql-typed-document-node/core";
 import fastJson from "fast-json-stringify";
-import genFn from "generate-function";
+import { genFn } from "./generate";
 import {
   type ASTNode,
   type DocumentNode,
@@ -65,8 +65,10 @@ import {
   failToParseVariables
 } from "./variables.js";
 import { getGraphQLErrorOptions, getOperationRootType } from "./compat.js";
+import memoize from "lodash.memoize";
 
 const inspect = createInspect();
+const joinOriginPaths = memoize(joinOriginPathsImpl);
 
 export interface CompilerOptions {
   customJSONSerializer: boolean;
@@ -129,6 +131,7 @@ interface DeferredField {
   name: string;
   responsePath: ObjectPath;
   originPaths: string[];
+  originPathsFormatted: string;
   destinationPaths: string[];
   parentType: GraphQLObjectType;
   fieldName: string;
@@ -517,7 +520,7 @@ function compileDeferredField(
 ): string {
   const {
     name,
-    originPaths,
+    originPathsFormatted,
     destinationPaths,
     fieldNodes,
     fieldType,
@@ -562,7 +565,7 @@ function compileDeferredField(
     responsePath
   );
   const emptyError = createErrorObject(context, fieldNodes, responsePath, '""');
-  const resolverParentPath = originPaths.join(".");
+  const resolverParentPath = originPathsFormatted;
   const resolverCall = `${GLOBAL_EXECUTION_CONTEXT}.resolvers.${resolverName}(
           ${resolverParentPath},${topLevelArgs},${GLOBAL_CONTEXT_NAME}, ${executionInfo})`;
   const resultParentPath = destinationPaths.join(".");
@@ -661,7 +664,7 @@ function compileType(
   destinationPaths: string[],
   previousPath: ObjectPath
 ): string {
-  const sourcePath = originPaths.join(".");
+  const sourcePath = joinOriginPaths(originPaths);
   let body = `${sourcePath} == null ? `;
   let errorDestination;
   if (isNonNullType(type)) {
@@ -754,7 +757,7 @@ function compileLeafType(
     context.options.disableLeafSerialization &&
     (type instanceof GraphQLEnumType || isSpecifiedScalarType(type))
   ) {
-    body += `${originPaths.join(".")}`;
+    body += `${joinOriginPaths(originPaths)}`;
   } else {
     const serializerName = getSerializerName(type.name);
     context.serializers[serializerName] = getSerializer(
@@ -775,8 +778,8 @@ function compileLeafType(
       "message"
     )});}
     `);
-    body += `${GLOBAL_EXECUTION_CONTEXT}.serializers.${serializerName}(${GLOBAL_EXECUTION_CONTEXT}, ${originPaths.join(
-      "."
+    body += `${GLOBAL_EXECUTION_CONTEXT}.serializers.${serializerName}(${GLOBAL_EXECUTION_CONTEXT}, ${joinOriginPaths(
+      originPaths
     )}, ${serializerErrorHandler}, ${parentIndexes})`;
   }
   return body;
@@ -815,15 +818,17 @@ function compileObjectType(
     body(
       `!${GLOBAL_EXECUTION_CONTEXT}.isTypeOfs["${
         type.name
-      }IsTypeOf"](${originPaths.join(
-        "."
+      }IsTypeOf"](${joinOriginPaths(
+        originPaths
       )}) ? (${errorDestination}.push(${createErrorObject(
         context,
         fieldNodes,
         responsePath as any,
         `\`Expected value of type "${
           type.name
-        }" but got: $\{${GLOBAL_INSPECT_NAME}(${originPaths.join(".")})}.\``
+        }" but got: $\{${GLOBAL_INSPECT_NAME}(${joinOriginPaths(
+          originPaths
+        )})}.\``
       )}), null) :`
     );
   }
@@ -872,15 +877,32 @@ function compileObjectType(
       name
     );
 
-    const fieldCondition = context.options.useExperimentalPathBasedSkipInclude
-      ? fieldNodes
-          .map((it) => it.__internalShouldIncludePath?.[serializedResponsePath])
-          .filter((it) => it)
-          .join(" || ") || /* if(true) - default */ "true"
-      : fieldNodes
-          .map((it) => it.__internalShouldInclude)
-          .filter((it) => it)
-          .join(" || ") || /* if(true) - default */ "true";
+    const fieldConditionsList = (
+      context.options.useExperimentalPathBasedSkipInclude
+        ? fieldNodes.map(
+            (it) => it.__internalShouldIncludePath?.[serializedResponsePath]
+          )
+        : fieldNodes.map((it) => it.__internalShouldInclude)
+    ).filter(isNotNull);
+
+    let fieldCondition = fieldConditionsList
+      .map((it) => {
+        if (it.length > 0) {
+          return `(${it.join(" && ")})`;
+        }
+        // default: if there are no conditions, it means that the field
+        // is always included in the path
+        return "true";
+      })
+      .filter(isNotNull)
+      .join(" || ");
+
+    // if it's an empty string, it means that the field is always included
+    if (!fieldCondition) {
+      // if there are no conditions, it means that the field
+      // is always included in the path
+      fieldCondition = "true";
+    }
 
     body(`
       (
@@ -907,6 +929,7 @@ function compileObjectType(
         name,
         responsePath: addPath(responsePath, name),
         originPaths,
+        originPathsFormatted: joinOriginPaths(originPaths),
         destinationPaths,
         parentType: type,
         fieldName: field.name,
@@ -1046,8 +1069,8 @@ function compileAbstractType(
       return null;
     }
   })(
-    ${GLOBAL_EXECUTION_CONTEXT}.typeResolvers.${typeResolverName}(${originPaths.join(
-      "."
+    ${GLOBAL_EXECUTION_CONTEXT}.typeResolvers.${typeResolverName}(${joinOriginPaths(
+      originPaths
     )},
     ${GLOBAL_CONTEXT_NAME},
     ${getExecutionInfo(
@@ -1915,4 +1938,12 @@ function mapAsyncIterator<T, U, R = undefined>(
       return this;
     }
   };
+}
+
+function joinOriginPathsImpl(originPaths: string[]) {
+  return originPaths.join(".");
+}
+
+function isNotNull<T>(it: T): it is Exclude<T, null | undefined> {
+  return it != null;
 }
