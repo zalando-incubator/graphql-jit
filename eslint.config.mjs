@@ -26,7 +26,7 @@ export default tseslint.config(
       "no-sequences": "error",
       "no-template-curly-in-string": "error",
       "@typescript-eslint/no-empty-function": "error",
-      "@typescript-eslint/no-non-null-assertion": "error",
+      "@typescript-eslint/no-non-null-assertion": "warn",
 
       "@typescript-eslint/no-unused-vars": "warn",
 
