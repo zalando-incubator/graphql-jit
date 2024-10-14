@@ -35,6 +35,7 @@ import {
 import { type CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution.js";
 import createInspect from "./inspect.js";
 import { getGraphQLErrorOptions, resolveFieldDef } from "./compat.js";
+import { WeakMemo } from "./memoize";
 
 export interface JitFieldNode extends FieldNode {
   /**
@@ -58,6 +59,12 @@ export interface FieldsAndNodes {
 }
 
 const inspect = createInspect();
+
+const compileSkipIncludeMemo = new WeakMap<SelectionNode, string>();
+const collectFieldsMemo = new WeakMemo<
+  [SelectionSetNode, GraphQLObjectType],
+  FieldsAndNodes
+>();
 
 /**
  * Given a selectionSet, adds all of the fields in that selection to
@@ -99,6 +106,11 @@ function collectFieldsImpl(
   previousShouldInclude: string[] = [],
   parentResponsePath = ""
 ): FieldsAndNodes {
+  const memoized = collectFieldsMemo.get([selectionSet, runtimeType]);
+  if (memoized) {
+    return memoized;
+  }
+
   interface StackItem {
     selectionSet: SelectionSetNode;
     parentResponsePath: string;
@@ -201,6 +213,8 @@ function collectFieldsImpl(
       }
     }
   }
+
+  collectFieldsMemo.set([selectionSet, runtimeType], fields);
 
   return fields;
 }
@@ -494,9 +508,16 @@ function compileSkipInclude(
   compilationContext: CompilationContext,
   node: SelectionNode
 ): string {
+  const memoized = compileSkipIncludeMemo.get(node);
+  if (memoized) {
+    return memoized;
+  }
+
   // minor optimization to avoid compilation if there are no directives
   if (node.directives == null || node.directives.length < 1) {
-    return "true";
+    const ret = "true";
+    compileSkipIncludeMemo.set(node, ret);
+    return ret;
   }
 
   const { skipValue, includeValue } = compileSkipIncludeDirectiveValues(
@@ -515,15 +536,20 @@ function compileSkipInclude(
    * or fragment must not be queried if either the @skip
    * condition is true or the @include condition is false.
    */
+  let ret: string;
   if (skipValue != null && includeValue != null) {
-    return `${skipValue} === false && ${includeValue} === true`;
+    ret = `${skipValue} === false && ${includeValue} === true`;
   } else if (skipValue != null) {
-    return `(${skipValue} === false)`;
+    ret = `(${skipValue} === false)`;
   } else if (includeValue != null) {
-    return `(${includeValue} === true)`;
+    ret = `(${includeValue} === true)`;
   } else {
-    return `true`;
+    ret = `true`;
   }
+
+  compileSkipIncludeMemo.set(node, ret);
+
+  return ret;
 }
 
 /**

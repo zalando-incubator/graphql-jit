@@ -75,3 +75,37 @@ export function memoize4<T extends Fn>(fn: T): T {
     )
   ) as T;
 }
+
+type KeyTuple<K extends readonly unknown[]> = [...K];
+
+export class WeakMemo<K extends readonly object[], V extends NonNullable<any>> {
+  private baseMap = new WeakMap<object, any>();
+
+  set(keys: KeyTuple<K>, value: V) {
+    let map = this.baseMap;
+    for (const key of keys.slice(0, -1)) {
+      let nextMap = map.get(key);
+      if (!nextMap) {
+        nextMap = new WeakMap<object, any>();
+        map.set(key, nextMap);
+      }
+      map = nextMap;
+    }
+    map.set(keys[keys.length - 1], value);
+    return this;
+  }
+
+  get(keys: KeyTuple<K>): V | undefined {
+    let map = this.baseMap;
+    for (const key of keys.slice(0, -1)) {
+      map = map.get(key);
+      if (!map) return undefined;
+    }
+    return map.get(keys[keys.length - 1]);
+  }
+
+  has(keys: KeyTuple<K>): boolean {
+    let item = this.get(keys);
+    return item != null;
+  }
+}
