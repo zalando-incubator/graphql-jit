@@ -1,4 +1,4 @@
-import genFn from "generate-function";
+import { genFn } from "./generate";
 import {
   type ArgumentNode,
   type ASTNode,
@@ -41,7 +41,7 @@ export interface JitFieldNode extends FieldNode {
    * @deprecated Use __internalShouldIncludePath instead
    * @see __internalShouldIncludePath
    */
-  __internalShouldInclude?: string;
+  __internalShouldInclude?: string[];
 
   // The shouldInclude logic is specific to the current path
   // This is because the same fieldNode can be reached from different paths
@@ -49,7 +49,7 @@ export interface JitFieldNode extends FieldNode {
   __internalShouldIncludePath?: {
     // Key is the stringified ObjectPath,
     // Value is the shouldInclude logic for that path
-    [path: string]: string;
+    [path: string]: string[];
   };
 }
 
@@ -96,157 +96,191 @@ function collectFieldsImpl(
   selectionSet: SelectionSetNode,
   fields: FieldsAndNodes,
   visitedFragmentNames: { [key: string]: boolean },
-  previousShouldInclude = "",
+  previousShouldInclude: string[] = [],
   parentResponsePath = ""
 ): FieldsAndNodes {
-  for (const selection of selectionSet.selections) {
-    switch (selection.kind) {
-      case Kind.FIELD: {
-        const name = getFieldEntryKey(selection);
-        if (!fields[name]) {
-          fields[name] = [];
-        }
-        const fieldNode: JitFieldNode = selection;
+  interface StackItem {
+    selectionSet: SelectionSetNode;
+    parentResponsePath: string;
+    previousShouldInclude: string[];
+  }
 
-        // the current path of the field
-        // This is used to generate per path skip/include code
-        // because the same field can be reached from different paths (e.g. fragment reuse)
-        const currentPath = joinSkipIncludePath(
-          parentResponsePath,
+  const stack: StackItem[] = [];
 
-          // use alias(instead of selection.name.value) if available as the responsePath used for lookup uses alias
-          name
-        );
+  stack.push({
+    selectionSet,
+    parentResponsePath,
+    previousShouldInclude
+  });
 
-        // `should include`s generated for the current fieldNode
-        const compiledSkipInclude = compileSkipInclude(
-          compilationContext,
-          selection
-        );
+  while (stack.length > 0) {
+    const { selectionSet, parentResponsePath, previousShouldInclude } =
+      stack.pop()!;
 
-        /**
-         * Carry over fragment's skip and include code
-         *
-         * fieldNode.__internalShouldInclude
-         * ---------------------------------
-         * When the parent field has a skip or include, the current one
-         * should be skipped if the parent is skipped in the path.
-         *
-         * previousShouldInclude
-         * ---------------------
-         * `should include`s from fragment spread and inline fragments
-         *
-         * compileSkipInclude(selection)
-         * -----------------------------
-         * `should include`s generated for the current fieldNode
-         */
-        if (compilationContext.options.useExperimentalPathBasedSkipInclude) {
-          if (!fieldNode.__internalShouldIncludePath)
-            fieldNode.__internalShouldIncludePath = {};
-
-          fieldNode.__internalShouldIncludePath[currentPath] =
-            joinShouldIncludeCompilations(
-              fieldNode.__internalShouldIncludePath?.[currentPath] ?? "",
-              previousShouldInclude,
-              compiledSkipInclude
-            );
-        } else {
-          // @deprecated
-          fieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
-            fieldNode.__internalShouldInclude ?? "",
-            previousShouldInclude,
-            compiledSkipInclude
-          );
-        }
-        /**
-         * We augment the entire subtree as the parent object's skip/include
-         * directives influence the child even if the child doesn't have
-         * skip/include on it's own.
-         *
-         * Refer the function definition for example.
-         */
-        augmentFieldNodeTree(compilationContext, fieldNode, currentPath);
-
-        fields[name].push(fieldNode);
-        break;
-      }
-
-      case Kind.INLINE_FRAGMENT: {
-        if (
-          !doesFragmentConditionMatch(
+    for (const selection of selectionSet.selections) {
+      switch (selection.kind) {
+        case Kind.FIELD: {
+          collectFieldsForField({
             compilationContext,
-            selection,
-            runtimeType
-          )
-        ) {
-          continue;
-        }
-
-        // current fragment's shouldInclude
-        const compiledSkipInclude = compileSkipInclude(
-          compilationContext,
-          selection
-        );
-
-        // recurse
-        collectFieldsImpl(
-          compilationContext,
-          runtimeType,
-          selection.selectionSet,
-          fields,
-          visitedFragmentNames,
-          joinShouldIncludeCompilations(
-            // `should include`s from previous fragments
+            fields,
+            parentResponsePath,
             previousShouldInclude,
-            // current fragment's shouldInclude
-            compiledSkipInclude
-          ),
-          parentResponsePath
-        );
-        break;
-      }
-
-      case Kind.FRAGMENT_SPREAD: {
-        const fragName = selection.name.value;
-        if (visitedFragmentNames[fragName]) {
-          continue;
-        }
-        visitedFragmentNames[fragName] = true;
-        const fragment = compilationContext.fragments[fragName];
-        if (
-          !fragment ||
-          !doesFragmentConditionMatch(compilationContext, fragment, runtimeType)
-        ) {
-          continue;
+            selection
+          });
+          break;
         }
 
-        // current fragment's shouldInclude
-        const compiledSkipInclude = compileSkipInclude(
-          compilationContext,
-          selection
-        );
+        case Kind.INLINE_FRAGMENT: {
+          if (
+            !doesFragmentConditionMatch(
+              compilationContext,
+              selection,
+              runtimeType
+            )
+          ) {
+            continue;
+          }
 
-        // recurse
-        collectFieldsImpl(
-          compilationContext,
-          runtimeType,
-          fragment.selectionSet,
-          fields,
-          visitedFragmentNames,
-          joinShouldIncludeCompilations(
-            // `should include`s from previous fragments
-            previousShouldInclude,
-            // current fragment's shouldInclude
-            compiledSkipInclude
-          ),
-          parentResponsePath
-        );
+          // current fragment's shouldInclude
+          const compiledSkipInclude = compileSkipInclude(
+            compilationContext,
+            selection
+          );
 
-        break;
+          // push to stack
+          stack.push({
+            selectionSet: selection.selectionSet,
+            parentResponsePath: parentResponsePath,
+            previousShouldInclude: joinShouldIncludeCompilations(
+              // `should include`s from previous fragments
+              previousShouldInclude,
+              // current fragment's shouldInclude
+              [compiledSkipInclude]
+            )
+          });
+          break;
+        }
+
+        case Kind.FRAGMENT_SPREAD: {
+          const fragName = selection.name.value;
+          if (visitedFragmentNames[fragName]) {
+            continue;
+          }
+          visitedFragmentNames[fragName] = true;
+          const fragment = compilationContext.fragments[fragName];
+          if (
+            !fragment ||
+            !doesFragmentConditionMatch(
+              compilationContext,
+              fragment,
+              runtimeType
+            )
+          ) {
+            continue;
+          }
+
+          // current fragment's shouldInclude
+          const compiledSkipInclude = compileSkipInclude(
+            compilationContext,
+            selection
+          );
+
+          // push to stack
+          stack.push({
+            selectionSet: fragment.selectionSet,
+            parentResponsePath,
+            previousShouldInclude: joinShouldIncludeCompilations(
+              // `should include`s from previous fragments
+              previousShouldInclude,
+              // current fragment's shouldInclude
+              [compiledSkipInclude]
+            )
+          });
+          break;
+        }
       }
     }
   }
+
   return fields;
+}
+
+function collectFieldsForField({
+  compilationContext,
+  fields,
+  parentResponsePath,
+  previousShouldInclude,
+  selection
+}: {
+  compilationContext: CompilationContext;
+  fields: FieldsAndNodes;
+  parentResponsePath: string;
+  previousShouldInclude: string[];
+  selection: FieldNode;
+}) {
+  const name = getFieldEntryKey(selection);
+  if (!fields[name]) {
+    fields[name] = [];
+  }
+  const fieldNode: JitFieldNode = selection;
+
+  // the current path of the field
+  // This is used to generate per path skip/include code
+  // because the same field can be reached from different paths (e.g. fragment reuse)
+  const currentPath = joinSkipIncludePath(
+    parentResponsePath,
+
+    // use alias(instead of selection.name.value) if available as the responsePath used for lookup uses alias
+    name
+  );
+
+  // `should include`s generated for the current fieldNode
+  const compiledSkipInclude = compileSkipInclude(compilationContext, selection);
+
+  /**
+   * Carry over fragment's skip and include code
+   *
+   * fieldNode.__internalShouldInclude
+   * ---------------------------------
+   * When the parent field has a skip or include, the current one
+   * should be skipped if the parent is skipped in the path.
+   *
+   * previousShouldInclude
+   * ---------------------
+   * `should include`s from fragment spread and inline fragments
+   *
+   * compileSkipInclude(selection)
+   * -----------------------------
+   * `should include`s generated for the current fieldNode
+   */
+  if (compilationContext.options.useExperimentalPathBasedSkipInclude) {
+    if (!fieldNode.__internalShouldIncludePath)
+      fieldNode.__internalShouldIncludePath = {};
+
+    fieldNode.__internalShouldIncludePath[currentPath] =
+      joinShouldIncludeCompilations(
+        fieldNode.__internalShouldIncludePath?.[currentPath] ?? [],
+        previousShouldInclude,
+        [compiledSkipInclude]
+      );
+  } else {
+    // @deprecated
+    fieldNode.__internalShouldInclude = joinShouldIncludeCompilations(
+      fieldNode.__internalShouldInclude ?? [],
+      previousShouldInclude,
+      [compiledSkipInclude]
+    );
+  }
+  /**
+   * We augment the entire subtree as the parent object's skip/include
+   * directives influence the child even if the child doesn't have
+   * skip/include on it's own.
+   *
+   * Refer the function definition for example.
+   */
+  augmentFieldNodeTree(compilationContext, fieldNode, currentPath);
+
+  fields[name].push(fieldNode);
 }
 
 /**
@@ -303,66 +337,99 @@ function augmentFieldNodeTree(
   parentResponsePath: string
 ) {
   for (const selection of rootFieldNode.selectionSet?.selections ?? []) {
-    handle(rootFieldNode, selection, false, parentResponsePath);
-  }
+    /**
+     * Traverse through sub-selection and combine `shouldInclude`s
+     * from parent and current ones.
+     */
+    interface StackItem {
+      parentFieldNode: JitFieldNode;
+      selection: SelectionNode;
+      comesFromFragmentSpread: boolean;
+      parentResponsePath: string;
+    }
 
-  /**
-   * Recursively traverse through sub-selection and combine `shouldInclude`s
-   * from parent and current ones.
-   */
-  function handle(
-    parentFieldNode: JitFieldNode,
-    selection: SelectionNode,
-    comesFromFragmentSpread = false,
-    parentResponsePath: string
-  ) {
-    switch (selection.kind) {
-      case Kind.FIELD: {
-        const jitFieldNode: JitFieldNode = selection;
-        const currentPath = joinSkipIncludePath(
-          parentResponsePath,
+    const stack: StackItem[] = [];
 
-          // use alias(instead of selection.name.value) if available as the responsePath used for lookup uses alias
-          getFieldEntryKey(jitFieldNode)
-        );
+    stack.push({
+      parentFieldNode: rootFieldNode,
+      selection,
+      comesFromFragmentSpread: false,
+      parentResponsePath
+    });
 
-        if (!comesFromFragmentSpread) {
-          if (compilationContext.options.useExperimentalPathBasedSkipInclude) {
-            if (!jitFieldNode.__internalShouldIncludePath)
-              jitFieldNode.__internalShouldIncludePath = {};
+    while (stack.length > 0) {
+      const {
+        parentFieldNode,
+        selection,
+        comesFromFragmentSpread,
+        parentResponsePath
+      } = stack.pop()!;
 
-            jitFieldNode.__internalShouldIncludePath[currentPath] =
-              joinShouldIncludeCompilations(
-                parentFieldNode.__internalShouldIncludePath?.[
-                  parentResponsePath
-                ] ?? "",
-                jitFieldNode.__internalShouldIncludePath?.[currentPath] ?? ""
-              );
-          } else {
-            // @deprecated
-            jitFieldNode.__internalShouldInclude =
-              joinShouldIncludeCompilations(
-                parentFieldNode.__internalShouldInclude ?? "",
-                jitFieldNode.__internalShouldInclude ?? ""
-              );
+      switch (selection.kind) {
+        case Kind.FIELD: {
+          const jitFieldNode: JitFieldNode = selection;
+          const currentPath = joinSkipIncludePath(
+            parentResponsePath,
+
+            // use alias(instead of selection.name.value) if available as the responsePath used for lookup uses alias
+            getFieldEntryKey(jitFieldNode)
+          );
+
+          if (!comesFromFragmentSpread) {
+            if (
+              compilationContext.options.useExperimentalPathBasedSkipInclude
+            ) {
+              if (!jitFieldNode.__internalShouldIncludePath)
+                jitFieldNode.__internalShouldIncludePath = {};
+
+              jitFieldNode.__internalShouldIncludePath[currentPath] =
+                joinShouldIncludeCompilations(
+                  parentFieldNode.__internalShouldIncludePath?.[
+                    parentResponsePath
+                  ] ?? [],
+                  jitFieldNode.__internalShouldIncludePath?.[currentPath] ?? []
+                );
+            } else {
+              // @deprecated
+              jitFieldNode.__internalShouldInclude =
+                joinShouldIncludeCompilations(
+                  parentFieldNode.__internalShouldInclude ?? [],
+                  jitFieldNode.__internalShouldInclude ?? []
+                );
+            }
           }
+          // go further down the query tree
+          for (const selection of jitFieldNode.selectionSet?.selections ?? []) {
+            stack.push({
+              parentFieldNode: jitFieldNode,
+              selection,
+              comesFromFragmentSpread: false,
+              parentResponsePath: currentPath
+            });
+          }
+          break;
         }
-        // go further down the query tree
-        for (const selection of jitFieldNode.selectionSet?.selections ?? []) {
-          handle(jitFieldNode, selection, false, currentPath);
+        case Kind.INLINE_FRAGMENT: {
+          for (const subSelection of selection.selectionSet.selections) {
+            stack.push({
+              parentFieldNode,
+              selection: subSelection,
+              comesFromFragmentSpread: true,
+              parentResponsePath
+            });
+          }
+          break;
         }
-        break;
-      }
-      case Kind.INLINE_FRAGMENT: {
-        for (const subSelection of selection.selectionSet.selections) {
-          handle(parentFieldNode, subSelection, true, parentResponsePath);
-        }
-        break;
-      }
-      case Kind.FRAGMENT_SPREAD: {
-        const fragment = compilationContext.fragments[selection.name.value];
-        for (const subSelection of fragment.selectionSet.selections) {
-          handle(parentFieldNode, subSelection, true, parentResponsePath);
+        case Kind.FRAGMENT_SPREAD: {
+          const fragment = compilationContext.fragments[selection.name.value];
+          for (const subSelection of fragment.selectionSet.selections) {
+            stack.push({
+              parentFieldNode,
+              selection: subSelection,
+              comesFromFragmentSpread: true,
+              parentResponsePath
+            });
+          }
         }
       }
     }
@@ -392,7 +459,7 @@ function augmentFieldNodeTree(
  *
  * @param compilations
  */
-function joinShouldIncludeCompilations(...compilations: string[]) {
+function joinShouldIncludeCompilations(...compilations: string[][]): string[] {
   // remove "true" since we are joining with '&&' as `true && X` = `X`
   // This prevents an explosion of `&& true` which could break
   // V8's internal size limit for string.
@@ -404,16 +471,16 @@ function joinShouldIncludeCompilations(...compilations: string[]) {
   // Failing to do this results in [RangeError: invalid array length]
   // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Invalid_array_length
 
-  // remove empty strings
-  let filteredCompilations = compilations.filter((it) => it);
+  const conditionsSet = new Set<string>();
+  for (const conditions of compilations) {
+    for (const condition of conditions) {
+      if (condition !== "true") {
+        conditionsSet.add(condition);
+      }
+    }
+  }
 
-  // Split conditions by && and flatten it
-  filteredCompilations = ([] as string[]).concat(
-    ...filteredCompilations.map((e) => e.split(" && ").map((it) => it.trim()))
-  );
-  // Deduplicate items
-  filteredCompilations = Array.from(new Set(filteredCompilations));
-  return filteredCompilations.join(" && ");
+  return Array.from(conditionsSet);
 }
 
 /**
@@ -427,7 +494,10 @@ function compileSkipInclude(
   compilationContext: CompilationContext,
   node: SelectionNode
 ): string {
-  const gen = genFn();
+  // minor optimization to avoid compilation if there are no directives
+  if (node.directives == null || node.directives.length < 1) {
+    return "true";
+  }
 
   const { skipValue, includeValue } = compileSkipIncludeDirectiveValues(
     compilationContext,
@@ -446,16 +516,14 @@ function compileSkipInclude(
    * condition is true or the @include condition is false.
    */
   if (skipValue != null && includeValue != null) {
-    gen(`${skipValue} === false && ${includeValue} === true`);
+    return `${skipValue} === false && ${includeValue} === true`;
   } else if (skipValue != null) {
-    gen(`(${skipValue} === false)`);
+    return `(${skipValue} === false)`;
   } else if (includeValue != null) {
-    gen(`(${includeValue} === true)`);
+    return `(${includeValue} === true)`;
   } else {
-    gen(`true`);
+    return `true`;
   }
-
-  return gen.toString();
 }
 
 /**

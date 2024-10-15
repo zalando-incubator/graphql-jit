@@ -1,4 +1,4 @@
-import genFn from "generate-function";
+import { genFn } from "./generate";
 import {
   doTypesOverlap,
   type FieldNode,
