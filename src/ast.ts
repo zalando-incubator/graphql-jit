@@ -1,11 +1,9 @@
-import { genFn } from "./generate";
 import {
   type ArgumentNode,
   type ASTNode,
   type DirectiveNode,
   type FieldNode,
   type FragmentDefinitionNode,
-  getLocation,
   type GraphQLArgument,
   GraphQLDirective,
   GraphQLError,
@@ -30,7 +28,9 @@ import {
   Kind,
   type SelectionNode,
   type TypeNode,
-  isAbstractType
+  isAbstractType,
+  Source,
+  Location
 } from "graphql";
 import { type CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution.js";
 import createInspect from "./inspect.js";
@@ -1008,10 +1008,30 @@ function keyMap<T>(
 export function computeLocations(nodes: ASTNode[]): SourceLocation[] {
   return nodes.reduce((list, node) => {
     if (node.loc) {
-      list.push(getLocation(node.loc.source, node.loc.start));
+      list.push(getLocation(node.loc));
     }
     return list;
   }, [] as SourceLocation[]);
+}
+
+/**
+ * This is an alternate faster implementation of getLocation in graphql-js
+ *
+ * Optimization:
+ * In graphql-js, getLocation is implemented as finding line and column
+ * from a given position in the source. Since the use-case in GraphQL-JIT
+ * is to find the location of a node, we can directly use the line and
+ * column from the startToken of the node's location.
+ *
+ * @param loc the Node's location
+ * @returns the SourceLocation for the position
+ */
+function getLocation(loc: Location): SourceLocation {
+  // If the location already contains line and column, return it directly
+  return {
+    line: loc.startToken.line,
+    column: loc.startToken.column
+  };
 }
 
 export function addPath(
