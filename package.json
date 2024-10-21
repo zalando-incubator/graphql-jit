@@ -1,6 +1,6 @@
 {
   "name": "graphql-jit",
-  "version": "0.8.6",
+  "version": "0.8.7",
   "description": "GraphQL JIT Compiler to JS",
   "author": "Rui Araujo",
   "license": "MIT",
