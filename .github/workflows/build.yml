@@ -14,7 +14,7 @@ jobs:
       matrix:
         node-version: [18, 20, 22]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
-        graphql-version: [15, 16, 17.0.0-alpha.5]
+        graphql-version: [15, 16, 17.0.0-alpha.9]
 
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +42,7 @@ jobs:
         run: node ./scripts/match-graphql.js ${{matrix.graphql-version}}
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: yarn install
 
       - name: Format and Lint check
         run: yarn check-tsc && yarn lint && yarn build && yarn check-exports
