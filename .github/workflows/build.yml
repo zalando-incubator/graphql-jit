@@ -42,7 +42,9 @@ jobs:
         run: node ./scripts/match-graphql.js ${{matrix.graphql-version}}
 
       - name: Install dependencies
-        run: yarn install
+        run: |
+          yarn config set enableImmutableInstalls false
+          yarn install
 
       - name: Format and Lint check
         run: yarn check-tsc && yarn lint && yarn build && yarn check-exports
