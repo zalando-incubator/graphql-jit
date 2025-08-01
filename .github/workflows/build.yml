@@ -41,13 +41,8 @@ jobs:
       - name: Use GraphQL v${{matrix.graphql-version}}
         run: node ./scripts/match-graphql.js ${{matrix.graphql-version}}
 
-      - name: Install from network when no cache hit
-        if: steps.yarn-cache.outputs.cache-hit != 'true'
-        run: yarn install --prefer-offline
-
-      - name: Install from cache on cache-hit
-        if: steps.yarn-cache.outputs.cache-hit == 'true'
-        run: yarn install --offline
+      - name: Install dependencies
+        run: yarn install --immutable
 
       - name: Format and Lint check
         run: yarn check-tsc && yarn lint && yarn build && yarn check-exports
