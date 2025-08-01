@@ -1,8 +1,8 @@
-const { writeFileSync } = require('fs');
-const { resolve } = require('path');
-const { argv, cwd } = require('process');
+const { writeFileSync } = require("fs");
+const { resolve } = require("path");
+const { argv, cwd } = require("process");
 
-const pkgPath = resolve(cwd(), './package.json');
+const pkgPath = resolve(cwd(), "./package.json");
 
 const pkg = require(pkgPath);
 
@@ -14,7 +14,7 @@ if (pkg.devDependencies.graphql.startsWith(version)) {
 }
 
 // If it is not stable version, use pinned version
-const npmVersion = version.includes('-') ? version : `^${version}`;
+const npmVersion = version.includes("-") ? version : `^${version}`;
 pkg.devDependencies.graphql = npmVersion;
 
-writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), 'utf8');
+writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), "utf8");
