@@ -66,11 +66,11 @@ describe("Field Availability", () => {
       });
       const result = compiled.query({}, undefined, { skip: true });
 
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        id: true,
-        name: true,
-        email: false
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['id', true],
+        ['name', true],
+        ['email', false]
+      ]));
       expect(resolverInfo!.isFieldRequested("email")).toBe(false);
     });
 
@@ -100,11 +100,11 @@ describe("Field Availability", () => {
       });
       const result = compiled.query({}, undefined, { skip: false });
 
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        id: true,
-        name: true,
-        email: true
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['id', true],
+        ['name', true],
+        ['email', true]
+      ]));
       expect(resolverInfo!.isFieldRequested("email")).toBe(true);
     });
 
@@ -134,11 +134,11 @@ describe("Field Availability", () => {
       });
       const result = compiled.query({}, undefined, { include: true });
 
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        id: true,
-        name: true,
-        email: true
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['id', true],
+        ['name', true],
+        ['email', true]
+      ]));
       expect(resolverInfo!.isFieldRequested("email")).toBe(true);
     });
 
@@ -168,11 +168,11 @@ describe("Field Availability", () => {
       });
       const result = compiled.query({}, undefined, { include: false });
 
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        id: true,
-        name: true,
-        email: false
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['id', true],
+        ['name', true],
+        ['email', false]
+      ]));
       expect(resolverInfo!.isFieldRequested("email")).toBe(false);
     });
   });
@@ -204,7 +204,7 @@ describe("Field Availability", () => {
       });
       const result = compiled.query({}, undefined, {});
 
-      expect(resolverInfo!.fieldAvailability.email).toBe(false);
+      expect(resolverInfo!.fieldAvailability.get('email')).toBe(false);
       expect(resolverInfo!.isFieldRequested("email")).toBe(false);
     });
 
@@ -234,7 +234,7 @@ describe("Field Availability", () => {
       });
       const result = compiled.query({}, undefined, {});
 
-      expect(resolverInfo!.fieldAvailability.email).toBe(true);
+      expect(resolverInfo!.fieldAvailability.get('email')).toBe(true);
       expect(resolverInfo!.isFieldRequested("email")).toBe(true);
     });
 
@@ -264,7 +264,7 @@ describe("Field Availability", () => {
       });
       const result = compiled.query({}, undefined, {});
 
-      expect(resolverInfo!.fieldAvailability.email).toBe(true);
+      expect(resolverInfo!.fieldAvailability.get('email')).toBe(true);
       expect(resolverInfo!.isFieldRequested("email")).toBe(true);
     });
 
@@ -294,7 +294,7 @@ describe("Field Availability", () => {
       });
       const result = compiled.query({}, undefined, {});
 
-      expect(resolverInfo!.fieldAvailability.email).toBe(false);
+      expect(resolverInfo!.fieldAvailability.get('email')).toBe(false);
       expect(resolverInfo!.isFieldRequested("email")).toBe(false);
     });
   });
@@ -328,7 +328,7 @@ describe("Field Availability", () => {
         include: true
       });
 
-      expect(resolverInfo!.fieldAvailability.email).toBe(true);
+      expect(resolverInfo!.fieldAvailability.get('email')).toBe(true);
       expect(resolverInfo!.isFieldRequested("email")).toBe(true);
     });
 
@@ -360,7 +360,7 @@ describe("Field Availability", () => {
         include: true
       });
 
-      expect(resolverInfo!.fieldAvailability.email).toBe(false);
+      expect(resolverInfo!.fieldAvailability.get('email')).toBe(false);
       expect(resolverInfo!.isFieldRequested("email")).toBe(false);
     });
 
@@ -392,7 +392,7 @@ describe("Field Availability", () => {
         include: false
       });
 
-      expect(resolverInfo!.fieldAvailability.email).toBe(false);
+      expect(resolverInfo!.fieldAvailability.get('email')).toBe(false);
       expect(resolverInfo!.isFieldRequested("email")).toBe(false);
     });
 
@@ -424,7 +424,7 @@ describe("Field Availability", () => {
         include: false
       });
 
-      expect(resolverInfo!.fieldAvailability.email).toBe(false);
+      expect(resolverInfo!.fieldAvailability.get('email')).toBe(false);
       expect(resolverInfo!.isFieldRequested("email")).toBe(false);
     });
   });
@@ -471,14 +471,14 @@ describe("Field Availability", () => {
         skipProfile: true
       });
 
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        id: true,
-        name: true,
-        email: false,
-        phone: false,
-        profile: false,
-        bio: false
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['id', true],
+        ['name', true],
+        ['email', false],
+        ['phone', false],
+        ['profile', false],
+        ['bio', false]
+      ]));
     });
 
     test("Nested object fields with directives", () => {
@@ -537,10 +537,10 @@ describe("Field Availability", () => {
       const result = compiled.query({}, undefined, { skipBio: true });
 
       // Check nested profile resolver received correct info
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        bio: false,
-        avatar: true
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['bio', false],
+        ['avatar', true]
+      ]));
       expect(resolverInfo!.isFieldRequested("bio")).toBe(false);
       expect(resolverInfo!.isFieldRequested("avatar")).toBe(true);
     });
@@ -575,11 +575,11 @@ describe("Field Availability", () => {
       });
       const result = compiled.query({}, undefined, { skip: true });
 
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        id: true,
-        fullName: true,
-        userEmail: false
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['id', true],
+        ['fullName', true],
+        ['userEmail', false]
+      ]));
       expect(resolverInfo!.isFieldRequested("userEmail")).toBe(false);
       expect(resolverInfo!.isFieldRequested("fullName")).toBe(true);
     });
@@ -641,10 +641,10 @@ describe("Field Availability", () => {
       });
       const result = compiled.query({}, undefined, { skipContent: true });
 
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        title: true,
-        content: false
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['title', true],
+        ['content', false]
+      ]));
       expect(resolverInfo!.isFieldRequested("content")).toBe(false);
     });
   });
@@ -711,10 +711,10 @@ describe("Field Availability", () => {
       });
       const result = compiled.query({}, undefined, {});
 
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        id: true,
-        name: true
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['id', true],
+        ['name', true]
+      ]));
     });
 
     test("Fragment spread with @include on spread (variable-controlled)", () => {
@@ -747,18 +747,18 @@ describe("Field Availability", () => {
       });
 
       compiled.query({}, undefined, { withContact: true });
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        id: true,
-        email: true,
-        phone: true
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['id', true],
+        ['email', true],
+        ['phone', true]
+      ]));
 
       compiled.query({}, undefined, { withContact: false });
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        id: true,
-        email: false,
-        phone: false
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['id', true],
+        ['email', false],
+        ['phone', false]
+      ]));
     });
 
     test("Directives inside fragment fields (variable-controlled)", () => {
@@ -791,18 +791,18 @@ describe("Field Availability", () => {
       });
 
       compiled.query({}, undefined, { skipEmail: true });
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        id: true,
-        email: false,
-        phone: true
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['id', true],
+        ['email', false],
+        ['phone', true]
+      ]));
 
       compiled.query({}, undefined, { skipEmail: false });
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        id: true,
-        email: true,
-        phone: true
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['id', true],
+        ['email', true],
+        ['phone', true]
+      ]));
     });
 
     test("Merging overlapping fields from multiple fragments (OR semantics)", () => {
@@ -833,13 +833,13 @@ describe("Field Availability", () => {
       });
 
       compiled.query({}, undefined, { incA: false, incB: true });
-      expect(resolverInfo!.fieldAvailability).toEqual({ email: true });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([['email', true]]));
 
       compiled.query({}, undefined, { incA: true, incB: false });
-      expect(resolverInfo!.fieldAvailability).toEqual({ email: true });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([['email', true]]));
 
       compiled.query({}, undefined, { incA: false, incB: false });
-      expect(resolverInfo!.fieldAvailability).toEqual({ email: false });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([['email', false]]));
     });
 
     test("Inline fragment (unconditional)", () => {
@@ -869,10 +869,10 @@ describe("Field Availability", () => {
       });
       compiled.query({}, undefined, {});
 
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        name: true,
-        email: true
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['name', true],
+        ['email', true]
+      ]));
     });
 
     test("Inline fragment with directive on fragment (skip entire block)", () => {
@@ -974,10 +974,10 @@ describe("Field Availability", () => {
       });
 
       // Nested resolver sees its own selection set availability
-      expect(profileInfo!.fieldAvailability).toEqual({
-        bio: true,
-        avatar: true
-      });
+      expect(profileInfo!.fieldAvailability).toEqual(new Map([
+        ['bio', true],
+        ['avatar', true]
+      ]));
     });
 
     test("Alias fields inside named fragment", () => {
@@ -1008,10 +1008,10 @@ describe("Field Availability", () => {
       });
       compiled.query({}, undefined, {});
 
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        fullName: true,
-        userEmail: true
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['fullName', true],
+        ['userEmail', true]
+      ]));
       expect(resolverInfo!.isFieldRequested("fullName")).toBe(true);
       expect(resolverInfo!.isFieldRequested("userEmail")).toBe(true);
     });
@@ -1046,10 +1046,10 @@ describe("Field Availability", () => {
       });
 
       compiled.query({}, undefined, { show: true });
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        id: true,
-        name: true
-      });
+      expect(resolverInfo!.fieldAvailability).toEqual(new Map([
+        ['id', true],
+        ['name', true]
+      ]));
 
       compiled.query({}, undefined, { show: false });
       expect(resolverInfo!.fieldAvailability).toEqual({
@@ -1153,16 +1153,16 @@ describe("Field Availability", () => {
       });
 
       compiled.query({}, undefined, { skipContent: true });
-      expect(postsInfo!.fieldAvailability).toEqual({
-        title: true,
-        content: false
-      });
+      expect(postsInfo!.fieldAvailability).toEqual(new Map([
+        ['title', true],
+        ['content', false]
+      ]));
 
       compiled.query({}, undefined, { skipContent: false });
-      expect(postsInfo!.fieldAvailability).toEqual({
-        title: true,
-        content: true
-      });
+      expect(postsInfo!.fieldAvailability).toEqual(new Map([
+        ['title', true],
+        ['content', true]
+      ]));
     });
 
     test("Multiple spreads with overlapping fields and aliases merge correctly", () => {

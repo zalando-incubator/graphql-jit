@@ -7,9 +7,7 @@ import {
 import { type JitFieldNode } from "./ast";
 
 // Simple map: field name -> true/false (should we include this field?)
-export interface FieldAvailability {
-  [fieldName: string]: boolean;
-}
+export type FieldAvailability = Map<string, boolean>;
 
 // Enhanced resolve info with field availability helpers
 export interface GraphQLJitResolveInfoWithAvailability
@@ -94,7 +92,7 @@ export function createFieldAvailability(
   fieldNodes: JitFieldNode[],
   variables: Record<string, any>
 ): FieldAvailability {
-  const fieldMap: FieldAvailability = {};
+  const fieldMap: FieldAvailability = new Map();
 
   // Helper function to collect all fields from selections
   function collectFields(
@@ -122,10 +120,10 @@ export function createFieldAvailability(
         );
 
         // Mark field as included if it should be (or if already marked)
-        if (fieldMap[fieldName] === undefined) {
-          fieldMap[fieldName] = shouldInclude; // First time seeing this field
+        if (!fieldMap.has(fieldName)) {
+          fieldMap.set(fieldName, shouldInclude); // First time seeing this field
         } else {
-          fieldMap[fieldName] = fieldMap[fieldName] || shouldInclude; // Combine with existing
+          fieldMap.set(fieldName, fieldMap.get(fieldName)! || shouldInclude); // Combine with existing
         }
       } else if (selection.kind === Kind.FRAGMENT_SPREAD) {
         // Fragment spreads are not supported yet - skip them

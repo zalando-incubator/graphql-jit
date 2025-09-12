@@ -121,8 +121,9 @@ export function createResolveInfoThunk<T>(
     const fieldAvailabilityCode = generateFieldAvailabilityCode(fieldNodes);
 
     gen(`return function getGraphQLResolveInfo(rootValue, variableValues, path) {
-        const fieldAvailability = ${fieldAvailabilityCode};
-        const isFieldRequested = (fieldName) => fieldAvailability.hasOwnProperty(fieldName) && fieldAvailability[fieldName] !== false;
+        const fieldAvailabilityObj = ${fieldAvailabilityCode};
+        const fieldAvailability = new Map(Object.entries(fieldAvailabilityObj));
+        const isFieldRequested = (fieldName) => fieldAvailability.has(fieldName) && fieldAvailability.get(fieldName) !== false;
 
         return {
             fieldName,
