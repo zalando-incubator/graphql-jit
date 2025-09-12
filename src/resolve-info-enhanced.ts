@@ -89,28 +89,26 @@ function runCondition(
 /* eslint-enable no-new-func */
 
 // Create a map of which fields should be included
-// NOTE: Fragment are not sypported yet
+// NOTE: Fragment are not supported yet
+// Only processes immediate children to ensure parent-child separation
 export function createFieldAvailability(
   fieldNodes: JitFieldNode[],
   variables: Record<string, any>
 ): FieldAvailability {
   const fieldMap: FieldAvailability = new Map();
 
-  // Helper function to collect all fields from selections
-  function collectFields(
+  function collectImmediateFields(
     selections: readonly JitFieldNode[],
     shouldIncludeParent: boolean,
     currentPath: string = ""
   ) {
-    // If parent is excluded, skip everything inside
     if (!shouldIncludeParent) {
       return;
     }
 
     for (const selection of selections) {
       if (selection.kind === Kind.FIELD) {
-        // Handle regular fields
-        const fieldName = selection.alias?.value || selection.name.value;
+        const fieldName = selection.name.value;
         const fieldPath = currentPath
           ? `${currentPath}.${fieldName}`
           : fieldName;
@@ -129,11 +127,9 @@ export function createFieldAvailability(
         }
       } else if (selection.kind === Kind.FRAGMENT_SPREAD) {
         // Fragment spreads are not supported yet - skip them
-
         continue;
       } else if (selection.kind === Kind.INLINE_FRAGMENT) {
         // Inline fragments are not supported yet - skip them
-
         continue;
       }
     }
@@ -143,7 +139,7 @@ export function createFieldAvailability(
   for (const fieldNode of fieldNodes) {
     if (fieldNode.selectionSet) {
       const initialPath = fieldNode.name.value;
-      collectFields(
+      collectImmediateFields(
         fieldNode.selectionSet.selections as readonly JitFieldNode[],
         true,
         initialPath
@@ -156,16 +152,17 @@ export function createFieldAvailability(
 
 // Generate JavaScript code that checks which fields should be included
 // Returns a string like: `{"field1": true, "field2": someCondition}`
+// Only processes immediate children to ensure parent-child separation
 export function generateFieldAvailabilityCode(
   fieldNodes: JitFieldNode[] | FieldNode[]
 ): string {
   const fieldChecks: string[] = [];
 
-  // Process each field node
   for (const fieldNode of fieldNodes) {
     if (fieldNode.selectionSet) {
       const initialPath = fieldNode.name.value;
-      collectFieldChecks(
+      // Only collect immediate children, not nested descendants
+      collectImmediateFieldChecks(
         fieldNode.selectionSet.selections as readonly JitFieldNode[],
         fieldChecks,
         initialPath
@@ -176,15 +173,17 @@ export function generateFieldAvailabilityCode(
   return `{${fieldChecks.join(", ")}}`;
 }
 
-// Walk through all selections and collect field availability checks
-function collectFieldChecks(
+// Walk through immediate selections only (no recursive traversal)
+// This ensures each resolver only sees fields directly requested from its type
+function collectImmediateFieldChecks(
   selections: readonly (JitFieldNode | SelectionNode)[],
   fieldChecks: string[],
   currentPath: string = ""
 ) {
   for (const selection of selections) {
     if (selection.kind === Kind.FIELD) {
-      const fieldName = selection.alias?.value || selection.name.value;
+      // Use the actual field name, not the alias
+      const fieldName = selection.name.value;
       const jitSelection = selection as JitFieldNode;
 
       // Start with "always include"
@@ -199,22 +198,9 @@ function collectFieldChecks(
         condition = buildConditionFromDirectives(selection);
       }
 
-      // Add this field check to our list
+      // Add this field check to our list using the real field name
       fieldChecks.push(`"${fieldName}": ${condition}`);
-
-      // Handle nested fields
-      if (selection.selectionSet) {
-        const nestedPath = currentPath
-          ? `${currentPath}.${fieldName}`
-          : fieldName;
-        collectFieldChecks(
-          selection.selectionSet.selections,
-          fieldChecks,
-          nestedPath
-        );
-      }
     }
-    // Note: Fragments are not supported yet - they should be expanded before calling this
   }
 }
 

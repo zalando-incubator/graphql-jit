@@ -123,7 +123,21 @@ export function createResolveInfoThunk<T>(
     gen(`return function getGraphQLResolveInfo(rootValue, variableValues, path) {
         const fieldAvailabilityObj = ${fieldAvailabilityCode};
         const fieldAvailability = new Map(Object.entries(fieldAvailabilityObj));
-        const isFieldRequested = (fieldName) => fieldAvailability.has(fieldName) && fieldAvailability.get(fieldName) !== false;
+        const isFieldRequested = (fieldName) => {
+          // If field availability data exists for this field, use it
+          if (fieldAvailability.has(fieldName)) {
+            return fieldAvailability.get(fieldName) !== false;
+          }
+          // If no field availability data exists at all (e.g., fragments not supported), default to true
+          // But if we have some field availability data, then fields not in the map are not requested
+          if (fieldAvailability.size === 0) {
+            // No field availability data at all - fallback to true (for fragments)
+            return true;
+          } else {
+            // We have field availability data, so fields not in the map are not requested
+            return false;
+          }
+        };
 
         return {
             fieldName,
