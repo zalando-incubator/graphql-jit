@@ -74,6 +74,7 @@ function getSkipIncludeConditions(
 }
 
 // Run a single condition and return true/false
+/* eslint-disable no-new-func */
 function runCondition(
   condition: string,
   variables: Record<string, any>
@@ -85,6 +86,7 @@ function runCondition(
     return true; // Safety: include field if condition fails to evaluate
   }
 }
+/* eslint-enable no-new-func */
 
 // Create a map of which fields should be included
 // NOTE: Fragment are not sypported yet
