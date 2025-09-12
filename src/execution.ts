@@ -95,7 +95,7 @@ export interface CompilerOptions {
    * and isFieldRequested is a helper function to check if a field is requested
    * default: false
    * this enables more efficient lookaheads in resolvers
-   // Note: Fragment support is limited in initial implementation
+   * Fragments are not supported yet
    */
   enableFieldAvailability?: boolean;
 
