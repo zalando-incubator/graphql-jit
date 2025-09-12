@@ -615,4 +615,133 @@ describe("Field Availability Unit Tests", () => {
       expect(result).toContain('"email": true');
     });
   });
+
+  test("testing dead code path", () => {
+    const mockFieldNodes: JitFieldNode[] = [
+      {
+        kind: Kind.FIELD,
+        name: { kind: Kind.NAME, value: "user" },
+        selectionSet: {
+          kind: Kind.SELECTION_SET,
+          selections: [] // Empty selections
+        }
+      } as JitFieldNode
+    ];
+
+    const result = createFieldAvailability(mockFieldNodes, {});
+    expect(result.size).toBe(0);
+
+    // Test with undefined selectionSet
+    const mockFieldNodes2: JitFieldNode[] = [
+      {
+        kind: Kind.FIELD,
+        name: { kind: Kind.NAME, value: "user" },
+        selectionSet: undefined
+      } as JitFieldNode
+    ];
+
+    const result2 = createFieldAvailability(mockFieldNodes2, {});
+    expect(result2.size).toBe(0);
+  });
+
+  test("exact currentPath match in buildConditionFromPath", () => {
+    const mockFieldNodes: JitFieldNode[] = [
+      {
+        kind: Kind.FIELD,
+        name: { kind: Kind.NAME, value: "user" },
+        selectionSet: {
+          kind: Kind.SELECTION_SET,
+          selections: [
+            {
+              kind: Kind.FIELD,
+              name: { kind: Kind.NAME, value: "email" },
+              __internalShouldIncludePath: {
+                user: ['variableValues["includeEmail"] === true'], // Key matches currentPath "user"
+                "fallback.path": ['variableValues["fallback"] === true']
+              }
+            } as JitFieldNode
+          ]
+        }
+      } as JitFieldNode
+    ];
+
+    const result = generateFieldAvailabilityCode(mockFieldNodes);
+    expect(result).toContain('variableValues["includeEmail"] === true');
+    expect(result).not.toContain('variableValues["fallback"] === true');
+  });
+
+  test("buildConditionFromOldPath", () => {
+    const mockFieldNodes: JitFieldNode[] = [
+      {
+        kind: Kind.FIELD,
+        name: { kind: Kind.NAME, value: "user" },
+        selectionSet: {
+          kind: Kind.SELECTION_SET,
+          selections: [
+            {
+              kind: Kind.FIELD,
+              name: { kind: Kind.NAME, value: "email" },
+              __internalShouldInclude: [
+                'variableValues["includeEmail"] === true'
+              ]
+            } as JitFieldNode
+          ]
+        }
+      } as JitFieldNode
+    ];
+
+    const result = generateFieldAvailabilityCode(mockFieldNodes);
+    expect(result).toContain('variableValues["includeEmail"] === true');
+  });
+
+  test("empty expressions in combineExpressions", () => {
+    const mockFieldNodes: JitFieldNode[] = [
+      {
+        kind: Kind.FIELD,
+        name: { kind: Kind.NAME, value: "user" },
+        selectionSet: {
+          kind: Kind.SELECTION_SET,
+          selections: [
+            {
+              kind: Kind.FIELD,
+              name: { kind: Kind.NAME, value: "email" },
+              __internalShouldInclude: []
+            } as JitFieldNode
+          ]
+        }
+      } as JitFieldNode
+    ];
+
+    const result = generateFieldAvailabilityCode(mockFieldNodes);
+    expect(result).toContain('"email": true'); // Should default to true
+  });
+
+  test("directives present but no conditions added", () => {
+    // This happens when directives exist but aren't skip/include or have unexpected structure
+    const mockFieldNodes: JitFieldNode[] = [
+      {
+        kind: Kind.FIELD,
+        name: { kind: Kind.NAME, value: "user" },
+        selectionSet: {
+          kind: Kind.SELECTION_SET,
+          selections: [
+            {
+              kind: Kind.FIELD,
+              name: { kind: Kind.NAME, value: "email" },
+              directives: [
+                {
+                  kind: Kind.DIRECTIVE,
+                  name: { kind: Kind.NAME, value: "deprecated" }, // Not skip/include
+                  arguments: []
+                }
+              ] // Has directives but they won't add conditions
+            } as JitFieldNode
+          ]
+        }
+      } as JitFieldNode
+    ];
+
+    const result = generateFieldAvailabilityCode(mockFieldNodes);
+    expect(result).toContain('"email": true'); // Should default to true when no conditions added
+  });
 });
