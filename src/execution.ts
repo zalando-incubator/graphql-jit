@@ -87,9 +87,16 @@ export interface CompilerOptions {
 
   resolverInfoEnricher?: (inp: ResolveInfoEnricherInput) => object;
 
-  // EXPERIMENTAL: Enable field availability tracking for @skip/@include directives
-  // Adds fieldAvailability and isFieldRequested to GraphQLResolveInfo
-  // Note: Fragment support is limited in initial implementation
+  /**
+   * @experimental
+   * adds fieldAvailability and isFieldRequested attributes to GraphQLResolveInfo
+   * where fieldAvailability is a map of field names to boolean indicating
+   * if the field is requested (not skipped) in the query with the respect of runtime variables for @skip / @include directives
+   * and isFieldRequested is a helper function to check if a field is requested
+   * default: false
+   * this enables more efficient lookaheads in resolvers
+   // Note: Fragment support is limited in initial implementation
+   */
   enableFieldAvailability?: boolean;
 
   /**
