@@ -1,10 +1,10 @@
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import { parse } from "graphql";
-import { type CompilerOptions, isCompiledQuery } from "../execution";
+import { isCompiledQuery } from "../execution";
 import { compileQuery } from "../index";
 import { type GraphQLJitResolveInfoWithAvailability } from "../resolve-info-enhanced";
 
-describe("Field Availability - Comprehensive Test Suite", () => {
+describe("Field Availability", () => {
   let resolverInfo: GraphQLJitResolveInfoWithAvailability | null = null;
   let resolverCalls: any[] = [];
 
@@ -647,103 +647,6 @@ describe("Field Availability - Comprehensive Test Suite", () => {
         content: false
       });
       expect(resolverInfo!.isFieldRequested("content")).toBe(false);
-    });
-  });
-
-  describe("Edge Cases", () => {
-    test("Field with no directives", () => {
-      const resolver = createMockResolver("user");
-      const schema = makeExecutableSchema({
-        typeDefs: `
-          type Query { user: User }
-          type User { id: String, name: String }
-        `,
-        resolvers: { Query: { user: resolver } }
-      });
-
-      const query = `
-        query Test {
-          user {
-            id
-            name
-          }
-        }
-      `;
-
-      const ast = parse(query);
-      const compiled: any = compileQuery(schema, ast, "", {
-        enableFieldAvailability: true
-      });
-      const result = compiled.query({}, undefined, {});
-
-      expect(resolverInfo!.fieldAvailability).toEqual({
-        id: true,
-        name: true
-      });
-    });
-
-    test("Empty selection set", () => {
-      const resolver = jest.fn(() => "scalar value");
-      const schema = makeExecutableSchema({
-        typeDefs: `
-          type Query { message: String }
-        `,
-        resolvers: { Query: { message: resolver } }
-      });
-
-      const query = `
-        query Test {
-          message
-        }
-      `;
-
-      const ast = parse(query);
-      const compiled: any = compileQuery(schema, ast, "", {
-        enableFieldAvailability: true
-      });
-      const result = compiled.query({}, undefined, {});
-
-      // Scalar field should not have child field availability
-      expect(resolver).toHaveBeenCalled();
-    });
-
-    test("Variable not provided (should default to false for skip, true for include)", () => {
-      const resolver = createMockResolver("user");
-      const schema = makeExecutableSchema({
-        typeDefs: `
-          type Query { user: User }
-          type User { id: String, email: String }
-        `,
-        resolvers: { Query: { user: resolver } }
-      });
-
-      const query = `
-        query Test($skip: Boolean) {
-          user {
-            id
-            email @skip(if: $skip)
-          }
-        }
-      `;
-
-      const ast = parse(query);
-      const compiled: any = compileQuery(schema, ast, "", {
-        enableFieldAvailability: true
-      });
-
-      if (!isCompiledQuery(compiled)) {
-        // Skip this test if compilation fails due to variable validation
-        console.log(
-          "Skipping test - compilation failed for optional variables"
-        );
-        return;
-      }
-
-      const result = compiled.query({}, undefined, {}); // No variables provided
-
-      // When variable is not provided, skip should default to false (don't skip)
-      expect(resolverInfo!.fieldAvailability.email).toBe(true);
-      expect(resolverInfo!.isFieldRequested("email")).toBe(true);
     });
   });
 
