@@ -14,3 +14,8 @@ export {
   isLeafField,
   type ResolveInfoEnricherInput
 } from "./resolve-info.js";
+
+export {
+  type FieldAvailability,
+  type GraphQLJitResolveInfoWithAvailability
+} from "./resolve-info-enhanced.js";

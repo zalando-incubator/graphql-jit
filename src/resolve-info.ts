@@ -22,6 +22,7 @@ import {
 import memoize from "lodash.memoize";
 import mergeWith from "lodash.mergewith";
 import { memoize2, memoize4 } from "./memoize.js";
+import { generateFieldAvailabilityCode } from "./resolve-info-enhanced";
 
 // TODO(boopathi): Use negated types to express
 // Enrichments<T> = { [key in (string & not keyof GraphQLResolveInfo)]: T[key] }
@@ -94,7 +95,8 @@ export function createResolveInfoThunk<T>(
     fieldName: string;
     fieldNodes: FieldNode[];
   },
-  enricher?: (inp: ResolveInfoEnricherInput) => T
+  enricher?: (inp: ResolveInfoEnricherInput) => T,
+  enableFieldAvailability?: boolean
 ) {
   let enrichedInfo = {};
   if (typeof enricher === "function") {
@@ -113,18 +115,43 @@ export function createResolveInfoThunk<T>(
     }
   }
   const gen = genFn();
-  gen(`return function getGraphQLResolveInfo(rootValue, variableValues, path) {
-      return {
-          fieldName,
-          fieldNodes,
-          returnType: fieldType,
-          parentType,
-          path,
-          schema,
-          fragments,
-          rootValue,
-          operation,
-          variableValues,`);
+
+  // Generate field availability code only if feature flag is enabled
+  if (enableFieldAvailability) {
+    const fieldAvailabilityCode = generateFieldAvailabilityCode(fieldNodes);
+
+    gen(`return function getGraphQLResolveInfo(rootValue, variableValues, path) {
+        const fieldAvailability = ${fieldAvailabilityCode};
+        const isFieldRequested = (fieldName) => fieldAvailability.hasOwnProperty(fieldName) && fieldAvailability[fieldName] !== false;
+
+        return {
+            fieldName,
+            fieldNodes,
+            returnType: fieldType,
+            parentType,
+            path,
+            schema,
+            fragments,
+            rootValue,
+            operation,
+            variableValues,
+            fieldAvailability,
+            isFieldRequested,`);
+  } else {
+    // Standard GraphQL resolve info without field availability
+    gen(`return function getGraphQLResolveInfo(rootValue, variableValues, path) {
+        return {
+            fieldName,
+            fieldNodes,
+            returnType: fieldType,
+            parentType,
+            path,
+            schema,
+            fragments,
+            rootValue,
+            operation,
+            variableValues,`);
+  }
   Object.keys(enrichedInfo).forEach((key) => {
     gen(`${key}: enrichedInfo["${key}"],\n`);
   });
@@ -139,6 +166,7 @@ export function createResolveInfoThunk<T>(
     "fragments",
     "operation",
     "enrichedInfo",
+    "GLOBAL_VARIABLES_NAME",
     gen.toString()
   ).call(
     null,
@@ -149,7 +177,8 @@ export function createResolveInfoThunk<T>(
     schema,
     fragments,
     operation,
-    enrichedInfo
+    enrichedInfo,
+    "variableValues"
   );
 }
 

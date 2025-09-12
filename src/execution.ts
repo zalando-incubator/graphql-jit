@@ -87,6 +87,11 @@ export interface CompilerOptions {
 
   resolverInfoEnricher?: (inp: ResolveInfoEnricherInput) => object;
 
+  // EXPERIMENTAL: Enable field availability tracking for @skip/@include directives
+  // Adds fieldAvailability and isFieldRequested to GraphQLResolveInfo
+  // Note: Fragment support is limited in initial implementation
+  enableFieldAvailability?: boolean;
+
   /**
    * This option is a temporary workaround to rollout and test the new skip/include behavior.
    * It will be removed in the next version along with the old behavior.
@@ -1279,7 +1284,8 @@ function getExecutionInfo(
       fieldType,
       fieldNodes
     },
-    context.options.resolverInfoEnricher
+    context.options.resolverInfoEnricher,
+    context.options.enableFieldAvailability
   );
   return `${GLOBAL_EXECUTION_CONTEXT}.resolveInfos.${resolveInfoName}(${GLOBAL_ROOT_NAME}, ${GLOBAL_VARIABLES_NAME}, ${serializeResponsePath(
     responsePath
