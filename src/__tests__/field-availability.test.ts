@@ -24,7 +24,6 @@ describe("Field Availability", () => {
         resolverCalls.push({ name, parent, args, context });
         resolverInfo = info;
 
-        // Return mock data based on what's requested
         const result: any = { id: `${name}-123` };
 
         if (info.isFieldRequested("name")) result.name = `${name} Name`;
