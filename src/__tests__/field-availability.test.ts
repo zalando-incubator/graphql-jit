@@ -64,16 +64,16 @@ describe("Field Availability", () => {
       const compiled: any = compileQuery(schema, ast, "", {
         enableFieldAvailability: true
       });
-      const result = compiled.query({}, undefined, { skip: true });
+      compiled.query({}, undefined, { skip: true });
 
-      expect(resolverInfo!.fieldAvailability).toEqual(
+      expect(resolverInfo?.fieldAvailability).toEqual(
         new Map([
           ["id", true],
           ["name", true],
           ["email", false]
         ])
       );
-      expect(resolverInfo!.isFieldRequested("email")).toBe(false);
+      expect(resolverInfo?.isFieldRequested("email")).toBe(false);
     });
 
     test("@skip with variable - false", () => {
@@ -100,16 +100,16 @@ describe("Field Availability", () => {
       const compiled: any = compileQuery(schema, ast, "", {
         enableFieldAvailability: true
       });
-      const result = compiled.query({}, undefined, { skip: false });
+      compiled.query({}, undefined, { skip: false });
 
-      expect(resolverInfo!.fieldAvailability).toEqual(
+      expect(resolverInfo?.fieldAvailability).toEqual(
         new Map([
           ["id", true],
           ["name", true],
           ["email", true]
         ])
       );
-      expect(resolverInfo!.isFieldRequested("email")).toBe(true);
+      expect(resolverInfo?.isFieldRequested("email")).toBe(true);
     });
 
     test("@include with variable - true", () => {
@@ -136,16 +136,16 @@ describe("Field Availability", () => {
       const compiled: any = compileQuery(schema, ast, "", {
         enableFieldAvailability: true
       });
-      const result = compiled.query({}, undefined, { include: true });
+      compiled.query({}, undefined, { include: true });
 
-      expect(resolverInfo!.fieldAvailability).toEqual(
+      expect(resolverInfo?.fieldAvailability).toEqual(
         new Map([
           ["id", true],
           ["name", true],
           ["email", true]
         ])
       );
-      expect(resolverInfo!.isFieldRequested("email")).toBe(true);
+      expect(resolverInfo?.isFieldRequested("email")).toBe(true);
     });
 
     test("@include with variable - false", () => {
@@ -172,16 +172,16 @@ describe("Field Availability", () => {
       const compiled: any = compileQuery(schema, ast, "", {
         enableFieldAvailability: true
       });
-      const result = compiled.query({}, undefined, { include: false });
+      compiled.query({}, undefined, { include: false });
 
-      expect(resolverInfo!.fieldAvailability).toEqual(
+      expect(resolverInfo?.fieldAvailability).toEqual(
         new Map([
           ["id", true],
           ["name", true],
           ["email", false]
         ])
       );
-      expect(resolverInfo!.isFieldRequested("email")).toBe(false);
+      expect(resolverInfo?.isFieldRequested("email")).toBe(false);
     });
   });
 
@@ -331,13 +331,13 @@ describe("Field Availability", () => {
       const compiled: any = compileQuery(schema, ast, "", {
         enableFieldAvailability: true
       });
-      const result = compiled.query({}, undefined, {
+      compiled.query({}, undefined, {
         skip: false,
         include: true
       });
 
-      expect(resolverInfo!.fieldAvailability.get("email")).toBe(true);
-      expect(resolverInfo!.isFieldRequested("email")).toBe(true);
+      expect(resolverInfo?.fieldAvailability.get("email")).toBe(true);
+      expect(resolverInfo?.isFieldRequested("email")).toBe(true);
     });
 
     test("@skip(true) @include(true) - field should be skipped", () => {
@@ -363,13 +363,13 @@ describe("Field Availability", () => {
       const compiled: any = compileQuery(schema, ast, "", {
         enableFieldAvailability: true
       });
-      const result = compiled.query({}, undefined, {
+      compiled.query({}, undefined, {
         skip: true,
         include: true
       });
 
-      expect(resolverInfo!.fieldAvailability.get("email")).toBe(false);
-      expect(resolverInfo!.isFieldRequested("email")).toBe(false);
+      expect(resolverInfo?.fieldAvailability.get("email")).toBe(false);
+      expect(resolverInfo?.isFieldRequested("email")).toBe(false);
     });
 
     test("@skip(false) @include(false) - field should be excluded", () => {
@@ -395,13 +395,13 @@ describe("Field Availability", () => {
       const compiled: any = compileQuery(schema, ast, "", {
         enableFieldAvailability: true
       });
-      const result = compiled.query({}, undefined, {
+      compiled.query({}, undefined, {
         skip: false,
         include: false
       });
 
-      expect(resolverInfo!.fieldAvailability.get("email")).toBe(false);
-      expect(resolverInfo!.isFieldRequested("email")).toBe(false);
+      expect(resolverInfo?.fieldAvailability.get("email")).toBe(false);
+      expect(resolverInfo?.isFieldRequested("email")).toBe(false);
     });
 
     test("@skip(true) @include(false) - field should be skipped", () => {
@@ -427,13 +427,13 @@ describe("Field Availability", () => {
       const compiled: any = compileQuery(schema, ast, "", {
         enableFieldAvailability: true
       });
-      const result = compiled.query({}, undefined, {
+      compiled.query({}, undefined, {
         skip: true,
         include: false
       });
 
-      expect(resolverInfo!.fieldAvailability.get("email")).toBe(false);
-      expect(resolverInfo!.isFieldRequested("email")).toBe(false);
+      expect(resolverInfo?.fieldAvailability.get("email")).toBe(false);
+      expect(resolverInfo?.isFieldRequested("email")).toBe(false);
     });
   });
 
@@ -473,13 +473,13 @@ describe("Field Availability", () => {
       const compiled: any = compileQuery(schema, ast, "", {
         enableFieldAvailability: true
       });
-      const result = compiled.query({}, undefined, {
+      compiled.query({}, undefined, {
         skipEmail: true,
         includePhone: false,
         skipProfile: true
       });
 
-      expect(resolverInfo!.fieldAvailability).toEqual(
+      expect(resolverInfo?.fieldAvailability).toEqual(
         new Map([
           ["id", true],
           ["name", true],
@@ -543,17 +543,17 @@ describe("Field Availability", () => {
       const compiled: any = compileQuery(schema, ast, "", {
         enableFieldAvailability: true
       });
-      const result = compiled.query({}, undefined, { skipBio: true });
+      compiled.query({}, undefined, { skipBio: true });
 
       // Check nested profile resolver received correct info
-      expect(resolverInfo!.fieldAvailability).toEqual(
+      expect(resolverInfo?.fieldAvailability).toEqual(
         new Map([
           ["bio", false],
           ["avatar", true]
         ])
       );
-      expect(resolverInfo!.isFieldRequested("bio")).toBe(false);
-      expect(resolverInfo!.isFieldRequested("avatar")).toBe(true);
+      expect(resolverInfo?.isFieldRequested("bio")).toBe(false);
+      expect(resolverInfo?.isFieldRequested("avatar")).toBe(true);
     });
 
     test("Field aliases with directives", () => {
@@ -584,17 +584,17 @@ describe("Field Availability", () => {
       const compiled: any = compileQuery(schema, ast, "", {
         enableFieldAvailability: true
       });
-      const result = compiled.query({}, undefined, { skip: true });
+      compiled.query({}, undefined, { skip: true });
 
-      expect(resolverInfo!.fieldAvailability).toEqual(
+      expect(resolverInfo?.fieldAvailability).toEqual(
         new Map([
           ["id", true],
           ["name", true], // real field name, not alias "fullName"
           ["email", false] // real field name, not alias "userEmail"
         ])
       );
-      expect(resolverInfo!.isFieldRequested("email")).toBe(false); // check real field name
-      expect(resolverInfo!.isFieldRequested("name")).toBe(true); // check real field name
+      expect(resolverInfo?.isFieldRequested("email")).toBe(false); // check real field name
+      expect(resolverInfo?.isFieldRequested("name")).toBe(true); // check real field name
     });
 
     test("List fields with directives", () => {
@@ -652,15 +652,15 @@ describe("Field Availability", () => {
       const compiled: any = compileQuery(schema, ast, "", {
         enableFieldAvailability: true
       });
-      const result = compiled.query({}, undefined, { skipContent: true });
+      compiled.query({}, undefined, { skipContent: true });
 
-      expect(resolverInfo!.fieldAvailability).toEqual(
+      expect(resolverInfo?.fieldAvailability).toEqual(
         new Map([
           ["title", true],
           ["content", false]
         ])
       );
-      expect(resolverInfo!.isFieldRequested("content")).toBe(false);
+      expect(resolverInfo?.isFieldRequested("content")).toBe(false);
     });
   });
 
@@ -898,30 +898,30 @@ describe("Field Availability", () => {
       });
 
       // Check user resolver field availability - includes all fields from the query
-      expect(userResolverInfo!.fieldAvailability.get("id")).toBe(true);
-      expect(userResolverInfo!.fieldAvailability.get("username")).toBe(true);
-      expect(userResolverInfo!.fieldAvailability.get("email")).toBe(true);
-      expect(userResolverInfo!.fieldAvailability.get("profile")).toBe(true);
-      expect(userResolverInfo!.fieldAvailability.get("settings")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("id")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("username")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("email")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("profile")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("settings")).toBe(true);
 
       // Check profile resolver field availability - only sees immediate children of Profile type
-      expect(profileResolverInfo!.fieldAvailability.get("firstName")).toBe(
+      expect(profileResolverInfo?.fieldAvailability.get("firstName")).toBe(
         true
       );
-      expect(profileResolverInfo!.fieldAvailability.get("lastName")).toBe(true);
-      expect(profileResolverInfo!.fieldAvailability.get("avatar")).toBe(true);
-      expect(profileResolverInfo!.fieldAvailability.get("bio")).toBe(false); // skipped when showPrivateInfo is true
-      expect(profileResolverInfo!.fieldAvailability.get("location")).toBe(true); // included when showPrivateInfo is true
-      expect(profileResolverInfo!.fieldAvailability.get("website")).toBe(true);
+      expect(profileResolverInfo?.fieldAvailability.get("lastName")).toBe(true);
+      expect(profileResolverInfo?.fieldAvailability.get("avatar")).toBe(true);
+      expect(profileResolverInfo?.fieldAvailability.get("bio")).toBe(false); // skipped when showPrivateInfo is true
+      expect(profileResolverInfo?.fieldAvailability.get("location")).toBe(true); // included when showPrivateInfo is true
+      expect(profileResolverInfo?.fieldAvailability.get("website")).toBe(true);
 
       // Check privacy resolver field availability - only sees immediate children of PrivacySettings type
       expect(
-        privacyResolverInfo!.fieldAvailability.get("profileVisibility")
+        privacyResolverInfo?.fieldAvailability.get("profileVisibility")
       ).toBe(true);
-      expect(privacyResolverInfo!.fieldAvailability.get("showEmail")).toBe(
+      expect(privacyResolverInfo?.fieldAvailability.get("showEmail")).toBe(
         true
       );
-      expect(privacyResolverInfo!.fieldAvailability.get("showLocation")).toBe(
+      expect(privacyResolverInfo?.fieldAvailability.get("showLocation")).toBe(
         true
       );
 
@@ -931,11 +931,11 @@ describe("Field Availability", () => {
         showPrivateInfo: true
       });
 
-      expect(userResolverInfo!.fieldAvailability.get("id")).toBe(true);
-      expect(userResolverInfo!.fieldAvailability.get("username")).toBe(true);
-      expect(userResolverInfo!.fieldAvailability.get("email")).toBe(true);
-      expect(userResolverInfo!.fieldAvailability.get("profile")).toBe(false);
-      expect(userResolverInfo!.fieldAvailability.get("settings")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("id")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("username")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("email")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("profile")).toBe(false);
+      expect(userResolverInfo?.fieldAvailability.get("settings")).toBe(true);
     });
 
     test("complex query with multiple directive combinations", () => {
@@ -982,18 +982,18 @@ describe("Field Availability", () => {
       });
 
       // Test user resolver field availability
-      expect(userResolverInfo!.fieldAvailability.get("id")).toBe(true);
-      expect(userResolverInfo!.fieldAvailability.get("username")).toBe(true);
-      expect(userResolverInfo!.fieldAvailability.get("email")).toBe(true);
-      expect(userResolverInfo!.fieldAvailability.get("profile")).toBe(true);
-      expect(userResolverInfo!.fieldAvailability.get("settings")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("id")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("username")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("email")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("profile")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("settings")).toBe(true);
 
       // Test profile resolver field availability
-      expect(profileResolverInfo!.fieldAvailability.get("firstName")).toBe(
+      expect(profileResolverInfo?.fieldAvailability.get("firstName")).toBe(
         true
       );
-      expect(profileResolverInfo!.fieldAvailability.get("lastName")).toBe(true);
-      expect(profileResolverInfo!.fieldAvailability.get("bio")).toBe(true); // not hidden since hideEmail is false
+      expect(profileResolverInfo?.fieldAvailability.get("lastName")).toBe(true);
+      expect(profileResolverInfo?.fieldAvailability.get("bio")).toBe(true); // not hidden since hideEmail is false
     });
 
     test("deeply nested conditional fields with aliases", () => {
@@ -1038,23 +1038,23 @@ describe("Field Availability", () => {
       });
 
       // Test user resolver field availability with aliases - uses real field names, not aliases
-      expect(userResolverInfo!.fieldAvailability.get("id")).toBe(true); // real field name for "userId" alias
-      expect(userResolverInfo!.fieldAvailability.get("username")).toBe(true); // real field name for "displayName" alias
-      expect(userResolverInfo!.fieldAvailability.get("email")).toBe(false); // real field name for "contactEmail" alias
-      expect(userResolverInfo!.fieldAvailability.get("profile")).toBe(true); // real field name for "personalInfo" alias
-      expect(userResolverInfo!.fieldAvailability.get("settings")).toBe(true); // real field name for "userPreferences" alias
+      expect(userResolverInfo?.fieldAvailability.get("id")).toBe(true); // real field name for "userId" alias
+      expect(userResolverInfo?.fieldAvailability.get("username")).toBe(true); // real field name for "displayName" alias
+      expect(userResolverInfo?.fieldAvailability.get("email")).toBe(false); // real field name for "contactEmail" alias
+      expect(userResolverInfo?.fieldAvailability.get("profile")).toBe(true); // real field name for "personalInfo" alias
+      expect(userResolverInfo?.fieldAvailability.get("settings")).toBe(true); // real field name for "userPreferences" alias
 
-      expect(userResolverInfo!.isFieldRequested("id")).toBe(true); // check real field name
-      expect(userResolverInfo!.isFieldRequested("email")).toBe(false); // check real field name
-      expect(userResolverInfo!.isFieldRequested("profile")).toBe(true); // check real field name
+      expect(userResolverInfo?.isFieldRequested("id")).toBe(true); // check real field name
+      expect(userResolverInfo?.isFieldRequested("email")).toBe(false); // check real field name
+      expect(userResolverInfo?.isFieldRequested("profile")).toBe(true); // check real field name
 
       // Test notifications resolver - when showPrivate is false, alertSettings is not included
       // So notificationsResolverInfo should be null since that resolver won't be called
       expect(notificationsResolverInfo).toBe(null);
 
       // Test settings resolver field availability - uses real field names, not aliases
-      expect(settingsResolverInfo!.fieldAvailability.get("theme")).toBe(true); // real field name for "colorTheme" alias
-      expect(settingsResolverInfo!.fieldAvailability.get("notifications")).toBe(
+      expect(settingsResolverInfo?.fieldAvailability.get("theme")).toBe(true); // real field name for "colorTheme" alias
+      expect(settingsResolverInfo?.fieldAvailability.get("notifications")).toBe(
         false
       ); // real field name for "alertSettings" alias, not included when showPrivate is false
     });
@@ -1099,23 +1099,23 @@ describe("Field Availability", () => {
 
       // The search resolver should receive field availability info
       expect(resolverInfo).toBeTruthy();
-      expect(resolverInfo!.fieldAvailability).toBeDefined();
+      expect(resolverInfo?.fieldAvailability).toBeDefined();
 
       // NOTE: Fragment support is not yet implemented in GraphQL JIT field availability
       // As documented in resolve-info-enhanced.ts: "Fragments are not supported yet"
       // The field availability map is empty when fragments are used
-      expect(resolverInfo!.fieldAvailability.size).toBe(0);
+      expect(resolverInfo?.fieldAvailability.size).toBe(0);
       expect(Array.from(resolverInfo!.fieldAvailability.entries())).toEqual([]);
 
       // Test isFieldRequested method - should return true for all fields when fragments are not supported
       // This is the correct fallback behavior: if we can't determine availability, assume the field is requested
-      expect(resolverInfo!.isFieldRequested("id")).toBe(true);
-      expect(resolverInfo!.isFieldRequested("username")).toBe(true);
-      expect(resolverInfo!.isFieldRequested("email")).toBe(true);
-      expect(resolverInfo!.isFieldRequested("profile")).toBe(true);
-      expect(resolverInfo!.isFieldRequested("title")).toBe(true);
-      expect(resolverInfo!.isFieldRequested("content")).toBe(true);
-      expect(resolverInfo!.isFieldRequested("published")).toBe(true);
+      expect(resolverInfo?.isFieldRequested("id")).toBe(true);
+      expect(resolverInfo?.isFieldRequested("username")).toBe(true);
+      expect(resolverInfo?.isFieldRequested("email")).toBe(true);
+      expect(resolverInfo?.isFieldRequested("profile")).toBe(true);
+      expect(resolverInfo?.isFieldRequested("title")).toBe(true);
+      expect(resolverInfo?.isFieldRequested("content")).toBe(true);
+      expect(resolverInfo?.isFieldRequested("published")).toBe(true);
 
       // Test with different variable combinations - should still result in empty field availability
       compiled.query({}, undefined, {
@@ -1123,18 +1123,18 @@ describe("Field Availability", () => {
         includePostDetails: true
       });
 
-      expect(resolverInfo!.fieldAvailability.size).toBe(0);
-      expect(resolverInfo!.isFieldRequested("title")).toBe(true); // should default to true
-      expect(resolverInfo!.isFieldRequested("content")).toBe(true); // should default to true
+      expect(resolverInfo?.fieldAvailability.size).toBe(0);
+      expect(resolverInfo?.isFieldRequested("title")).toBe(true); // should default to true
+      expect(resolverInfo?.isFieldRequested("content")).toBe(true); // should default to true
 
       compiled.query({}, undefined, {
         includeUserDetails: true,
         includePostDetails: true
       });
 
-      expect(resolverInfo!.fieldAvailability.size).toBe(0);
-      expect(resolverInfo!.isFieldRequested("username")).toBe(true); // should default to true
-      expect(resolverInfo!.isFieldRequested("title")).toBe(true); // should default to true
+      expect(resolverInfo?.fieldAvailability.size).toBe(0);
+      expect(resolverInfo?.isFieldRequested("username")).toBe(true); // should default to true
+      expect(resolverInfo?.isFieldRequested("title")).toBe(true); // should default to true
 
       // TODO: When fragment support is implemented, these tests should be updated to verify:
       // 1. Fragment fields are properly included in field availability based on @include/@skip directives
@@ -1183,25 +1183,25 @@ describe("Field Availability", () => {
       });
 
       // Test user resolver field availability - only sees immediate children of User type
-      expect(userResolverInfo!.fieldAvailability.get("id")).toBe(true);
-      expect(userResolverInfo!.fieldAvailability.get("username")).toBe(true);
-      expect(userResolverInfo!.fieldAvailability.get("posts")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("id")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("username")).toBe(true);
+      expect(userResolverInfo?.fieldAvailability.get("posts")).toBe(true);
 
       // User resolver should NOT see fields from nested types (Post, Comment)
-      expect(userResolverInfo!.fieldAvailability.has("title")).toBe(false); // Post field
-      expect(userResolverInfo!.fieldAvailability.has("content")).toBe(false); // Post field
-      expect(userResolverInfo!.fieldAvailability.has("published")).toBe(false); // Post field
-      expect(userResolverInfo!.fieldAvailability.has("comments")).toBe(false); // Post field
-      expect(userResolverInfo!.fieldAvailability.has("author")).toBe(false); // Comment field
+      expect(userResolverInfo?.fieldAvailability.has("title")).toBe(false); // Post field
+      expect(userResolverInfo?.fieldAvailability.has("content")).toBe(false); // Post field
+      expect(userResolverInfo?.fieldAvailability.has("published")).toBe(false); // Post field
+      expect(userResolverInfo?.fieldAvailability.has("comments")).toBe(false); // Post field
+      expect(userResolverInfo?.fieldAvailability.has("author")).toBe(false); // Comment field
 
       // Test the isFieldRequested helper method - parent-child separation means no field collisions
-      expect(userResolverInfo!.isFieldRequested("id")).toBe(true); // User.id only
-      expect(userResolverInfo!.isFieldRequested("username")).toBe(true); // User.username only
-      expect(userResolverInfo!.isFieldRequested("posts")).toBe(true); // User.posts
+      expect(userResolverInfo?.isFieldRequested("id")).toBe(true); // User.id only
+      expect(userResolverInfo?.isFieldRequested("username")).toBe(true); // User.username only
+      expect(userResolverInfo?.isFieldRequested("posts")).toBe(true); // User.posts
 
       // Fields that don't exist in User type should return false
-      expect(userResolverInfo!.isFieldRequested("title")).toBe(false); // Post field, not in User
-      expect(userResolverInfo!.isFieldRequested("content")).toBe(false); // Post field, not in User
+      expect(userResolverInfo?.isFieldRequested("title")).toBe(false); // Post field, not in User
+      expect(userResolverInfo?.isFieldRequested("content")).toBe(false); // Post field, not in User
     });
   });
 
@@ -1287,19 +1287,19 @@ describe("Field Availability", () => {
       });
 
       // Should use real field names - testing parent-child separation with aliases
-      expect(edgeResolverInfos.user!.fieldAvailability.get("id")).toBe(true);
+      expect(edgeResolverInfos.user?.fieldAvailability.get("id")).toBe(true);
       // The current implementation shows all aliased conditional fields as false in this case
       // This is because: publicName @include(if: true) OR privateName @include(if: false)
-      expect(edgeResolverInfos.user!.fieldAvailability.get("name")).toBe(false);
-      expect(edgeResolverInfos.user!.fieldAvailability.get("description")).toBe(
+      expect(edgeResolverInfos.user?.fieldAvailability.get("name")).toBe(false);
+      expect(edgeResolverInfos.user?.fieldAvailability.get("description")).toBe(
         false
       );
-      expect(edgeResolverInfos.user!.fieldAvailability.get("status")).toBe(
+      expect(edgeResolverInfos.user?.fieldAvailability.get("status")).toBe(
         false
       );
 
       // isFieldRequested should use fallback logic for fields not in the availability map
-      expect(edgeResolverInfos.user!.isFieldRequested("name")).toBe(false);
+      expect(edgeResolverInfos.user?.isFieldRequested("name")).toBe(false);
     });
 
     test("deeply nested conditionals with multiple variables", () => {
@@ -1379,34 +1379,34 @@ describe("Field Availability", () => {
       });
 
       // Root resolver should only see its immediate children
-      expect(edgeResolverInfos.root!.fieldAvailability.get("id")).toBe(true);
-      expect(edgeResolverInfos.root!.fieldAvailability.get("name")).toBe(true);
-      expect(edgeResolverInfos.root!.fieldAvailability.get("description")).toBe(
+      expect(edgeResolverInfos.root?.fieldAvailability.get("id")).toBe(true);
+      expect(edgeResolverInfos.root?.fieldAvailability.get("name")).toBe(true);
+      expect(edgeResolverInfos.root?.fieldAvailability.get("description")).toBe(
         false
       );
-      expect(edgeResolverInfos.root!.fieldAvailability.get("status")).toBe(
+      expect(edgeResolverInfos.root?.fieldAvailability.get("status")).toBe(
         true
       );
-      expect(edgeResolverInfos.root!.fieldAvailability.get("children")).toBe(
+      expect(edgeResolverInfos.root?.fieldAvailability.get("children")).toBe(
         true
       );
 
       // Child resolver should only see its immediate children
-      expect(edgeResolverInfos.child!.fieldAvailability.get("id")).toBe(true);
-      expect(edgeResolverInfos.child!.fieldAvailability.get("name")).toBe(true);
+      expect(edgeResolverInfos.child?.fieldAvailability.get("id")).toBe(true);
+      expect(edgeResolverInfos.child?.fieldAvailability.get("name")).toBe(true);
       expect(
-        edgeResolverInfos.child!.fieldAvailability.get("description")
+        edgeResolverInfos.child?.fieldAvailability.get("description")
       ).toBe(true);
-      expect(edgeResolverInfos.child!.fieldAvailability.get("parent")).toBe(
+      expect(edgeResolverInfos.child?.fieldAvailability.get("parent")).toBe(
         false
       ); // not included when showParent is false
 
       // Root should not see nested fields from grandchildren
-      expect(edgeResolverInfos.root!.fieldAvailability.has("key")).toBe(false);
-      expect(edgeResolverInfos.root!.fieldAvailability.has("value")).toBe(
+      expect(edgeResolverInfos.root?.fieldAvailability.has("key")).toBe(false);
+      expect(edgeResolverInfos.root?.fieldAvailability.has("value")).toBe(
         false
       );
-      expect(edgeResolverInfos.root!.fieldAvailability.has("sensitive")).toBe(
+      expect(edgeResolverInfos.root?.fieldAvailability.has("sensitive")).toBe(
         false
       );
     });
@@ -1450,9 +1450,9 @@ describe("Field Availability", () => {
         undefinedVar: undefined
       });
 
-      expect(edgeResolverInfos.user!.fieldAvailability.get("id")).toBe(true);
-      expect(edgeResolverInfos.user!.fieldAvailability.get("name")).toBe(false); // @include(if: false) with default
-      expect(edgeResolverInfos.user!.fieldAvailability.get("description")).toBe(
+      expect(edgeResolverInfos.user?.fieldAvailability.get("id")).toBe(true);
+      expect(edgeResolverInfos.user?.fieldAvailability.get("name")).toBe(false); // @include(if: false) with default
+      expect(edgeResolverInfos.user?.fieldAvailability.get("description")).toBe(
         false
       ); // @skip(if: false) with default - but still false due to variable handling
     });
@@ -1499,12 +1499,12 @@ describe("Field Availability", () => {
         showDetails: true
       });
 
-      expect(edgeResolverInfos.user!.fieldAvailability.get("id")).toBe(true);
-      expect(edgeResolverInfos.user!.fieldAvailability.get("name")).toBe(true); // included because isPublic is true
-      expect(edgeResolverInfos.user!.fieldAvailability.get("description")).toBe(
+      expect(edgeResolverInfos.user?.fieldAvailability.get("id")).toBe(true);
+      expect(edgeResolverInfos.user?.fieldAvailability.get("name")).toBe(true); // included because isPublic is true
+      expect(edgeResolverInfos.user?.fieldAvailability.get("description")).toBe(
         true
       ); // !false && true = true
-      expect(edgeResolverInfos.user!.fieldAvailability.get("status")).toBe(
+      expect(edgeResolverInfos.user?.fieldAvailability.get("status")).toBe(
         false
       ); // false && !true = false
     });
@@ -1577,24 +1577,24 @@ describe("Field Availability", () => {
       });
 
       // Root node resolver
-      expect(edgeResolverInfos.node!.fieldAvailability.get("id")).toBe(true);
-      expect(edgeResolverInfos.node!.fieldAvailability.get("name")).toBe(true);
-      expect(edgeResolverInfos.node!.fieldAvailability.get("parent")).toBe(
+      expect(edgeResolverInfos.node?.fieldAvailability.get("id")).toBe(true);
+      expect(edgeResolverInfos.node?.fieldAvailability.get("name")).toBe(true);
+      expect(edgeResolverInfos.node?.fieldAvailability.get("parent")).toBe(
         true
       );
-      expect(edgeResolverInfos.node!.fieldAvailability.get("children")).toBe(
+      expect(edgeResolverInfos.node?.fieldAvailability.get("children")).toBe(
         false
       );
 
       // Parent resolver should only see its immediate fields
-      expect(edgeResolverInfos.parent!.fieldAvailability.get("id")).toBe(true);
-      expect(edgeResolverInfos.parent!.fieldAvailability.get("name")).toBe(
+      expect(edgeResolverInfos.parent?.fieldAvailability.get("id")).toBe(true);
+      expect(edgeResolverInfos.parent?.fieldAvailability.get("name")).toBe(
         true
       ); // name field exists in parent selection
-      expect(edgeResolverInfos.parent!.fieldAvailability.get("metadata")).toBe(
+      expect(edgeResolverInfos.parent?.fieldAvailability.get("metadata")).toBe(
         true
       );
-      expect(edgeResolverInfos.parent!.fieldAvailability.get("parent")).toBe(
+      expect(edgeResolverInfos.parent?.fieldAvailability.get("parent")).toBe(
         false
       ); // skipped when includeMetadata is true
 
@@ -1670,8 +1670,8 @@ describe("Field Availability", () => {
       });
 
       // Search resolver should see the interface fields only
-      expect(edgeResolverInfos.search!.fieldAvailability.get("id")).toBe(true);
-      expect(edgeResolverInfos.search!.fieldAvailability.get("title")).toBe(
+      expect(edgeResolverInfos.search?.fieldAvailability.get("id")).toBe(true);
+      expect(edgeResolverInfos.search?.fieldAvailability.get("title")).toBe(
         true
       );
 
@@ -1680,7 +1680,7 @@ describe("Field Availability", () => {
       // - Fragment fields are properly tracked
       // - Conditional fragments work correctly
       // - Interface implementations are handled properly
-      expect(edgeResolverInfos.search!.fieldAvailability.size).toBe(2); // Only interface fields
+      expect(edgeResolverInfos.search?.fieldAvailability.size).toBe(2); // Only interface fields
     });
 
     test("directive arguments with default values", () => {
@@ -1718,11 +1718,11 @@ describe("Field Availability", () => {
 
       compiled.query({}, undefined, {});
 
-      expect(edgeResolverInfos.user!.fieldAvailability.get("id")).toBe(true);
-      expect(edgeResolverInfos.user!.fieldAvailability.get("description")).toBe(
+      expect(edgeResolverInfos.user?.fieldAvailability.get("id")).toBe(true);
+      expect(edgeResolverInfos.user?.fieldAvailability.get("description")).toBe(
         false
       ); // @skip(if: true)
-      expect(edgeResolverInfos.user!.fieldAvailability.get("name")).toBe(false); // @include(if: false) with default value
+      expect(edgeResolverInfos.user?.fieldAvailability.get("name")).toBe(false); // @include(if: false) with default value
     });
 
     test("many fields with different conditions - stress test", () => {
@@ -1801,27 +1801,27 @@ describe("Field Availability", () => {
       });
 
       // Verify that field availability correctly handles many conditions
-      expect(edgeResolverInfos.entity!.fieldAvailability.get("id")).toBe(true);
-      expect(edgeResolverInfos.entity!.fieldAvailability.get("field1")).toBe(
+      expect(edgeResolverInfos.entity?.fieldAvailability.get("id")).toBe(true);
+      expect(edgeResolverInfos.entity?.fieldAvailability.get("field1")).toBe(
         true
       ); // @include(if: true)
-      expect(edgeResolverInfos.entity!.fieldAvailability.get("field2")).toBe(
+      expect(edgeResolverInfos.entity?.fieldAvailability.get("field2")).toBe(
         true
       ); // @skip(if: false)
-      expect(edgeResolverInfos.entity!.fieldAvailability.get("field3")).toBe(
+      expect(edgeResolverInfos.entity?.fieldAvailability.get("field3")).toBe(
         true
       ); // @include(if: true) @skip(if: false)
-      expect(edgeResolverInfos.entity!.fieldAvailability.get("field4")).toBe(
+      expect(edgeResolverInfos.entity?.fieldAvailability.get("field4")).toBe(
         false
       ); // @skip(if: true) @include(if: false)
-      expect(edgeResolverInfos.entity!.fieldAvailability.get("field15")).toBe(
+      expect(edgeResolverInfos.entity?.fieldAvailability.get("field15")).toBe(
         true
       ); // no conditions
 
       // Test that isFieldRequested works correctly
-      expect(edgeResolverInfos.entity!.isFieldRequested("field1")).toBe(true);
-      expect(edgeResolverInfos.entity!.isFieldRequested("field4")).toBe(false);
-      expect(edgeResolverInfos.entity!.isFieldRequested("field15")).toBe(true);
+      expect(edgeResolverInfos.entity?.isFieldRequested("field1")).toBe(true);
+      expect(edgeResolverInfos.entity?.isFieldRequested("field4")).toBe(false);
+      expect(edgeResolverInfos.entity?.isFieldRequested("field15")).toBe(true);
     });
   });
 });
