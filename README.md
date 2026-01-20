@@ -3,6 +3,8 @@
 ![npm](https://img.shields.io/npm/dw/graphql-jit)
 [![codecov](https://codecov.io/gh/zalando-incubator/graphql-jit/branch/main/graph/badge.svg)](https://codecov.io/gh/zalando-incubator/graphql-jit)
 
+TEST
+
 ### Why?
 
 GraphQL-JS is a very well written runtime implementation of the latest GraphQL spec. However, by compiling to JS, V8 is able to create optimized
