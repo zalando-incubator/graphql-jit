@@ -30,7 +30,6 @@ import {
   type SelectionNode,
   type TypeNode,
   isAbstractType,
-  Source,
   Location
 } from "graphql";
 import { type CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution.js";

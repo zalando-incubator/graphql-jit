@@ -9,8 +9,7 @@ import {
   GraphQLSchema,
   GraphQLString,
   parse,
-  GraphQLInt,
-  versionInfo
+  GraphQLInt
 } from "graphql";
 import { compileQuery } from "../index";
 import { queryToJSONSchema } from "../json";
