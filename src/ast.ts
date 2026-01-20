@@ -954,7 +954,6 @@ export function valueFromAST(
     // no value is returned.
     let result: any;
     try {
-      // Use coerceInputLiteral if available (v17+), otherwise fall back to parseLiteral
       // By this point, we've filtered out VARIABLE nodes, so valueNode is a ConstValueNode
       result = coerceInputLiteral(type, valueNode as ConstValueNode);
     } catch (error) {
