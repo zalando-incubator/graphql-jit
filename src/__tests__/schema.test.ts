@@ -400,7 +400,9 @@ describe("Execute: Handles execution with a complex schema", () => {
   });
 
   test("executes IntrospectionQuery", () => {
-    const queryAST = parse(getIntrospectionQuery({ descriptions: true }));
+    const queryAST = parse(
+      getIntrospectionQuery({ descriptions: true, inputValueDeprecation: true })
+    );
     const result = executeQuery(
       BlogSchema,
       queryAST

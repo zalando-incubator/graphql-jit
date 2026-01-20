@@ -116,20 +116,20 @@ describe("Execute: Union and intersection types", () => {
         Named: __type(name: "Named") {
           kind
           name
-          fields { name }
+          fields(includeDeprecated: true) { name }
           interfaces { name }
           possibleTypes { name }
-          enumValues { name }
-          inputFields { name }
+          enumValues(includeDeprecated: true) { name }
+          inputFields(includeDeprecated: true) { name }
         }
         Pet: __type(name: "Pet") {
           kind
           name
-          fields { name }
+          fields(includeDeprecated: true) { name }
           interfaces { name }
           possibleTypes { name }
-          enumValues { name }
-          inputFields { name }
+          enumValues(includeDeprecated: true) { name }
+          inputFields(includeDeprecated: true) { name }
         }
       }
     `);

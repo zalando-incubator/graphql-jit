@@ -12,9 +12,9 @@ import {
   GraphQLInt,
   versionInfo
 } from "graphql";
-import { buildExecutionContext } from "graphql/execution/execute";
 import { compileQuery } from "../index";
 import { queryToJSONSchema } from "../json";
+import { buildCompilationContext } from "../execution";
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import { formatError } from "../compat";
 
@@ -129,14 +129,13 @@ describe("json schema creator", () => {
     }
   `);
 
-  const context: any =
-    versionInfo.major > 15
-      ? (buildExecutionContext as any)({
-          schema: blogSchema,
-          document
-        })
-      : (buildExecutionContext as any)(blogSchema, document);
-  context.options = {};
+  const context = buildCompilationContext(blogSchema, document, {
+    customJSONSerializer: false,
+    disableLeafSerialization: false,
+    disablingCapturingStackErrors: false,
+    customSerializers: {},
+    useExperimentalPathBasedSkipInclude: false
+  });
   const jsonSchema = queryToJSONSchema(context);
   test("json schema creation", () => {
     expect(jsonSchema).toMatchSnapshot();
@@ -207,14 +206,13 @@ describe("JSON schema creation with abstract types", () => {
       u
     }
   `);
-  const context: any =
-    versionInfo.major > 15
-      ? (buildExecutionContext as any)({
-          schema,
-          document
-        })
-      : (buildExecutionContext as any)(schema, document);
-  context.options = {};
+  const context = buildCompilationContext(schema, document, {
+    customJSONSerializer: false,
+    disableLeafSerialization: false,
+    disablingCapturingStackErrors: false,
+    customSerializers: {},
+    useExperimentalPathBasedSkipInclude: false
+  });
 
   const jsonSchema = queryToJSONSchema(context);
   test("json schema creation", () => {

@@ -101,7 +101,8 @@ export interface CompilerOptions {
   useExperimentalPathBasedSkipInclude: boolean;
 }
 
-interface ExecutionContext {
+// @internal
+export interface ExecutionContext {
   promiseCounter: number;
   data: any;
   errors: GraphQLError[];
@@ -163,6 +164,11 @@ export interface CompilationContext extends GraphQLContext {
   deferred: DeferredField[];
   options: CompilerOptions;
   depth: number;
+
+  // GraphQL-JS v17 compatibility
+  schema: GraphQLSchema;
+  operation: OperationDefinitionNode;
+  fragments: { [key: string]: FragmentDefinitionNode };
 }
 
 // prefix for the variable used ot cache validation results
@@ -1572,7 +1578,7 @@ function defaultResolveTypeFn(
  *
  * Throws a GraphQLError if a valid execution context cannot be created.
  */
-function buildCompilationContext(
+export function buildCompilationContext(
   schema: GraphQLSchema,
   document: DocumentNode,
   options: CompilerOptions,
