@@ -11,8 +11,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Setup
-        uses: ./.github/actions/setup-yarn
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-yarn
         with:
           node-version: 24
           cache-key-prefix: lint
@@ -35,8 +35,8 @@ jobs:
         graphql-version: [15, 16, 17.0.0-alpha.9]
 
     steps:
-      - name: Setup
-        uses: ./.github/actions/setup-yarn
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-yarn
         with:
           node-version: ${{ matrix.node-version }}
           cache-key-prefix: test
