@@ -29,9 +29,9 @@ import {
   type SelectionNode,
   type TypeNode,
   isAbstractType,
-  Location
+  Location,
+  type ConstValueNode
 } from "graphql";
-import { type ConstValueNode } from "./compat.js";
 import { type CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution.js";
 import createInspect from "./inspect.js";
 import {

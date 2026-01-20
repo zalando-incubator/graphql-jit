@@ -1,0 +1,33 @@
+name: "Setup Yarn"
+description: "Checkout, setup Node.js and cache Yarn packages"
+inputs:
+  node-version:
+    description: "The Node.js version to use"
+    required: true
+  cache-key-prefix:
+    description: "The prefix for the cache key"
+    required: false
+    default: "yarn"
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js ${{ inputs.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Get yarn cache directory path
+      id: yarn-cache-dir-path
+      shell: bash
+      run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
+
+    - name: Cache yarn packages
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+        key: ${{ runner.os }}-${{ inputs.node-version }}-${{ inputs.cache-key-prefix }}-${{ hashFiles('yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ inputs.node-version }}-${{ inputs.cache-key-prefix }}-
