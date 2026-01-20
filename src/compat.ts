@@ -8,14 +8,28 @@ import {
   type OperationDefinitionNode,
   type GraphQLObjectType,
   type GraphQLFormattedError,
-  GraphQLScalarType,
-  ConstValueNode
+  GraphQLScalarType
 } from "graphql";
 import { type Maybe } from "./types.js";
 import * as errorUtilities from "graphql/error/index.js";
 import * as utilities from "graphql/utilities/index.js";
 import { type CompilationContext } from "./execution.js";
 import * as execute from "graphql/execution/execute.js";
+
+import type * as GraphQL from "graphql";
+
+// GraphQL v15 does not have ConstValueNode type
+export type ConstValueNode = "ConstValueNode" extends keyof typeof GraphQL
+  ? GraphQL.ConstValueNode
+  :
+      | GraphQL.IntValueNode
+      | GraphQL.FloatValueNode
+      | GraphQL.StringValueNode
+      | GraphQL.BooleanValueNode
+      | GraphQL.NullValueNode
+      | GraphQL.EnumValueNode
+      | GraphQL.ListValueNode
+      | GraphQL.ObjectValueNode;
 
 /**
  * A helper file to support backward compatibility for different versions of graphql-js.

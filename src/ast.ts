@@ -1,7 +1,6 @@
 import {
   type ArgumentNode,
   type ASTNode,
-  type ConstValueNode,
   type DirectiveNode,
   type FieldNode,
   type FragmentDefinitionNode,
@@ -32,6 +31,7 @@ import {
   isAbstractType,
   Location
 } from "graphql";
+import { type ConstValueNode } from "./compat.js";
 import { type CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution.js";
 import createInspect from "./inspect.js";
 import {
