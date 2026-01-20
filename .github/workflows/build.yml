@@ -18,9 +18,7 @@ jobs:
           cache-key-prefix: lint
 
       - name: Install dependencies
-        run: |
-          yarn config set enableImmutableInstalls false
-          yarn install
+        run: yarn install
 
       - name: Format and Lint check
         run: yarn check-tsc && yarn lint && yarn build && yarn check-exports
