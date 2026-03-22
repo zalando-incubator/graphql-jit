@@ -1,7 +1,15 @@
 name: Publish
 on:
+  push:
+    branches:
+      - main
   release:
-    types: [created]
+    types:
+      - created
+  # temp
+  pull_request:
+    branches:
+      - main
 
 permissions:
   id-token: write
@@ -17,4 +25,31 @@ jobs:
           node-version: 20
           registry-url: "https://registry.npmjs.org"
       - run: yarn install --immutable
-      - run: yarn publish
+
+      - name: Publish Canary
+        if: github.ref_type == 'branch' && github.ref_name == 'main'
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          CANARY_VERSION="${BASE_VERSION}-canary.${SHORT_SHA}"
+          yarn version --new-version "$CANARY_VERSION" --no-git-tag-version
+          yarn publish --tag canary --no-git-tag-version
+
+      - name: Publish Release
+        if: github.event_name == 'release' && github.event.action == 'created'
+        run: |
+          RELEASE_VERSION="${{ github.event.release.tag_name }}"
+          RELEASE_VERSION="${RELEASE_VERSION#v}"
+          yarn version --new-version "$RELEASE_VERSION" --no-git-tag-version
+          yarn publish --tag latest --no-git-tag-version
+
+      # temp
+      - name: Publish PR Canary
+        if: github.event_name == 'pull_request'
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          CANARY_VERSION="${BASE_VERSION}-canary.pr${PR_NUMBER}.${SHORT_SHA}"
+          yarn version --new-version "$CANARY_VERSION" --no-git-tag-version
+          yarn publish --tag "pr-${PR_NUMBER}" --no-git-tag-version
