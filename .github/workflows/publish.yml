@@ -33,7 +33,7 @@ jobs:
           BASE_VERSION=$(node -p "require('./package.json').version")
           CANARY_VERSION="${BASE_VERSION}-canary.${SHORT_SHA}"
           npm pkg set version="$CANARY_VERSION"
-          yarn npm publish --tag canary
+          npm publish --tag canary
 
       - name: Publish Release
         if: github.event_name == 'release' && github.event.action == 'created'
@@ -41,7 +41,7 @@ jobs:
           RELEASE_VERSION="${{ github.event.release.tag_name }}"
           RELEASE_VERSION="${RELEASE_VERSION#v}"
           npm pkg set version="$RELEASE_VERSION"
-          yarn npm publish --tag latest
+          npm publish --tag latest
 
       # temp
       - name: Publish PR Canary
@@ -52,4 +52,4 @@ jobs:
           BASE_VERSION=$(node -p "require('./package.json').version")
           CANARY_VERSION="${BASE_VERSION}-canary.pr${PR_NUMBER}.${SHORT_SHA}"
           npm pkg set version="$CANARY_VERSION"
-          yarn npm publish --tag "pr-${PR_NUMBER}"
+          npm publish --tag "pr-${PR_NUMBER}"
