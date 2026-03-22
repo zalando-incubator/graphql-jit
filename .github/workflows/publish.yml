@@ -27,21 +27,21 @@ jobs:
       - run: yarn install --immutable
 
       - name: Publish Canary
-        if: github.ref_type == 'branch' && github.ref_name == 'main'
+        if: github.event_name == 'push' && github.ref_name == 'main'
         run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
           BASE_VERSION=$(node -p "require('./package.json').version")
           CANARY_VERSION="${BASE_VERSION}-canary.${SHORT_SHA}"
-          yarn version --new-version "$CANARY_VERSION" --no-git-tag-version
-          yarn publish --tag canary --no-git-tag-version
+          npm pkg set version="$CANARY_VERSION"
+          yarn npm publish --tag canary
 
       - name: Publish Release
         if: github.event_name == 'release' && github.event.action == 'created'
         run: |
           RELEASE_VERSION="${{ github.event.release.tag_name }}"
           RELEASE_VERSION="${RELEASE_VERSION#v}"
-          yarn version --new-version "$RELEASE_VERSION" --no-git-tag-version
-          yarn publish --tag latest --no-git-tag-version
+          npm pkg set version="$RELEASE_VERSION"
+          yarn npm publish --tag latest
 
       # temp
       - name: Publish PR Canary
@@ -51,5 +51,5 @@ jobs:
           PR_NUMBER="${{ github.event.pull_request.number }}"
           BASE_VERSION=$(node -p "require('./package.json').version")
           CANARY_VERSION="${BASE_VERSION}-canary.pr${PR_NUMBER}.${SHORT_SHA}"
-          yarn version --new-version "$CANARY_VERSION" --no-git-tag-version
-          yarn publish --tag "pr-${PR_NUMBER}" --no-git-tag-version
+          npm pkg set version="$CANARY_VERSION"
+          yarn npm publish --tag "pr-${PR_NUMBER}"
