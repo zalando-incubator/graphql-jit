@@ -14,12 +14,13 @@ on:
 jobs:
   publish:
     # prevents this action from running on forks
-    if: github.repository == 'zalando-incubator/graphql-jit'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     steps:
+      - name: Debug
+        run: echo "repo=${{ github.repository }}"
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
