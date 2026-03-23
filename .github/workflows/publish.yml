@@ -6,10 +6,6 @@ on:
   release:
     types:
       - created
-  # temp
-  pull_request:
-    branches:
-      - main
 
 permissions:
   id-token: write
@@ -42,14 +38,3 @@ jobs:
           RELEASE_VERSION="${RELEASE_VERSION#v}"
           npm pkg set version="$RELEASE_VERSION"
           npm publish --tag latest
-
-      # temp
-      - name: Publish PR Canary
-        if: github.event_name == 'pull_request'
-        run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-          BASE_VERSION=$(node -p "require('./package.json').version")
-          CANARY_VERSION="${BASE_VERSION}-canary.pr${PR_NUMBER}.${SHORT_SHA}"
-          npm pkg set version="$CANARY_VERSION"
-          npm publish --tag "pr-${PR_NUMBER}"
