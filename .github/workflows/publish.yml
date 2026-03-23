@@ -7,9 +7,9 @@ on:
     types:
       - created
     # temp
-    pull_request:
-      branches:
-        - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   publish:
