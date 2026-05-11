@@ -4,6 +4,12 @@ export const GLOBAL_RUNTIME_NAME = "__rt";
 
 export interface JitRuntime {
   isPromise(value: unknown): boolean;
+  callResolver(
+    ctx: ExecutionContext,
+    call: () => unknown,
+    onSuccess: (result: unknown) => void,
+    onError: (err: unknown) => void
+  ): void;
   handleResolverResult(
     ctx: ExecutionContext,
     value: unknown,
@@ -16,6 +22,7 @@ export interface JitRuntime {
     onSuccess: (result: unknown) => void,
     onError: (err: unknown) => void
   ): void;
+  finalizeResult(ctx: ExecutionContext): Promise<unknown> | undefined;
   safeMap(
     context: ExecutionContext,
     iterable: Iterable<unknown> | string,
@@ -37,6 +44,18 @@ export const jitRuntime: JitRuntime = {
       typeof value === "object" &&
       typeof (value as any).then === "function"
     );
+  },
+
+  callResolver(ctx, call, onSuccess, onError) {
+    let value: unknown;
+    try {
+      value = call();
+    } catch (err) {
+      onError(err);
+      onSuccess(null);
+      return;
+    }
+    this.handleResolverResult(ctx, value, onSuccess, onError);
   },
 
   handleResolverResult(ctx, value, onSuccess, onError) {
@@ -85,6 +104,15 @@ export const jitRuntime: JitRuntime = {
     } else {
       onSuccess(item);
     }
+  },
+
+  finalizeResult(ctx: ExecutionContext): Promise<unknown> | undefined {
+    if (ctx.promiseCounter > 0) {
+      return new Promise((resolve) => {
+        ctx.resolve = resolve;
+      });
+    }
+    return undefined;
   },
 
   safeMap(ctx, iterable, cb, ...idx) {

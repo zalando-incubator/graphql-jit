@@ -480,8 +480,6 @@ function compileOperation(
       ${GLOBAL_EXECUTION_CONTEXT}.jobCounter = 1; // since the first one will be run manually
       ${GLOBAL_EXECUTION_CONTEXT}.queue[0](${GLOBAL_EXECUTION_CONTEXT});
     }
-    // Promises have been scheduled so a new promise is returned
-    // that will be resolved once every promise is done
     if (${GLOBAL_PROMISE_COUNTER} > 0) {
       return new Promise(resolve => ${GLOBAL_EXECUTION_CONTEXT}.finalResolve = resolve);
     }
@@ -489,11 +487,7 @@ function compileOperation(
   } else {
     body += compileDeferredFields(context);
     body += `
-    // Promises have been scheduled so a new promise is returned
-    // that will be resolved once every promise is done
-    if (${GLOBAL_PROMISE_COUNTER} > 0) {
-      return new Promise(resolve => ${GLOBAL_RESOLVE} = resolve);
-    }`;
+    return ${GLOBAL_RUNTIME_NAME}.finalizeResult(${GLOBAL_EXECUTION_CONTEXT});`;
   }
   body += `
   // sync execution, the results are ready
@@ -589,13 +583,8 @@ function compileDeferredField(
   const body = `
     ${compiledArgs}
     if (${validArgs} === true) {
-      var __value = null;
-      try {
-        __value = ${resolverCall};
-      } catch (err) {
-        ${getErrorDestination(fieldType)}.push(${executionError});
-      }
-      ${GLOBAL_RUNTIME_NAME}.handleResolverResult(${GLOBAL_EXECUTION_CONTEXT}, __value,
+      ${GLOBAL_RUNTIME_NAME}.callResolver(${GLOBAL_EXECUTION_CONTEXT},
+        () => ${resolverCall},
         result => {
           ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${resultParentPath}, result, ${parentIndexes});
         },
