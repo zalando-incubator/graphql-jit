@@ -957,18 +957,18 @@ function compileObjectType(
       fieldCondition = "true";
     }
 
-    body(`
-      (
-        ${fieldCondition}
-      )
-    `);
+    const alwaysIncluded = fieldCondition === "true";
+
+    if (!alwaysIncluded) {
+      body(`(${fieldCondition})`);
+    }
 
     // Inline __typename
     // No need to call a resolver for typename
     if (field === TypeNameMetaFieldDef) {
-      // type.name if field is included else undefined - to remove from object
-      // during serialization
-      body(`? "${type.name}" : undefined,`);
+      body(
+        alwaysIncluded ? `"${type.name}",` : `? "${type.name}" : undefined,`
+      );
       continue;
     }
 
@@ -992,34 +992,29 @@ function compileObjectType(
         args: getArgumentDefs(field, fieldNodes[0])
       });
       context.resolvers[getResolverName(type.name, field.name)] = resolver;
-      body(
-        `
-          ? (
-              ${SAFETY_CHECK_PREFIX}${context.deferred.length - 1} = true,
-              null
-            )
-          : (
-              ${SAFETY_CHECK_PREFIX}${context.deferred.length - 1} = false,
-              undefined
-            )
-        `
-      );
+      const idx = context.deferred.length - 1;
+      if (alwaysIncluded) {
+        body(`(${SAFETY_CHECK_PREFIX}${idx} = true, null)`);
+      } else {
+        body(
+          `? (${SAFETY_CHECK_PREFIX}${idx} = true, null) : (${SAFETY_CHECK_PREFIX}${idx} = false, undefined)`
+        );
+      }
     } else {
-      // if included
-      body("?");
-      body(
-        compileType(
-          context,
-          type,
-          field.type,
-          fieldNodes,
-          originPaths.concat(field.name),
-          destinationPaths.concat(name),
-          addPath(responsePath, name)
-        )
+      const compiledFieldType = compileType(
+        context,
+        type,
+        field.type,
+        fieldNodes,
+        originPaths.concat(field.name),
+        destinationPaths.concat(name),
+        addPath(responsePath, name)
       );
-      // if not included
-      body(": undefined");
+      if (alwaysIncluded) {
+        body(compiledFieldType);
+      } else {
+        body(`? ${compiledFieldType} : undefined`);
+      }
     }
     // End object property
     body(",");
