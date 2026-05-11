@@ -1,6 +1,9 @@
 import { type TypedDocumentNode } from "@graphql-typed-document-node/core";
 import fastJson from "fast-json-stringify";
 import { genFn } from "./generate";
+import { jitRuntime, type JitRuntime } from "./runtime";
+
+const GLOBAL_RUNTIME_NAME = "__context.rt";
 import {
   type ASTNode,
   type DocumentNode,
@@ -107,12 +110,12 @@ export interface ExecutionContext {
   data: any;
   errors: GraphQLError[];
   nullErrors: GraphQLError[];
-  resolve?: () => void;
+  resolve?: (ctx: ExecutionContext) => void;
+  rt: JitRuntime;
   inspect: typeof inspect;
   variables: { [key: string]: any };
   context: any;
   rootValue: any;
-  safeMap: typeof safeMap;
   GraphQLError: typeof GraphqlJitError;
   resolvers: { [key: string]: GraphQLFieldResolver<any, any, any> };
   trimmer: NullTrimmer;
@@ -182,7 +185,7 @@ const GLOBAL_CONTEXT_NAME = "__context.context";
 const GLOBAL_EXECUTION_CONTEXT = "__context";
 const GLOBAL_PROMISE_COUNTER = "__context.promiseCounter";
 const GLOBAL_INSPECT_NAME = "__context.inspect";
-const GLOBAL_SAFE_MAP_NAME = "__context.safeMap";
+const GLOBAL_SAFE_MAP_NAME = `${GLOBAL_RUNTIME_NAME}.safeMap`;
 const GRAPHQL_ERROR = "__context.GraphQLError";
 const GLOBAL_RESOLVE = "__context.resolve";
 const GLOBAL_PARENT_NAME = "__parent";
@@ -377,7 +380,6 @@ export function createBoundQuery(
         rootValue,
         context,
         variables: parsedVariables.coerced,
-        safeMap,
         inspect,
         GraphQLError: GraphqlJitError,
         resolvers,
@@ -386,6 +388,7 @@ export function createBoundQuery(
         serializers,
         resolveInfos,
         trimmer,
+        rt: jitRuntime,
         promiseCounter: 0,
         data: {},
         nullErrors: [],
@@ -592,22 +595,18 @@ function compileDeferredField(
       } catch (err) {
         ${getErrorDestination(fieldType)}.push(${executionError});
       }
-      if (${isPromiseInliner("__value")}) {
-      ${promiseStarted()}
-       __value.then(result => {
-        ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${resultParentPath}, result, ${parentIndexes});
-        ${promiseDone()}
-       }, err => {
-        if (err) {
-          ${getErrorDestination(fieldType)}.push(${executionError});
-        } else {
-          ${getErrorDestination(fieldType)}.push(${emptyError});
+      ${GLOBAL_RUNTIME_NAME}.handleResolverResult(${GLOBAL_EXECUTION_CONTEXT}, __value,
+        result => {
+          ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${resultParentPath}, result, ${parentIndexes});
+        },
+        err => {
+          if (err) {
+            ${getErrorDestination(fieldType)}.push(${executionError});
+          } else {
+            ${getErrorDestination(fieldType)}.push(${emptyError});
+          }
         }
-        ${promiseDone()}
-       });
-      } else {
-        ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${resultParentPath}, __value, ${parentIndexes});
-      }
+      );
     }`;
   context.hoistedFunctions.push(`
     function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${jsFieldName}, ${parentIndexes}) {
@@ -1163,58 +1162,23 @@ function compileListType(
   const parentIndexes = getParentArgIndexes(context);
   listContext.hoistedFunctions.push(`
   function ${safeMapHandler}(${GLOBAL_EXECUTION_CONTEXT}, __currentItem, idx${newDepth}, resultArray, ${parentIndexes}) {
-    if (${isPromiseInliner("__currentItem")}) {
-      ${promiseStarted()}
-      __currentItem.then(result => {
+    ${GLOBAL_RUNTIME_NAME}.handleListItemResult(${GLOBAL_EXECUTION_CONTEXT}, __currentItem,
+      result => {
         ${itemHandler}(${GLOBAL_EXECUTION_CONTEXT}, resultArray, result, ${childIndexes});
-        ${promiseDone()}
-      }, err => {
+      },
+      err => {
         resultArray.push(null);
         if (err) {
           ${getErrorDestination(fieldType)}.push(${executionError});
         } else {
           ${getErrorDestination(fieldType)}.push(${emptyError});
         }
-        ${promiseDone()}
-      });
-    } else {
-       ${itemHandler}(${GLOBAL_EXECUTION_CONTEXT}, resultArray, __currentItem, ${childIndexes});
-    }
+      }
+    );
   }
   `);
   return `(typeof ${name} === "string" || typeof ${name}[Symbol.iterator] !== "function") ?  ${errorCase} :
   ${GLOBAL_SAFE_MAP_NAME}(${GLOBAL_EXECUTION_CONTEXT}, ${name}, ${safeMapHandler}, ${parentIndexes})`;
-}
-
-/**
- * Implements a generic map operation for any iterable.
- *
- * If the iterable is not valid, null is returned.
- * @param context
- * @param {Iterable<any> | string} iterable possible iterable
- * @param {(a: any) => any} cb callback that receives the item being iterated
- * @param idx
- * @returns {any[]} a new array with the result of the callback
- */
-function safeMap(
-  context: ExecutionContext,
-  iterable: Iterable<any> | string,
-  cb: (
-    context: ExecutionContext,
-    a: any,
-    index: number,
-    resultArray: any[],
-    ...idx: number[]
-  ) => any,
-  ...idx: number[]
-): any[] {
-  let index = 0;
-  const result: any[] = [];
-  for (const a of iterable) {
-    cb(context, a, index, result, ...idx);
-    ++index;
-  }
-  return result;
 }
 
 const MAGIC_MINUS_INFINITY =
@@ -1427,7 +1391,7 @@ export function isPromise(value: any): value is Promise<any> {
 }
 
 export function isPromiseInliner(value: string): string {
-  return `${value} != null && typeof ${value} === "object" && typeof ${value}.then === "function"`;
+  return `${GLOBAL_RUNTIME_NAME}.isPromise(${value})`;
 }
 
 /**
@@ -1682,22 +1646,6 @@ function getSerializerName(name: string) {
   return name + "Serializer";
 }
 
-function promiseStarted() {
-  return `
-     // increase the promise counter
-     ++${GLOBAL_PROMISE_COUNTER};
-  `;
-}
-
-function promiseDone() {
-  return `
-    --${GLOBAL_PROMISE_COUNTER};
-    if (${GLOBAL_PROMISE_COUNTER} === 0) {
-      ${GLOBAL_RESOLVE}(${GLOBAL_EXECUTION_CONTEXT});
-    }
-  `;
-}
-
 function normalizeErrors(err: Error[] | Error): GraphQLError[] {
   if (Array.isArray(err)) {
     return err.map((e) => normalizeError(e));
@@ -1872,7 +1820,6 @@ function createBoundSubscribe(
         rootValue,
         context,
         variables: parsedVariables.coerced,
-        safeMap,
         inspect,
         GraphQLError: GraphqlJitError,
         resolvers,
@@ -1881,6 +1828,7 @@ function createBoundSubscribe(
         serializers,
         resolveInfos,
         trimmer,
+        rt: jitRuntime,
         promiseCounter: 0,
         nullErrors: [],
         errors: [],
