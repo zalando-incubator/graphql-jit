@@ -4,8 +4,10 @@
 
 import {
   GraphQLBoolean,
+  GraphQLID,
   GraphQLInterfaceType,
   GraphQLList,
+  GraphQLNonNull,
   GraphQLObjectType,
   GraphQLResolveInfo,
   GraphQLSchema,
@@ -682,5 +684,114 @@ describe("Execute: Handles execution of abstract types", () => {
         }
       });
     }
+  });
+});
+
+describe("Abstract type trivial case deduplication", () => {
+  // Builds a union of N types each only exposing __typename (no resolvers).
+  // The compiler groups all trivial cases into a shared block using finalType.
+  // Every member must still return its own correct __typename, not a shared
+  // constant from the first compiled case.
+  test("each trivial union member returns its own __typename", async () => {
+    const typeNames = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"];
+    const memberTypes = typeNames.map(
+      (name) =>
+        new GraphQLObjectType({
+          name,
+          fields: { id: { type: GraphQLID } }
+        })
+    );
+
+    const SearchResult = new GraphQLUnionType({
+      name: "SearchResult",
+      types: memberTypes,
+      resolveType: (obj) => obj.__type
+    });
+
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          search: {
+            type: new GraphQLList(SearchResult),
+            resolve: () =>
+              typeNames.map((name) => ({ __type: name, id: `id-${name}` }))
+          }
+        }
+      })
+    });
+
+    const document = parse(`{ search { __typename } }`);
+    const compiled = compileQuery(schema, document, "");
+    if (!isCompiledQuery(compiled)) throw new Error("compile failed");
+
+    const result = await compiled.query(undefined, undefined, undefined);
+    expect(result.errors).toBeUndefined();
+    expect(result.data!.search).toEqual(
+      typeNames.map((name) => ({ __typename: name }))
+    );
+  });
+
+  // A union where some members are trivial (__typename only, grouped into a
+  // shared case) and some are non-trivial (have resolver-backed fields, get
+  // individual cases). Both paths must execute correctly in the same query.
+  test("mixed trivial and non-trivial union members both work correctly", async () => {
+    const TrivialA = new GraphQLObjectType({
+      name: "TrivialA",
+      fields: { id: { type: GraphQLID } }
+    });
+    const TrivialB = new GraphQLObjectType({
+      name: "TrivialB",
+      fields: { id: { type: GraphQLID } }
+    });
+    const Rich = new GraphQLObjectType({
+      name: "Rich",
+      fields: {
+        id: { type: GraphQLID },
+        label: {
+          type: new GraphQLNonNull(GraphQLString),
+          resolve: (obj) => obj.label
+        }
+      }
+    });
+
+    const Item = new GraphQLUnionType({
+      name: "Item",
+      types: [TrivialA, TrivialB, Rich],
+      resolveType: (obj) => obj.__type
+    });
+
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          items: {
+            type: new GraphQLList(Item),
+            resolve: () => [
+              { __type: "TrivialA", id: "1" },
+              { __type: "Rich", id: "2", label: "hello" },
+              { __type: "TrivialB", id: "3" }
+            ]
+          }
+        }
+      })
+    });
+
+    const document = parse(`{
+      items {
+        __typename
+        ... on Rich { label }
+      }
+    }`);
+    const compiled = compileQuery(schema, document, "");
+    if (!isCompiledQuery(compiled)) throw new Error("compile failed");
+
+    const result = await compiled.query(undefined, undefined, undefined);
+    expect(result.errors).toBeUndefined();
+    expect(result.data!.items).toEqual([
+      { __typename: "TrivialA" },
+      { __typename: "Rich", label: "hello" },
+      { __typename: "TrivialB" }
+    ]);
   });
 });
