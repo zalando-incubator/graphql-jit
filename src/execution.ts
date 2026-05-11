@@ -161,6 +161,7 @@ export interface CompilationContext extends GraphQLContext {
   };
   hoistedFunctions: string[];
   hoistedFunctionNames: Map<string, number>;
+  leafErrHandlerCache: Map<string, string>;
   typeResolvers: { [key: string]: GraphQLTypeResolver<any, any> };
   isTypeOfs: { [key: string]: GraphQLIsTypeOfFn<any, any> };
   resolveInfos: { [key: string]: any };
@@ -679,19 +680,27 @@ function compileType(
       context.options.customSerializers[innerType.name]
     );
     const parentIndexes = getParentArgIndexes(context);
-    const errHandler = getHoistedFunctionName(
-      context,
-      `${innerType.name}${originPaths.join("")}SerializerErrorHandler`
-    );
-    context.hoistedFunctions.push(`
-    function ${errHandler}(${GLOBAL_EXECUTION_CONTEXT}, message, ${parentIndexes}) {
-    ${dest}.push(${createErrorObject(
+    const handlerBody = `${dest}.push(${createErrorObject(
       context,
       fieldNodes,
       previousPath,
       "message"
-    )});}
-    `);
+    )});`;
+    const cachedHandler = context.leafErrHandlerCache.get(handlerBody);
+    let errHandler: string;
+    if (cachedHandler) {
+      errHandler = cachedHandler;
+    } else {
+      errHandler = getHoistedFunctionName(
+        context,
+        `${innerType.name}${originPaths.join("")}SerializerErrorHandler`
+      );
+      context.hoistedFunctions.push(`
+        function ${errHandler}(${GLOBAL_EXECUTION_CONTEXT}, message, ${parentIndexes}) {
+        ${handlerBody}}
+      `);
+      context.leafErrHandlerCache.set(handlerBody, errHandler);
+    }
     const locs = JSON.stringify(computeLocations(fieldNodes));
     const path = serializeResponsePathAsArray(previousPath);
     const capStack = context.options.disablingCapturingStackErrors
@@ -1636,6 +1645,7 @@ export function buildCompilationContext(
     resolveInfos: {},
     hoistedFunctions: [],
     hoistedFunctionNames: new Map(),
+    leafErrHandlerCache: new Map(),
     deferred: [],
     depth: -1,
     variableValues: {},
