@@ -162,6 +162,9 @@ export interface CompilationContext extends GraphQLContext {
   hoistedFunctions: string[];
   hoistedFunctionNames: Map<string, number>;
   leafErrHandlerCache: Map<string, string>;
+  // When set, emits this variable name instead of the hardcoded type name for __typename.
+  // Used by compileAbstractType to share trivial case bodies via the finalType variable.
+  trivialTypeNameVar?: string;
   typeResolvers: { [key: string]: GraphQLTypeResolver<any, any> };
   isTypeOfs: { [key: string]: GraphQLIsTypeOfFn<any, any> };
   resolveInfos: { [key: string]: any };
@@ -957,7 +960,9 @@ function compileObjectType(
       fieldCondition = "true";
     }
 
-    const alwaysIncluded = fieldCondition === "true";
+    const alwaysIncluded = fieldCondition
+      .split(" || ")
+      .every((p) => p === "true");
 
     if (!alwaysIncluded) {
       body(`(${fieldCondition})`);
@@ -966,8 +971,9 @@ function compileObjectType(
     // Inline __typename
     // No need to call a resolver for typename
     if (field === TypeNameMetaFieldDef) {
+      const typenameValue = context.trivialTypeNameVar ?? `"${type.name}"`;
       body(
-        alwaysIncluded ? `"${type.name}",` : `? "${type.name}" : undefined,`
+        alwaysIncluded ? `${typenameValue},` : `? ${typenameValue} : undefined,`
       );
       continue;
     }
@@ -1046,28 +1052,54 @@ function compileAbstractType(
   }
   const typeResolverName = getTypeResolverName(type.name);
   context.typeResolvers[typeResolverName] = resolveType;
-  const collectedTypes = context.schema
-    .getPossibleTypes(type)
-    .map((objectType) => {
-      const subContext = createSubCompilationContext(context);
-      const object = compileType(
-        subContext,
-        parentType,
-        objectType,
-        fieldNodes,
-        originPaths,
-        ["__concrete"],
-        addPath(previousPath, objectType.name, "meta")
-      );
-      return `case "${objectType.name}": {
-                  ${generateUniqueDeclarations(subContext)}
-                  const __concrete = ${object};
-                  ${compileDeferredFields(subContext)}
-                  return __concrete;
-              }`;
-    })
-    .join("\n");
+
   const finalTypeName = "finalType";
+
+  // Trivial types (no deferred resolvers) whose case bodies differ only in
+  // the __typename literal are grouped into a single shared case that uses
+  // the already computed finalType variable instead of a hardcoded string.
+  const trivialGroups = new Map<string, string[]>();
+  const nonTrivialCases: string[] = [];
+
+  for (const objectType of context.schema.getPossibleTypes(type)) {
+    const subContext = createSubCompilationContext(context);
+    subContext.trivialTypeNameVar = finalTypeName;
+    const object = compileType(
+      subContext,
+      parentType,
+      objectType,
+      fieldNodes,
+      originPaths,
+      ["__concrete"],
+      addPath(previousPath, objectType.name, "meta")
+    );
+    if (subContext.deferred.length === 0) {
+      // object was compiled with trivialTypeNameVar
+      // group identical bodies to share a single case
+      const group = trivialGroups.get(object) ?? [];
+      group.push(objectType.name);
+      trivialGroups.set(object, group);
+    } else {
+      nonTrivialCases.push(`case "${objectType.name}": {
+          ${generateUniqueDeclarations(subContext)}
+          const __concrete = ${object};
+          ${compileDeferredFields(subContext)}
+          return __concrete;
+      }`);
+    }
+  }
+
+  const trivialCases = Array.from(trivialGroups.entries()).map(
+    ([sharedObj, typeNames]) => {
+      const caseLabels = typeNames.map((n) => `case "${n}"`).join(": ");
+      return `${caseLabels}: {
+          const __concrete = ${sharedObj};
+          return __concrete;
+      }`;
+    }
+  );
+
+  const collectedTypes = [...nonTrivialCases, ...trivialCases].join("\n");
   const nullTypeError = `"Runtime Object type is not a possible type for \\"${type.name}\\"."`;
 
   const notPossibleTypeError =
