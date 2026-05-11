@@ -34,7 +34,7 @@
     }
   },
   "scripts": {
-    "benchmark": "NODE_ENV=production ./src/__benchmarks__/benchmarks.ts",
+    "benchmark": "NODE_ENV=production node --loader @swc-node/register/esm src/__benchmarks__/benchmarks.ts",
     "build": "yarn tsup-node",
     "check-exports": "attw --pack .",
     "check-tsc": "tsc --noEmit",
