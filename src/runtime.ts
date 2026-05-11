@@ -4,6 +4,39 @@ export const GLOBAL_RUNTIME_NAME = "__rt";
 
 export interface JitRuntime {
   isPromise(value: unknown): boolean;
+  checkNonNullLeaf(
+    ctx: ExecutionContext,
+    value: unknown,
+    dest: any[],
+    nullMsg: string,
+    locs: any,
+    path: any,
+    capStack: boolean,
+    serialize: (
+      c: ExecutionContext,
+      v: any,
+      onError: any,
+      ...idx: number[]
+    ) => any,
+    errHandler: any,
+    ...parentIndexes: number[]
+  ): any;
+  checkNullableLeaf(
+    ctx: ExecutionContext,
+    value: unknown,
+    dest: any[],
+    locs: any,
+    path: any,
+    capStack: boolean,
+    serialize: (
+      c: ExecutionContext,
+      v: any,
+      onError: any,
+      ...idx: number[]
+    ) => any,
+    errHandler: any,
+    ...parentIndexes: number[]
+  ): any;
   callResolver(
     ctx: ExecutionContext,
     call: () => unknown,
@@ -44,6 +77,66 @@ export const jitRuntime: JitRuntime = {
       typeof value === "object" &&
       typeof (value as any).then === "function"
     );
+  },
+
+  checkNonNullLeaf(
+    ctx,
+    value,
+    dest,
+    nullMsg,
+    locs,
+    path,
+    capStack,
+    serialize,
+    errHandler,
+    ...parentIndexes
+  ) {
+    const GQLError = ctx.GraphQLError as any;
+    if (value == null) {
+      dest.push(new GQLError(nullMsg, locs, path, undefined, capStack));
+      return null;
+    }
+    if (value instanceof Error) {
+      dest.push(
+        new GQLError(
+          value.message != null ? value.message : value,
+          locs,
+          path,
+          value,
+          capStack
+        )
+      );
+      return null;
+    }
+    return serialize(ctx, value, errHandler, ...parentIndexes);
+  },
+
+  checkNullableLeaf(
+    ctx,
+    value,
+    dest,
+    locs,
+    path,
+    capStack,
+    serialize,
+    errHandler,
+    ...parentIndexes
+  ) {
+    const GQLError = ctx.GraphQLError as any;
+    if (value == null) return null;
+    if (value instanceof Error) {
+      dest.push(
+        new GQLError(
+          value.message != null ? value.message : value,
+          locs,
+          path,
+          value,
+          capStack
+        )
+      );
+      return null;
+    }
+    return serialize(ctx, value, errHandler, ...parentIndexes);
   },
 
   callResolver(ctx, call, onSuccess, onError) {

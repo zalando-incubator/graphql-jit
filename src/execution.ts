@@ -659,10 +659,60 @@ function compileType(
   previousPath: ObjectPath
 ): string {
   const sourcePath = joinOriginPaths(originPaths);
+  const isNonNull = isNonNullType(type);
+  const innerType = isNonNull ? (type as any).ofType : type;
+
+  // Optimization: replace the null→instanceof cascade with a single monomorphic
+  // runtime call for leaf types. Avoids N separate GraphQLError call sites per
+  // query and lets V8 optimize a single IC instead of one per field.
+  if (
+    isLeafType(innerType) &&
+    !(
+      context.options.disableLeafSerialization &&
+      (innerType instanceof GraphQLEnumType || isSpecifiedScalarType(innerType))
+    )
+  ) {
+    const dest = isNonNull ? GLOBAL_NULL_ERRORS_NAME : GLOBAL_ERRORS_NAME;
+    const serializerName = getSerializerName(innerType.name);
+    context.serializers[serializerName] = getSerializer(
+      innerType,
+      context.options.customSerializers[innerType.name]
+    );
+    const parentIndexes = getParentArgIndexes(context);
+    const errHandler = getHoistedFunctionName(
+      context,
+      `${innerType.name}${originPaths.join("")}SerializerErrorHandler`
+    );
+    context.hoistedFunctions.push(`
+    function ${errHandler}(${GLOBAL_EXECUTION_CONTEXT}, message, ${parentIndexes}) {
+    ${dest}.push(${createErrorObject(
+      context,
+      fieldNodes,
+      previousPath,
+      "message"
+    )});}
+    `);
+    const locs = JSON.stringify(computeLocations(fieldNodes));
+    const path = serializeResponsePathAsArray(previousPath);
+    const capStack = context.options.disablingCapturingStackErrors
+      ? "true"
+      : "false";
+    const serializerRef = `${GLOBAL_EXECUTION_CONTEXT}.serializers.${serializerName}`;
+    const extraIndexes = parentIndexes ? `, ${parentIndexes}` : "";
+    if (isNonNull) {
+      const nullMsg = `"Cannot return null for non-nullable field ${
+        parentType.name
+      }.${getFieldNodesName(fieldNodes)}."`;
+      return `${GLOBAL_RUNTIME_NAME}.checkNonNullLeaf(${GLOBAL_EXECUTION_CONTEXT}, ${sourcePath}, ${dest}, ${nullMsg}, ${locs}, ${path}, ${capStack}, ${serializerRef}, ${errHandler}${extraIndexes})`;
+    } else {
+      return `${GLOBAL_RUNTIME_NAME}.checkNullableLeaf(${GLOBAL_EXECUTION_CONTEXT}, ${sourcePath}, ${dest}, ${locs}, ${path}, ${capStack}, ${serializerRef}, ${errHandler}${extraIndexes})`;
+    }
+  }
+
   let body = `${sourcePath} == null ? `;
   let errorDestination;
   if (isNonNullType(type)) {
-    type = type.ofType;
+    type = (type as any).ofType;
     const nullErrorStr = `"Cannot return null for non-nullable field ${
       parentType.name
     }.${getFieldNodesName(fieldNodes)}."`;
