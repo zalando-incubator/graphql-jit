@@ -1,76 +1,34 @@
 import { type ExecutionContext } from "./execution";
 
-export const GLOBAL_RUNTIME_NAME = "__rt";
+type Serializer = (
+  c: ExecutionContext,
+  v: any,
+  onError: any,
+  ...idx: number[]
+) => any;
 
-export interface JitRuntime {
-  isPromise(value: unknown): boolean;
-  checkNonNullLeaf(
-    ctx: ExecutionContext,
-    value: unknown,
-    dest: any[],
-    nullMsg: string,
-    locs: any,
-    path: any,
-    capStack: boolean,
-    serialize: (
-      c: ExecutionContext,
-      v: any,
-      onError: any,
-      ...idx: number[]
-    ) => any,
-    errHandler: any,
-    ...parentIndexes: number[]
-  ): any;
-  checkNullableLeaf(
-    ctx: ExecutionContext,
-    value: unknown,
-    dest: any[],
-    locs: any,
-    path: any,
-    capStack: boolean,
-    serialize: (
-      c: ExecutionContext,
-      v: any,
-      onError: any,
-      ...idx: number[]
-    ) => any,
-    errHandler: any,
-    ...parentIndexes: number[]
-  ): any;
-  callResolver(
-    ctx: ExecutionContext,
-    call: () => unknown,
-    onSuccess: (result: unknown) => void,
-    onError: (err: unknown) => void
-  ): void;
-  handleResolverResult(
-    ctx: ExecutionContext,
-    value: unknown,
-    onSuccess: (result: unknown) => void,
-    onError: (err: unknown) => void
-  ): void;
-  handleListItemResult(
-    ctx: ExecutionContext,
-    item: unknown,
-    onSuccess: (result: unknown) => void,
-    onError: (err: unknown) => void
-  ): void;
-  finalizeResult(ctx: ExecutionContext): Promise<unknown> | undefined;
-  safeMap(
-    context: ExecutionContext,
-    iterable: Iterable<unknown> | string,
-    cb: (
-      context: ExecutionContext,
-      a: unknown,
-      index: number,
-      resultArray: unknown[],
-      ...idx: number[]
-    ) => void,
-    ...idx: number[]
-  ): unknown[];
+function resolvePromise(
+  ctx: ExecutionContext,
+  promise: Promise<unknown>,
+  onSuccess: (result: unknown) => void,
+  onError: (err: unknown) => void
+): void {
+  ++ctx.promiseCounter;
+  promise.then(
+    (result) => {
+      onSuccess(result);
+      --ctx.promiseCounter;
+      if (ctx.promiseCounter === 0) ctx.resolve!(ctx);
+    },
+    (err) => {
+      onError(err);
+      --ctx.promiseCounter;
+      if (ctx.promiseCounter === 0) ctx.resolve!(ctx);
+    }
+  );
 }
 
-export const jitRuntime: JitRuntime = {
+export const jitRuntime = {
   isPromise(value: unknown): boolean {
     return (
       value != null &&
@@ -80,17 +38,17 @@ export const jitRuntime: JitRuntime = {
   },
 
   checkNonNullLeaf(
-    ctx,
-    value,
-    dest,
-    nullMsg,
-    locs,
-    path,
-    capStack,
-    serialize,
-    errHandler,
-    ...parentIndexes
-  ) {
+    ctx: ExecutionContext,
+    value: unknown,
+    dest: any[],
+    nullMsg: string,
+    locs: any,
+    path: any,
+    capStack: boolean,
+    serialize: Serializer,
+    errHandler: any,
+    ...parentIndexes: number[]
+  ): any {
     const GQLError = ctx.GraphQLError as any;
     if (value == null) {
       dest.push(new GQLError(nullMsg, locs, path, undefined, capStack));
@@ -98,13 +56,7 @@ export const jitRuntime: JitRuntime = {
     }
     if (value instanceof Error) {
       dest.push(
-        new GQLError(
-          value.message != null ? value.message : value,
-          locs,
-          path,
-          value,
-          capStack
-        )
+        new GQLError(value.message ?? value, locs, path, value, capStack)
       );
       return null;
     }
@@ -112,34 +64,33 @@ export const jitRuntime: JitRuntime = {
   },
 
   checkNullableLeaf(
-    ctx,
-    value,
-    dest,
-    locs,
-    path,
-    capStack,
-    serialize,
-    errHandler,
-    ...parentIndexes
-  ) {
-    const GQLError = ctx.GraphQLError as any;
+    ctx: ExecutionContext,
+    value: unknown,
+    dest: any[],
+    locs: any,
+    path: any,
+    capStack: boolean,
+    serialize: Serializer,
+    errHandler: any,
+    ...parentIndexes: number[]
+  ): any {
     if (value == null) return null;
+    const GQLError = ctx.GraphQLError as any;
     if (value instanceof Error) {
       dest.push(
-        new GQLError(
-          value.message != null ? value.message : value,
-          locs,
-          path,
-          value,
-          capStack
-        )
+        new GQLError(value.message ?? value, locs, path, value, capStack)
       );
       return null;
     }
     return serialize(ctx, value, errHandler, ...parentIndexes);
   },
 
-  callResolver(ctx, call, onSuccess, onError) {
+  callResolver(
+    ctx: ExecutionContext,
+    call: () => unknown,
+    onSuccess: (result: unknown) => void,
+    onError: (err: unknown) => void
+  ): void {
     let value: unknown;
     try {
       value = call();
@@ -151,49 +102,27 @@ export const jitRuntime: JitRuntime = {
     this.handleResolverResult(ctx, value, onSuccess, onError);
   },
 
-  handleResolverResult(ctx, value, onSuccess, onError) {
+  handleResolverResult(
+    ctx: ExecutionContext,
+    value: unknown,
+    onSuccess: (result: unknown) => void,
+    onError: (err: unknown) => void
+  ): void {
     if (this.isPromise(value)) {
-      ++ctx.promiseCounter;
-      (value as Promise<unknown>).then(
-        (result) => {
-          onSuccess(result);
-          --ctx.promiseCounter;
-          if (ctx.promiseCounter === 0) {
-            ctx.resolve!(ctx);
-          }
-        },
-        (err) => {
-          onError(err);
-          --ctx.promiseCounter;
-          if (ctx.promiseCounter === 0) {
-            ctx.resolve!(ctx);
-          }
-        }
-      );
+      resolvePromise(ctx, value as Promise<unknown>, onSuccess, onError);
     } else {
       onSuccess(value);
     }
   },
 
-  handleListItemResult(ctx, item, onSuccess, onError) {
+  handleListItemResult(
+    ctx: ExecutionContext,
+    item: unknown,
+    onSuccess: (result: unknown) => void,
+    onError: (err: unknown) => void
+  ): void {
     if (this.isPromise(item)) {
-      ++ctx.promiseCounter;
-      (item as Promise<unknown>).then(
-        (result) => {
-          onSuccess(result);
-          --ctx.promiseCounter;
-          if (ctx.promiseCounter === 0) {
-            ctx.resolve!(ctx);
-          }
-        },
-        (err) => {
-          onError(err);
-          --ctx.promiseCounter;
-          if (ctx.promiseCounter === 0) {
-            ctx.resolve!(ctx);
-          }
-        }
-      );
+      resolvePromise(ctx, item as Promise<unknown>, onSuccess, onError);
     } else {
       onSuccess(item);
     }
@@ -208,7 +137,18 @@ export const jitRuntime: JitRuntime = {
     return undefined;
   },
 
-  safeMap(ctx, iterable, cb, ...idx) {
+  safeMap(
+    ctx: ExecutionContext,
+    iterable: Iterable<unknown> | string,
+    cb: (
+      context: ExecutionContext,
+      a: unknown,
+      index: number,
+      resultArray: unknown[],
+      ...idx: number[]
+    ) => void,
+    ...idx: number[]
+  ): unknown[] {
     let index = 0;
     const result: unknown[] = [];
     for (const a of iterable as Iterable<unknown>) {
@@ -218,3 +158,5 @@ export const jitRuntime: JitRuntime = {
     return result;
   }
 };
+
+export type JitRuntime = typeof jitRuntime;
