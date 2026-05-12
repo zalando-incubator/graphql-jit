@@ -8,9 +8,9 @@ on:
       - created
   # To enable PR publishes
   # Uncomment the following lines and also the lines in the publish job below
-  # pull_request:
-  #   branches:
-  #     - main
+  pull_request:
+    branches:
+      - mem-1
 
 jobs:
   publish:
@@ -46,12 +46,12 @@ jobs:
           npm publish --tag latest
 
       # To enable PR publishes, uncomment the following lines and also the lines in the on: section above
-      # - name: Publish PR Canary
-      #   if: github.event_name == 'pull_request'
-      #   run: |
-      #     SHORT_SHA=$(git rev-parse --short HEAD)
-      #     PR_NUMBER="${{ github.event.pull_request.number }}"
-      #     BASE_VERSION=$(node -p "require('./package.json').version")
-      #     CANARY_VERSION="${BASE_VERSION}-canary.pr${PR_NUMBER}.${SHORT_SHA}"
-      #     npm pkg set version="$CANARY_VERSION"
-      #     npm publish --tag "pr-${PR_NUMBER}"
+      - name: Publish PR Canary
+        if: github.event_name == 'pull_request'
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          CANARY_VERSION="${BASE_VERSION}-canary.pr${PR_NUMBER}.${SHORT_SHA}"
+          npm pkg set version="$CANARY_VERSION"
+          npm publish --tag "pr-${PR_NUMBER}"
