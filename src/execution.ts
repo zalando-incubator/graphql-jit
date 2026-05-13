@@ -1,6 +1,9 @@
 import { type TypedDocumentNode } from "@graphql-typed-document-node/core";
 import fastJson from "fast-json-stringify";
 import { genFn } from "./generate";
+import { jitRuntime, type JitRuntime } from "./runtime";
+
+const GLOBAL_RUNTIME_NAME = "__context.rt";
 import {
   type ASTNode,
   type DocumentNode,
@@ -107,12 +110,12 @@ export interface ExecutionContext {
   data: any;
   errors: GraphQLError[];
   nullErrors: GraphQLError[];
-  resolve?: () => void;
+  resolve?: (ctx: ExecutionContext) => void;
+  rt: JitRuntime;
   inspect: typeof inspect;
   variables: { [key: string]: any };
   context: any;
   rootValue: any;
-  safeMap: typeof safeMap;
   GraphQLError: typeof GraphqlJitError;
   resolvers: { [key: string]: GraphQLFieldResolver<any, any, any> };
   trimmer: NullTrimmer;
@@ -158,6 +161,10 @@ export interface CompilationContext extends GraphQLContext {
   };
   hoistedFunctions: string[];
   hoistedFunctionNames: Map<string, number>;
+  leafErrHandlerCache: Map<string, string>;
+  // When set, emits this variable name instead of the hardcoded type name for __typename.
+  // Used by compileAbstractType to share trivial case bodies via the finalType variable.
+  trivialTypeNameVar?: string;
   typeResolvers: { [key: string]: GraphQLTypeResolver<any, any> };
   isTypeOfs: { [key: string]: GraphQLIsTypeOfFn<any, any> };
   resolveInfos: { [key: string]: any };
@@ -182,7 +189,7 @@ const GLOBAL_CONTEXT_NAME = "__context.context";
 const GLOBAL_EXECUTION_CONTEXT = "__context";
 const GLOBAL_PROMISE_COUNTER = "__context.promiseCounter";
 const GLOBAL_INSPECT_NAME = "__context.inspect";
-const GLOBAL_SAFE_MAP_NAME = "__context.safeMap";
+const GLOBAL_SAFE_MAP_NAME = `${GLOBAL_RUNTIME_NAME}.safeMap`;
 const GRAPHQL_ERROR = "__context.GraphQLError";
 const GLOBAL_RESOLVE = "__context.resolve";
 const GLOBAL_PARENT_NAME = "__parent";
@@ -377,7 +384,6 @@ export function createBoundQuery(
         rootValue,
         context,
         variables: parsedVariables.coerced,
-        safeMap,
         inspect,
         GraphQLError: GraphqlJitError,
         resolvers,
@@ -386,6 +392,7 @@ export function createBoundQuery(
         serializers,
         resolveInfos,
         trimmer,
+        rt: jitRuntime,
         promiseCounter: 0,
         data: {},
         nullErrors: [],
@@ -477,8 +484,6 @@ function compileOperation(
       ${GLOBAL_EXECUTION_CONTEXT}.jobCounter = 1; // since the first one will be run manually
       ${GLOBAL_EXECUTION_CONTEXT}.queue[0](${GLOBAL_EXECUTION_CONTEXT});
     }
-    // Promises have been scheduled so a new promise is returned
-    // that will be resolved once every promise is done
     if (${GLOBAL_PROMISE_COUNTER} > 0) {
       return new Promise(resolve => ${GLOBAL_EXECUTION_CONTEXT}.finalResolve = resolve);
     }
@@ -486,11 +491,7 @@ function compileOperation(
   } else {
     body += compileDeferredFields(context);
     body += `
-    // Promises have been scheduled so a new promise is returned
-    // that will be resolved once every promise is done
-    if (${GLOBAL_PROMISE_COUNTER} > 0) {
-      return new Promise(resolve => ${GLOBAL_RESOLVE} = resolve);
-    }`;
+    return ${GLOBAL_RUNTIME_NAME}.finalizeResult(${GLOBAL_EXECUTION_CONTEXT});`;
   }
   body += `
   // sync execution, the results are ready
@@ -586,28 +587,19 @@ function compileDeferredField(
   const body = `
     ${compiledArgs}
     if (${validArgs} === true) {
-      var __value = null;
-      try {
-        __value = ${resolverCall};
-      } catch (err) {
-        ${getErrorDestination(fieldType)}.push(${executionError});
-      }
-      if (${isPromiseInliner("__value")}) {
-      ${promiseStarted()}
-       __value.then(result => {
-        ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${resultParentPath}, result, ${parentIndexes});
-        ${promiseDone()}
-       }, err => {
-        if (err) {
-          ${getErrorDestination(fieldType)}.push(${executionError});
-        } else {
-          ${getErrorDestination(fieldType)}.push(${emptyError});
+      ${GLOBAL_RUNTIME_NAME}.callResolver(${GLOBAL_EXECUTION_CONTEXT},
+        () => ${resolverCall},
+        result => {
+          ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${resultParentPath}, result, ${parentIndexes});
+        },
+        err => {
+          if (err) {
+            ${getErrorDestination(fieldType)}.push(${executionError});
+          } else {
+            ${getErrorDestination(fieldType)}.push(${emptyError});
+          }
         }
-        ${promiseDone()}
-       });
-      } else {
-        ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${resultParentPath}, __value, ${parentIndexes});
-      }
+      );
     }`;
   context.hoistedFunctions.push(`
     function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${jsFieldName}, ${parentIndexes}) {
@@ -671,10 +663,68 @@ function compileType(
   previousPath: ObjectPath
 ): string {
   const sourcePath = joinOriginPaths(originPaths);
+  const isNonNull = isNonNullType(type);
+  const innerType = isNonNull ? (type as any).ofType : type;
+
+  // Optimization: replace the null→instanceof cascade with a single monomorphic
+  // runtime call for leaf types. Avoids N separate GraphQLError call sites per
+  // query and lets V8 optimize a single IC instead of one per field.
+  if (
+    isLeafType(innerType) &&
+    !(
+      context.options.disableLeafSerialization &&
+      (innerType instanceof GraphQLEnumType || isSpecifiedScalarType(innerType))
+    )
+  ) {
+    const dest = isNonNull ? GLOBAL_NULL_ERRORS_NAME : GLOBAL_ERRORS_NAME;
+    const serializerName = getSerializerName(innerType.name);
+    context.serializers[serializerName] = getSerializer(
+      innerType,
+      context.options.customSerializers[innerType.name]
+    );
+    const parentIndexes = getParentArgIndexes(context);
+    const handlerBody = `${dest}.push(${createErrorObject(
+      context,
+      fieldNodes,
+      previousPath,
+      "message"
+    )});`;
+    const cachedHandler = context.leafErrHandlerCache.get(handlerBody);
+    let errHandler: string;
+    if (cachedHandler) {
+      errHandler = cachedHandler;
+    } else {
+      errHandler = getHoistedFunctionName(
+        context,
+        `${innerType.name}${originPaths.join("")}SerializerErrorHandler`
+      );
+      context.hoistedFunctions.push(`
+        function ${errHandler}(${GLOBAL_EXECUTION_CONTEXT}, message, ${parentIndexes}) {
+        ${handlerBody}}
+      `);
+      context.leafErrHandlerCache.set(handlerBody, errHandler);
+    }
+    const locs = JSON.stringify(computeLocations(fieldNodes));
+    const path = serializeResponsePathAsArray(previousPath);
+    const capStack = context.options.disablingCapturingStackErrors
+      ? "true"
+      : "false";
+    const serializerRef = `${GLOBAL_EXECUTION_CONTEXT}.serializers.${serializerName}`;
+    const extraIndexes = parentIndexes ? `, ${parentIndexes}` : "";
+    if (isNonNull) {
+      const nullMsg = `"Cannot return null for non-nullable field ${
+        parentType.name
+      }.${getFieldNodesName(fieldNodes)}."`;
+      return `${GLOBAL_RUNTIME_NAME}.checkNonNullLeaf(${GLOBAL_EXECUTION_CONTEXT}, ${sourcePath}, ${dest}, ${nullMsg}, ${locs}, ${path}, ${capStack}, ${serializerRef}, ${errHandler}${extraIndexes})`;
+    } else {
+      return `${GLOBAL_RUNTIME_NAME}.checkNullableLeaf(${GLOBAL_EXECUTION_CONTEXT}, ${sourcePath}, ${dest}, ${locs}, ${path}, ${capStack}, ${serializerRef}, ${errHandler}${extraIndexes})`;
+    }
+  }
+
   let body = `${sourcePath} == null ? `;
   let errorDestination;
   if (isNonNullType(type)) {
-    type = type.ofType;
+    type = (type as any).ofType;
     const nullErrorStr = `"Cannot return null for non-nullable field ${
       parentType.name
     }.${getFieldNodesName(fieldNodes)}."`;
@@ -910,18 +960,21 @@ function compileObjectType(
       fieldCondition = "true";
     }
 
-    body(`
-      (
-        ${fieldCondition}
-      )
-    `);
+    const alwaysIncluded = fieldCondition
+      .split(" || ")
+      .every((p) => p === "true");
+
+    if (!alwaysIncluded) {
+      body(`(${fieldCondition})`);
+    }
 
     // Inline __typename
     // No need to call a resolver for typename
     if (field === TypeNameMetaFieldDef) {
-      // type.name if field is included else undefined - to remove from object
-      // during serialization
-      body(`? "${type.name}" : undefined,`);
+      const typenameValue = context.trivialTypeNameVar ?? `"${type.name}"`;
+      body(
+        alwaysIncluded ? `${typenameValue},` : `? ${typenameValue} : undefined,`
+      );
       continue;
     }
 
@@ -945,34 +998,29 @@ function compileObjectType(
         args: getArgumentDefs(field, fieldNodes[0])
       });
       context.resolvers[getResolverName(type.name, field.name)] = resolver;
-      body(
-        `
-          ? (
-              ${SAFETY_CHECK_PREFIX}${context.deferred.length - 1} = true,
-              null
-            )
-          : (
-              ${SAFETY_CHECK_PREFIX}${context.deferred.length - 1} = false,
-              undefined
-            )
-        `
-      );
+      const idx = context.deferred.length - 1;
+      if (alwaysIncluded) {
+        body(`(${SAFETY_CHECK_PREFIX}${idx} = true, null)`);
+      } else {
+        body(
+          `? (${SAFETY_CHECK_PREFIX}${idx} = true, null) : (${SAFETY_CHECK_PREFIX}${idx} = false, undefined)`
+        );
+      }
     } else {
-      // if included
-      body("?");
-      body(
-        compileType(
-          context,
-          type,
-          field.type,
-          fieldNodes,
-          originPaths.concat(field.name),
-          destinationPaths.concat(name),
-          addPath(responsePath, name)
-        )
+      const compiledFieldType = compileType(
+        context,
+        type,
+        field.type,
+        fieldNodes,
+        originPaths.concat(field.name),
+        destinationPaths.concat(name),
+        addPath(responsePath, name)
       );
-      // if not included
-      body(": undefined");
+      if (alwaysIncluded) {
+        body(compiledFieldType);
+      } else {
+        body(`? ${compiledFieldType} : undefined`);
+      }
     }
     // End object property
     body(",");
@@ -1004,28 +1052,54 @@ function compileAbstractType(
   }
   const typeResolverName = getTypeResolverName(type.name);
   context.typeResolvers[typeResolverName] = resolveType;
-  const collectedTypes = context.schema
-    .getPossibleTypes(type)
-    .map((objectType) => {
-      const subContext = createSubCompilationContext(context);
-      const object = compileType(
-        subContext,
-        parentType,
-        objectType,
-        fieldNodes,
-        originPaths,
-        ["__concrete"],
-        addPath(previousPath, objectType.name, "meta")
-      );
-      return `case "${objectType.name}": {
-                  ${generateUniqueDeclarations(subContext)}
-                  const __concrete = ${object};
-                  ${compileDeferredFields(subContext)}
-                  return __concrete;
-              }`;
-    })
-    .join("\n");
+
   const finalTypeName = "finalType";
+
+  // Trivial types (no deferred resolvers) whose case bodies differ only in
+  // the __typename literal are grouped into a single shared case that uses
+  // the already computed finalType variable instead of a hardcoded string.
+  const trivialGroups = new Map<string, string[]>();
+  const nonTrivialCases: string[] = [];
+
+  for (const objectType of context.schema.getPossibleTypes(type)) {
+    const subContext = createSubCompilationContext(context);
+    subContext.trivialTypeNameVar = finalTypeName;
+    const object = compileType(
+      subContext,
+      parentType,
+      objectType,
+      fieldNodes,
+      originPaths,
+      ["__concrete"],
+      addPath(previousPath, objectType.name, "meta")
+    );
+    if (subContext.deferred.length === 0) {
+      // object was compiled with trivialTypeNameVar
+      // group identical bodies to share a single case
+      const group = trivialGroups.get(object) ?? [];
+      group.push(objectType.name);
+      trivialGroups.set(object, group);
+    } else {
+      nonTrivialCases.push(`case "${objectType.name}": {
+          ${generateUniqueDeclarations(subContext)}
+          const __concrete = ${object};
+          ${compileDeferredFields(subContext)}
+          return __concrete;
+      }`);
+    }
+  }
+
+  const trivialCases = Array.from(trivialGroups.entries()).map(
+    ([sharedObj, typeNames]) => {
+      const caseLabels = typeNames.map((n) => `case "${n}"`).join(": ");
+      return `${caseLabels}: {
+          const __concrete = ${sharedObj};
+          return __concrete;
+      }`;
+    }
+  );
+
+  const collectedTypes = [...nonTrivialCases, ...trivialCases].join("\n");
   const nullTypeError = `"Runtime Object type is not a possible type for \\"${type.name}\\"."`;
 
   const notPossibleTypeError =
@@ -1163,58 +1237,23 @@ function compileListType(
   const parentIndexes = getParentArgIndexes(context);
   listContext.hoistedFunctions.push(`
   function ${safeMapHandler}(${GLOBAL_EXECUTION_CONTEXT}, __currentItem, idx${newDepth}, resultArray, ${parentIndexes}) {
-    if (${isPromiseInliner("__currentItem")}) {
-      ${promiseStarted()}
-      __currentItem.then(result => {
+    ${GLOBAL_RUNTIME_NAME}.handleListItemResult(${GLOBAL_EXECUTION_CONTEXT}, __currentItem,
+      result => {
         ${itemHandler}(${GLOBAL_EXECUTION_CONTEXT}, resultArray, result, ${childIndexes});
-        ${promiseDone()}
-      }, err => {
+      },
+      err => {
         resultArray.push(null);
         if (err) {
           ${getErrorDestination(fieldType)}.push(${executionError});
         } else {
           ${getErrorDestination(fieldType)}.push(${emptyError});
         }
-        ${promiseDone()}
-      });
-    } else {
-       ${itemHandler}(${GLOBAL_EXECUTION_CONTEXT}, resultArray, __currentItem, ${childIndexes});
-    }
+      }
+    );
   }
   `);
   return `(typeof ${name} === "string" || typeof ${name}[Symbol.iterator] !== "function") ?  ${errorCase} :
   ${GLOBAL_SAFE_MAP_NAME}(${GLOBAL_EXECUTION_CONTEXT}, ${name}, ${safeMapHandler}, ${parentIndexes})`;
-}
-
-/**
- * Implements a generic map operation for any iterable.
- *
- * If the iterable is not valid, null is returned.
- * @param context
- * @param {Iterable<any> | string} iterable possible iterable
- * @param {(a: any) => any} cb callback that receives the item being iterated
- * @param idx
- * @returns {any[]} a new array with the result of the callback
- */
-function safeMap(
-  context: ExecutionContext,
-  iterable: Iterable<any> | string,
-  cb: (
-    context: ExecutionContext,
-    a: any,
-    index: number,
-    resultArray: any[],
-    ...idx: number[]
-  ) => any,
-  ...idx: number[]
-): any[] {
-  let index = 0;
-  const result: any[] = [];
-  for (const a of iterable) {
-    cb(context, a, index, result, ...idx);
-    ++index;
-  }
-  return result;
 }
 
 const MAGIC_MINUS_INFINITY =
@@ -1427,7 +1466,7 @@ export function isPromise(value: any): value is Promise<any> {
 }
 
 export function isPromiseInliner(value: string): string {
-  return `${value} != null && typeof ${value} === "object" && typeof ${value}.then === "function"`;
+  return `${GLOBAL_RUNTIME_NAME}.isPromise(${value})`;
 }
 
 /**
@@ -1633,6 +1672,7 @@ export function buildCompilationContext(
     resolveInfos: {},
     hoistedFunctions: [],
     hoistedFunctionNames: new Map(),
+    leafErrHandlerCache: new Map(),
     deferred: [],
     depth: -1,
     variableValues: {},
@@ -1680,22 +1720,6 @@ function getTypeResolverName(name: string) {
 
 function getSerializerName(name: string) {
   return name + "Serializer";
-}
-
-function promiseStarted() {
-  return `
-     // increase the promise counter
-     ++${GLOBAL_PROMISE_COUNTER};
-  `;
-}
-
-function promiseDone() {
-  return `
-    --${GLOBAL_PROMISE_COUNTER};
-    if (${GLOBAL_PROMISE_COUNTER} === 0) {
-      ${GLOBAL_RESOLVE}(${GLOBAL_EXECUTION_CONTEXT});
-    }
-  `;
 }
 
 function normalizeErrors(err: Error[] | Error): GraphQLError[] {
@@ -1872,7 +1896,6 @@ function createBoundSubscribe(
         rootValue,
         context,
         variables: parsedVariables.coerced,
-        safeMap,
         inspect,
         GraphQLError: GraphqlJitError,
         resolvers,
@@ -1881,6 +1904,7 @@ function createBoundSubscribe(
         serializers,
         resolveInfos,
         trimmer,
+        rt: jitRuntime,
         promiseCounter: 0,
         nullErrors: [],
         errors: [],
