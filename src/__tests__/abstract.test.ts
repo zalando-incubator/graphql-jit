@@ -732,6 +732,76 @@ describe("Abstract type trivial case deduplication", () => {
     );
   });
 
+  test("non-trivial union member with async resolver returning typed object with __typename", async () => {
+    const Product = new GraphQLObjectType({
+      name: "Product",
+      fields: {
+        __typename: { type: GraphQLString },
+        name: { type: GraphQLString }
+      }
+    });
+
+    const TrivialA = new GraphQLObjectType({
+      name: "TrivialA",
+      fields: { id: { type: GraphQLID } }
+    });
+
+    const NonTrivial = new GraphQLObjectType({
+      name: "NonTrivial",
+      fields: {
+        id: { type: GraphQLID },
+        product: {
+          type: Product,
+          resolve: (obj) => Promise.resolve({ name: obj.productName })
+        }
+      }
+    });
+
+    const Feed = new GraphQLUnionType({
+      name: "Feed",
+      types: [TrivialA, NonTrivial],
+      resolveType: (obj) => obj.__type
+    });
+
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          feed: {
+            type: new GraphQLList(Feed),
+            resolve: () => [
+              { __type: "TrivialA", id: "1" },
+              { __type: "NonTrivial", id: "2", productName: "Widget" }
+            ]
+          }
+        }
+      })
+    });
+
+    const document = parse(`{
+      feed {
+        __typename
+        ... on NonTrivial {
+          id
+          product { __typename name }
+        }
+      }
+    }`);
+    const compiled = compileQuery(schema, document, "");
+    if (!isCompiledQuery(compiled)) throw new Error("compile failed");
+
+    const result = await compiled.query(undefined, undefined, undefined);
+    expect(result.errors).toBeUndefined();
+    expect(result.data!.feed).toEqual([
+      { __typename: "TrivialA" },
+      {
+        __typename: "NonTrivial",
+        id: "2",
+        product: { __typename: "Product", name: "Widget" }
+      }
+    ]);
+  });
+
   // A union where some members are trivial (__typename only, grouped into a
   // shared case) and some are non-trivial (have resolver-backed fields, get
   // individual cases). Both paths must execute correctly in the same query.
