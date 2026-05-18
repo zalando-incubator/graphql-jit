@@ -865,6 +865,12 @@ function compileObjectType(
   fieldMap: FieldsAndNodes,
   alwaysDefer: boolean
 ): string {
+  // trivialTypeNameVar applies only to __typename of this (current) type.
+  // Clear it on context so nested field compilations and deferred resolver
+  // handler sub-contexts don't reference finalType outside its switch scope.
+  const trivialTypeNameVar = context.trivialTypeNameVar;
+  context.trivialTypeNameVar = undefined;
+
   const body = genFn();
 
   // Begin object compilation paren
@@ -971,7 +977,7 @@ function compileObjectType(
     // Inline __typename
     // No need to call a resolver for typename
     if (field === TypeNameMetaFieldDef) {
-      const typenameValue = context.trivialTypeNameVar ?? `"${type.name}"`;
+      const typenameValue = trivialTypeNameVar ?? `"${type.name}"`;
       body(
         alwaysIncluded ? `${typenameValue},` : `? ${typenameValue} : undefined,`
       );
