@@ -28,6 +28,7 @@ jobs:
     needs: lint # Only run tests if linting passes
 
     strategy:
+      fail-fast: false
       matrix:
         node-version: [22, 24, 26]
         graphql-version: [15, 16, 17]
