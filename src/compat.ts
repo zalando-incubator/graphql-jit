@@ -117,6 +117,31 @@ export function resolveFieldDef(
 }
 
 /**
+ * v17 introduces `arg.default = { value }` for SDL-built schemas.
+ * Programmatic schemas still use `arg.defaultValue`.
+ * This helper normalizes both to a single value.
+ */
+export function getDefaultValue(argOrField: {
+  defaultValue?: unknown;
+  default?: { value?: unknown; literal?: unknown };
+}): unknown {
+  if (argOrField.default !== undefined) {
+    // v17 SDL-built default — `.value` holds the JS value
+    return (argOrField.default as any).value;
+  }
+  return argOrField.defaultValue;
+}
+
+export function hasDefaultValue(argOrField: {
+  defaultValue?: unknown;
+  default?: { value?: unknown; literal?: unknown };
+}): boolean {
+  return (
+    argOrField.default !== undefined || argOrField.defaultValue !== undefined
+  );
+}
+
+/**
  * v17 deprecates parseLiteral in favor of coerceInputLiteral for custom scalars
  * However, custom scalars may still only define parseLiteral, so we check
  * for the method's existence rather than just the version.
@@ -132,4 +157,14 @@ export function coerceInputLiteral(
   }
 
   return (type as any).parseLiteral(valueNode, {});
+}
+
+/**
+ * V17 removes execution context
+ * This is a minimal interface to support the execution context for v16 and v17+
+ */
+export interface ExecutionContext {
+  errors: Array<GraphQLError> | undefined;
+  completed: boolean;
+  errorPropagation: boolean;
 }

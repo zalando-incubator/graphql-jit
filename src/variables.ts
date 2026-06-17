@@ -21,6 +21,7 @@ import {
 } from "graphql";
 import { addPath, computeLocations, type ObjectPath } from "./ast.js";
 import { GraphQLError as GraphQLJITError } from "./error.js";
+import { getDefaultValue, hasDefaultValue } from "./compat.js";
 import createInspect from "./inspect.js";
 
 const inspect = createInspect();
@@ -378,7 +379,7 @@ function generateInput(
           field.type,
           field.name,
           hasValueName,
-          field.defaultValue,
+          hasDefaultValue(field) ? getDefaultValue(field) : undefined,
           false
         )}
       `);

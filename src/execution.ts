@@ -36,7 +36,7 @@ import {
   type OperationDefinitionNode,
   type GraphQLTypeResolver
 } from "graphql";
-import { type ExecutionContext as GraphQLContext } from "graphql/execution/execute.js";
+import { type ExecutionContext as GraphQLContext } from "./compat.js";
 import { pathToArray } from "graphql/jsutils/Path.js";
 import {
   addPath,
