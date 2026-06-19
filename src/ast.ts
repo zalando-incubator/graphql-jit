@@ -36,7 +36,9 @@ import { type CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution.js";
 import createInspect from "./inspect.js";
 import {
   coerceInputLiteral,
+  getDefaultValue,
   getGraphQLErrorOptions,
+  hasDefaultValue,
   resolveFieldDef
 } from "./compat.js";
 
@@ -766,9 +768,9 @@ export function getArgumentDefs(
   const argNodeMap = keyMap(argNodes, (arg) => arg.name.value);
   for (const argDef of argDefs) {
     const name = argDef.name;
-    if (argDef.defaultValue !== undefined) {
-      // Set the coerced value to the default
-      values[name] = argDef.defaultValue;
+    if (hasDefaultValue(argDef)) {
+      // handle both v16 defaultValue and v17 default.value
+      values[name] = getDefaultValue(argDef);
     }
     const argType = argDef.type;
     const argumentNode = argNodeMap[name];
@@ -913,8 +915,8 @@ export function valueFromAST(
     const fieldNodes = keyMap(valueNode.fields, (field) => field.name.value);
     const fields = Object.values(type.getFields());
     for (const field of fields) {
-      if (field.defaultValue !== undefined) {
-        coercedObj[field.name] = field.defaultValue;
+      if (hasDefaultValue(field)) {
+        coercedObj[field.name] = getDefaultValue(field);
       }
       const fieldNode = fieldNodes[field.name];
       if (!fieldNode) {
