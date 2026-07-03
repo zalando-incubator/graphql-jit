@@ -106,104 +106,107 @@ function collectFieldsImpl(
   parentResponsePath = ""
 ): FieldsAndNodes {
   interface StackItem {
-    selectionSet: SelectionSetNode;
+    selection: SelectionNode;
     parentResponsePath: string;
     previousShouldInclude: string[];
   }
 
   const stack: StackItem[] = [];
 
-  stack.push({
-    selectionSet,
-    parentResponsePath,
-    previousShouldInclude
-  });
+  // Push in reverse so that stack.pop() will process in document order
+  for (let i = selectionSet.selections.length - 1; i >= 0; i--) {
+    stack.push({
+      selection: selectionSet.selections[i],
+      parentResponsePath,
+      previousShouldInclude
+    });
+  }
 
   while (stack.length > 0) {
-    const { selectionSet, parentResponsePath, previousShouldInclude } =
+    const { selection, parentResponsePath, previousShouldInclude } =
       stack.pop()!;
 
-    for (const selection of selectionSet.selections) {
-      switch (selection.kind) {
-        case Kind.FIELD: {
-          collectFieldsForField({
+    switch (selection.kind) {
+      case Kind.FIELD: {
+        collectFieldsForField({
+          compilationContext,
+          fields,
+          parentResponsePath,
+          previousShouldInclude,
+          selection
+        });
+        break;
+      }
+
+      case Kind.INLINE_FRAGMENT: {
+        if (
+          !doesFragmentConditionMatch(
             compilationContext,
-            fields,
-            parentResponsePath,
-            previousShouldInclude,
-            selection
-          });
+            selection,
+            runtimeType
+          )
+        ) {
           break;
         }
 
-        case Kind.INLINE_FRAGMENT: {
-          if (
-            !doesFragmentConditionMatch(
-              compilationContext,
-              selection,
-              runtimeType
-            )
-          ) {
-            continue;
-          }
+        // current fragment's shouldInclude
+        const compiledSkipInclude = compileSkipInclude(
+          compilationContext,
+          selection
+        );
 
-          // current fragment's shouldInclude
-          const compiledSkipInclude = compileSkipInclude(
-            compilationContext,
-            selection
-          );
+        const mergedShouldInclude = joinShouldIncludeCompilations(
+          previousShouldInclude,
+          [compiledSkipInclude]
+        );
 
-          // push to stack
+        // Push in reverse so that stack.pop() will process in document order
+        const selectionsLength = selection.selectionSet.selections.length;
+        for (let i = selectionsLength - 1; i >= 0; i--) {
           stack.push({
-            selectionSet: selection.selectionSet,
-            parentResponsePath: parentResponsePath,
-            previousShouldInclude: joinShouldIncludeCompilations(
-              // `should include`s from previous fragments
-              previousShouldInclude,
-              // current fragment's shouldInclude
-              [compiledSkipInclude]
-            )
-          });
-          break;
-        }
-
-        case Kind.FRAGMENT_SPREAD: {
-          const fragName = selection.name.value;
-          if (visitedFragmentNames[fragName]) {
-            continue;
-          }
-          visitedFragmentNames[fragName] = true;
-          const fragment = compilationContext.fragments[fragName];
-          if (
-            !fragment ||
-            !doesFragmentConditionMatch(
-              compilationContext,
-              fragment,
-              runtimeType
-            )
-          ) {
-            continue;
-          }
-
-          // current fragment's shouldInclude
-          const compiledSkipInclude = compileSkipInclude(
-            compilationContext,
-            selection
-          );
-
-          // push to stack
-          stack.push({
-            selectionSet: fragment.selectionSet,
+            selection: selection.selectionSet.selections[i],
             parentResponsePath,
-            previousShouldInclude: joinShouldIncludeCompilations(
-              // `should include`s from previous fragments
-              previousShouldInclude,
-              // current fragment's shouldInclude
-              [compiledSkipInclude]
-            )
+            previousShouldInclude: mergedShouldInclude
           });
+        }
+        break;
+      }
+
+      case Kind.FRAGMENT_SPREAD: {
+        const fragName = selection.name.value;
+        if (visitedFragmentNames[fragName]) {
           break;
         }
+        visitedFragmentNames[fragName] = true;
+        const fragment = compilationContext.fragments[fragName];
+        if (
+          !fragment ||
+          !doesFragmentConditionMatch(compilationContext, fragment, runtimeType)
+        ) {
+          break;
+        }
+
+        // current fragment's shouldInclude
+        const compiledSkipInclude = compileSkipInclude(
+          compilationContext,
+          selection
+        );
+
+        const mergedShouldInclude = joinShouldIncludeCompilations(
+          previousShouldInclude,
+          [compiledSkipInclude]
+        );
+
+        // Push in reverse so that stack.pop() will process in document order
+        const selectionsLength = fragment.selectionSet.selections.length;
+        for (let i = selectionsLength - 1; i >= 0; i--) {
+          stack.push({
+            selection: fragment.selectionSet.selections[i],
+            parentResponsePath,
+            previousShouldInclude: mergedShouldInclude
+          });
+        }
+        break;
       }
     }
   }
