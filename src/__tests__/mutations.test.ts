@@ -9,6 +9,7 @@ import {
   GraphQLSchema,
   parse
 } from "graphql";
+import { makeExecutableSchema } from "@graphql-tools/schema";
 import { compileQuery, isCompiledQuery } from "../index";
 
 class NumberHolder {
@@ -111,6 +112,63 @@ function executeQuery(
   }
   return compiled.query(rootValue, undefined, {});
 }
+
+describe("Execute: Handles mutation execution ordering with fragments", () => {
+  test("evaluates mutations in document order", async () => {
+    const executionOrder: string[] = [];
+
+    const execSchema = makeExecutableSchema({
+      typeDefs: `
+        type NumberHolder { theNumber: Int }
+        type Query { numberHolder: NumberHolder }
+        type Mutation {
+          unassign: NumberHolder
+          createAssignments: NumberHolder
+        }
+      `,
+      resolvers: {
+        Mutation: {
+          unassign(root: Root) {
+            executionOrder.push("unassign");
+            return root.immediatelyChangeTheNumber(1);
+          },
+          createAssignments(root: Root) {
+            executionOrder.push("createAssignments");
+            return root.immediatelyChangeTheNumber(2);
+          }
+        }
+      }
+    });
+
+    const doc = parse(`
+      mutation CreateAssignmentsForm($enableUnassign: Boolean!) {
+        ...UnassignMutation
+        createAssignments {
+          theNumber
+        }
+      }
+
+      fragment UnassignMutation on Mutation {
+        unassign @include(if: $enableUnassign) {
+          theNumber
+        }
+      }
+    `);
+
+    const compiled = compileQuery(execSchema, doc, "CreateAssignmentsForm");
+    if (!isCompiledQuery(compiled)) {
+      throw compiled;
+    }
+
+    executionOrder.length = 0;
+    await compiled.query(new Root(0), undefined, { enableUnassign: true });
+    expect(executionOrder).toEqual(["unassign", "createAssignments"]);
+
+    executionOrder.length = 0;
+    await compiled.query(new Root(0), undefined, { enableUnassign: false });
+    expect(executionOrder).toEqual(["createAssignments"]);
+  });
+});
 
 describe("Execute: Handles mutation execution ordering", () => {
   test("evaluates mutations serially", async () => {
