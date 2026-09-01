@@ -68,10 +68,8 @@ import {
   failToParseVariables
 } from "./variables.js";
 import { getGraphQLErrorOptions, getOperationRootType } from "./compat.js";
-import memoize from "lodash.memoize";
 
 const inspect = createInspect();
-const joinOriginPaths = memoize(joinOriginPathsImpl);
 
 export interface CompilerOptions {
   customJSONSerializer: boolean;
@@ -1976,7 +1974,7 @@ function mapAsyncIterator<T, U, R = undefined>(
   };
 }
 
-function joinOriginPathsImpl(originPaths: string[]) {
+function joinOriginPaths(originPaths: string[]) {
   return originPaths.join(".");
 }
 
