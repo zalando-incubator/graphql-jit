@@ -641,6 +641,38 @@ describe("Execute: Handles basic execution tasks", () => {
     });
   });
 
+  test("errors include extensions field even without custom extensions", async () => {
+    const query = `
+      query {
+        asyncError
+      }
+    `;
+
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          asyncError: {
+            type: GraphQLString,
+            resolve() {
+              throw new Error("Test error without extensions");
+            }
+          }
+        }
+      })
+    });
+
+    const ast = parse(query);
+    const result = await executeQuery(schema, ast);
+
+    expect(result.errors).toBeDefined();
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toMatchObject({
+      message: "Test error without extensions",
+      extensions: {}
+    });
+  });
+
   test("Full response path is included for non-nullable fields", async () => {
     const A: GraphQLObjectType = new GraphQLObjectType({
       name: "A",
