@@ -5,6 +5,8 @@ export {
   type CompiledQuery
 } from "./execution.js";
 
+export type { CompilerDebugOptions } from "./debug.js";
+
 export {
   type GraphQLJitResolveInfo,
   type FieldExpansion,

@@ -14,6 +14,7 @@ import {
   isNonNullType,
   isScalarType,
   print,
+  type OperationDefinitionNode,
   type SourceLocation,
   typeFromAST,
   valueFromAST,
@@ -23,6 +24,12 @@ import { addPath, computeLocations, type ObjectPath } from "./ast.js";
 import { GraphQLError as GraphQLJITError } from "./error.js";
 import { getDefaultValue, hasDefaultValue } from "./compat.js";
 import createInspect from "./inspect.js";
+import {
+  appendSourceURL,
+  createGeneratedSourceName,
+  formatDebugSource,
+  type CompilerDebugOptions
+} from "./debug.js";
 
 const inspect = createInspect();
 
@@ -49,6 +56,11 @@ interface CompilationContext {
   errorMessage?: string;
 }
 
+interface VariableCompilationDebugOptions {
+  compilerOptions: CompilerDebugOptions;
+  operation: OperationDefinitionNode;
+}
+
 function createSubCompilationContext(
   context: CompilationContext
 ): CompilationContext {
@@ -56,7 +68,8 @@ function createSubCompilationContext(
 }
 export function compileVariableParsing(
   schema: GraphQLSchema,
-  varDefNodes: ReadonlyArray<VariableDefinitionNode>
+  varDefNodes: ReadonlyArray<VariableDefinitionNode>,
+  debug?: VariableCompilationDebugOptions
 ): (inputs: { [key: string]: any }) => CoercedVariableValues {
   const errors = [];
   const coercedValues: { [key: string]: any } = Object.create(null);
@@ -111,8 +124,7 @@ export function compileVariableParsing(
   }
 
   const gen = genFn();
-  gen(`
-    return function getVariables(input) {
+  gen(`function getVariables(input) {
       const errors = [];
       const coerced = ${JSON.stringify(coercedValues)}
       ${mainBody}
@@ -123,12 +135,32 @@ export function compileVariableParsing(
     }
   `);
 
+  const functionExpression = gen.toString();
+  const functionBody = debug
+    ? "return " +
+      formatDebugSource(
+        functionExpression,
+        debug.compilerOptions.formatSourceCode
+      )
+    : `
+    return ${functionExpression}`;
+  const generatedSource = debug
+    ? appendSourceURL(
+        functionBody,
+        createGeneratedSourceName(
+          debug.operation.name?.value,
+          debug.compilerOptions,
+          "variables"
+        )
+      )
+    : functionBody;
+
   // eslint-disable-next-line
   return Function.apply(
     null,
     ["GraphQLJITError", "inspect"]
       .concat(Array.from(dependencies.keys()))
-      .concat(gen.toString())
+      .concat(generatedSource)
   ).apply(
     null,
     [GraphQLJITError, inspect].concat(Array.from(dependencies.values()))

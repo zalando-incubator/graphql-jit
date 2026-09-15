@@ -1907,6 +1907,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@prettier/sync@npm:^0.6.1":
+  version: 0.6.1
+  resolution: "@prettier/sync@npm:0.6.1"
+  dependencies:
+    make-synchronized: "npm:^0.8.0"
+  peerDependencies:
+    prettier: "*"
+  checksum: 10c0/4cf6dd8c27f6425924ac749ca980693b447d39162b530e103f4613df470c1ec877f691d10796556b748ce8c954cc76e0f2a73e18e02b125d295168012c25df71
+  languageName: node
+  linkType: hard
+
 "@rollup/rollup-android-arm-eabi@npm:4.22.4":
   version: 4.22.4
   resolution: "@rollup/rollup-android-arm-eabi@npm:4.22.4"
@@ -4654,6 +4665,7 @@ __metadata:
     "@eslint/js": "npm:^9.10.0"
     "@graphql-tools/schema": "npm:^10.0.0"
     "@graphql-typed-document-node/core": "npm:^3.2.0"
+    "@prettier/sync": "npm:^0.6.1"
     "@stryker-mutator/core": "npm:^7.1.1"
     "@stryker-mutator/jest-runner": "npm:^7.1.1"
     "@stryker-mutator/typescript": "npm:^4.0.0"
@@ -6067,6 +6079,13 @@ __metadata:
     promise-retry: "npm:^2.0.1"
     ssri: "npm:^12.0.0"
   checksum: 10c0/c40efb5e5296e7feb8e37155bde8eb70bc57d731b1f7d90e35a092fde403d7697c56fb49334d92d330d6f1ca29a98142036d6480a12681133a0a1453164cb2f0
+  languageName: node
+  linkType: hard
+
+"make-synchronized@npm:^0.8.0":
+  version: 0.8.0
+  resolution: "make-synchronized@npm:0.8.0"
+  checksum: 10c0/b8293d79e8752840a8103034866296b781c754286bf54864f4014b01f4b46710c5eaa04ffdabd7167513a4e72e7fec4396b36fb5aef16222fd5a268d1b4c041e
   languageName: node
   linkType: hard
 
