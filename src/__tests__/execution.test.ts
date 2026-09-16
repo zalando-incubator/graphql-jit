@@ -16,6 +16,8 @@ import {
   GraphQLString,
   parse
 } from "graphql";
+import { Session } from "node:inspector";
+import { format } from "@prettier/sync";
 import { CompiledQuery, compileQuery, isCompiledQuery } from "../execution";
 
 function executeArgs(args: any) {
@@ -86,7 +88,7 @@ describe("Execute: Handles basic execution tasks", () => {
     ).toThrow("resolverInfoEnricher must be a function");
   });
 
-  test("return the generated function if debug is passed in the options", async () => {
+  test("returns the generated function when debug is enabled", async () => {
     const schema = new GraphQLSchema({
       query: new GraphQLObjectType({
         name: "Type",
@@ -97,14 +99,26 @@ describe("Execute: Handles basic execution tasks", () => {
     });
 
     let compiled: any = compileQuery(schema, parse("{ field }"), "", {
-      debug: true
-    } as any);
+      debug: { enabled: true }
+    });
 
     expect(
       compiled.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation
     ).toBeDefined();
 
     compiled = compileQuery(schema, parse("{ field }"));
+    expect(
+      compiled.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation
+    ).not.toBeDefined();
+
+    compiled = compileQuery(schema, parse("{ field }"), "", {
+      debug: {
+        enabled: false,
+        formatSourceCode: () => {
+          throw new Error("Disabled debug formatting must not run.");
+        }
+      }
+    });
     expect(
       compiled.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation
     ).not.toBeDefined();
@@ -1293,4 +1307,103 @@ describe("dx", () => {
     expect(isCompiledQuery(compiledQuery)).toBe(true);
     expect(compiledQuery.query.name).toBe("mockOperationName");
   });
+
+  test("publishes debug compilations as virtual scripts", async () => {
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          a: {
+            type: GraphQLString,
+            args: { value: { type: GraphQLString } },
+            resolve: () => "a"
+          }
+        }
+      })
+    });
+    const querySourceName = "graphql-jit://graphql-jit/tests/Example.query.js";
+    const variablesSourceName =
+      "graphql-jit://graphql-jit/tests/Example.variables.js";
+    const operationSource = `query Example($value: String) {\n  a(value: $value)\n}`;
+    const document = parse(operationSource);
+    const session = new Session();
+    session.connect();
+
+    try {
+      await inspectorPost(session, "Debugger.enable");
+      const queryScriptParsed = onceScriptParsed(session, querySourceName);
+      const variablesScriptParsed = onceScriptParsed(
+        session,
+        variablesSourceName
+      );
+
+      const compiledQuery = compileQuery(schema, document, "Example", {
+        debug: {
+          enabled: true,
+          querySourceName,
+          variablesSourceName,
+          formatSourceCode: (source) => format(source, { parser: "babel" })
+        }
+      });
+      expect(isCompiledQuery(compiledQuery)).toBe(true);
+      if (!isCompiledQuery(compiledQuery)) {
+        throw new Error("Expected the query to compile.");
+      }
+
+      const [queryParsed, variablesParsed] = await Promise.all([
+        queryScriptParsed,
+        variablesScriptParsed
+      ]);
+      const [queryScript, variablesScript] = await Promise.all([
+        inspectorPost(session, "Debugger.getScriptSource", {
+          scriptId: queryParsed.scriptId
+        }),
+        inspectorPost(session, "Debugger.getScriptSource", {
+          scriptId: variablesParsed.scriptId
+        })
+      ]);
+      expect(queryScript.scriptSource).toContain("function query");
+      expect(queryScript.scriptSource).toContain("function query(__context)");
+      expect(variablesScript.scriptSource).toContain("function getVariables");
+      expect(queryScript.scriptSource).toContain(
+        `//# sourceURL=${querySourceName}`
+      );
+      expect(variablesScript.scriptSource).toContain(
+        `//# sourceURL=${variablesSourceName}`
+      );
+      expect(queryParsed.sourceMapURL).toBeFalsy();
+      expect(variablesParsed.sourceMapURL).toBeFalsy();
+      expect(
+        await compiledQuery.query(undefined, undefined, { value: "test" })
+      ).toEqual({ data: { a: "a" } });
+    } finally {
+      session.disconnect();
+    }
+  });
 });
+
+function inspectorPost(
+  session: Session,
+  method: string,
+  params?: object
+): Promise<any> {
+  return new Promise((resolve, reject) => {
+    session.post(method, params, (error, result) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(result);
+      }
+    });
+  });
+}
+
+function onceScriptParsed(session: Session, sourceName: string): Promise<any> {
+  return new Promise((resolve) => {
+    session.on("Debugger.scriptParsed", ({ params }) => {
+      if (params.url === sourceName) {
+        resolve(params);
+      }
+    });
+  });
+}

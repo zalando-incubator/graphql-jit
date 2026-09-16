@@ -57,8 +57,8 @@ async function runBenchmarks() {
     Object.entries(benchmarks).map(
       async ([bench, { query, schema, variables }]) => {
         const compiledQuery = compileQuery(schema, query, undefined, {
-          debug: true
-        } as any);
+          debug: { enabled: true }
+        });
         if (!isCompiledQuery(compiledQuery)) {
           console.error(`${bench} failed to compile`);
           return null;

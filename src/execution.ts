@@ -2,6 +2,13 @@ import { type TypedDocumentNode } from "@graphql-typed-document-node/core";
 import fastJson from "fast-json-stringify";
 import { genFn } from "./generate";
 import { jitRuntime, type JitRuntime } from "./runtime";
+import {
+  appendSourceURL,
+  createGeneratedSourceName,
+  formatDebugSource,
+  normalizeDebugOptions,
+  type CompilerDebugOptions
+} from "./debug.js";
 
 const GLOBAL_RUNTIME_NAME = "__context.rt";
 import {
@@ -100,6 +107,9 @@ export interface CompilerOptions {
    *
    */
   useExperimentalPathBasedSkipInclude: boolean;
+
+  /** Expose generated executors to JavaScript debuggers with virtual names. */
+  debug?: CompilerDebugOptions;
 }
 
 // @internal
@@ -266,6 +276,7 @@ export function compileQuery<
       options,
       operationName
     );
+    const debugOptions = normalizeDebugOptions(options.debug);
 
     let stringify: (v: any) => string;
     if (options.customJSONSerializer) {
@@ -276,7 +287,13 @@ export function compileQuery<
     }
     const getVariables = compileVariableParsing(
       schema,
-      context.operation.variableDefinitions || []
+      context.operation.variableDefinitions || [],
+      debugOptions
+        ? {
+            compilerOptions: debugOptions,
+            operation: context.operation
+          }
+        : undefined
     );
 
     const type = getOperationRootType(context.schema, context.operation);
@@ -289,13 +306,23 @@ export function compileQuery<
     );
 
     const functionBody = compileOperation(context, type, fieldMap);
+    const generatedSource = debugOptions
+      ? appendSourceURL(
+          formatDebugSource(functionBody, debugOptions.formatSourceCode),
+          createGeneratedSourceName(
+            context.operation.name?.value,
+            debugOptions,
+            "query"
+          )
+        )
+      : functionBody;
 
     const compiledQuery: InternalCompiledQuery = {
       query: createBoundQuery(
         context,
         document,
         // eslint-disable-next-line no-new-func
-        new Function("return " + functionBody)(),
+        new Function("return " + generatedSource)(),
         getVariables,
         context.operation.name != null
           ? context.operation.name.value
@@ -321,11 +348,11 @@ export function compileQuery<
       );
     }
 
-    if ((options as any).debug) {
+    if (debugOptions) {
       // result of the compilation useful for debugging issues
       // and visualization tools like try-jit.
       compiledQuery.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation =
-        functionBody;
+        generatedSource;
     }
     return compiledQuery as CompiledQuery<TResult, TVariables>;
   } catch (err: any) {

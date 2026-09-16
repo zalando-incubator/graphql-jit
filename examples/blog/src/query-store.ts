@@ -1,6 +1,7 @@
 import { CompiledQuery, compileQuery, isCompiledQuery } from "../../../";
 import { GraphQLSchema, validate, parse, GraphQLError } from "graphql";
-import { createHash } from "crypto";
+import { createHash } from "node:crypto";
+import { format } from "@prettier/sync";
 
 class ValidationError extends Error {
   constructor(public errors: ReadonlyArray<GraphQLError>) {
@@ -21,18 +22,26 @@ export default class QueryStore {
   }
 
   add(query: string): string {
-    const validationErrors = validate(this.schema, parse(query));
+    const id = this.getId(query);
+    const document = parse(query);
+    const validationErrors = validate(this.schema, document);
     if (validationErrors.length > 0) {
       throw new ValidationError(validationErrors);
     }
 
-    const compiledQuery = compileQuery(this.schema, parse(query));
+    const compiledQuery = compileQuery(this.schema, document, undefined, {
+      debug: {
+        enabled: true,
+        querySourceName: `graphql-jit://graphql-jit/blog/${id}.query.js`,
+        variablesSourceName: `graphql-jit://graphql-jit/blog/${id}.variables.js`,
+        formatSourceCode: (source) => format(source, { parser: "babel" })
+      }
+    });
     if (!isCompiledQuery(compiledQuery)) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       throw new ValidationError(compiledQuery.errors!);
     }
 
-    const id = this.getId(query);
     this.store.set(id, compiledQuery);
     return id;
   }

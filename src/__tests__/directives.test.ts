@@ -44,9 +44,9 @@ function executeTestQuery(
 ) {
   const ast = parse(query);
   const compiled: any = compileQuery(schema, ast, "", {
-    debug: true,
+    debug: { enabled: true },
     ...options
-  } as any);
+  });
   if (!isCompiledQuery(compiled)) {
     return compiled;
   }

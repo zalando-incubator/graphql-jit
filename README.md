@@ -123,6 +123,31 @@ Compiles the `document` AST, using an optional operationName and compiler option
   - `customSerializers` {Object as Map, default: {}} - Replace serializer functions for specific types. Can be used as a safer alternative
     for overly expensive serializers
   - `customJSONSerializer` {boolean, default: false} - Whether to produce also a JSON serializer function using `fast-json-stringify`. The default stringifier function is `JSON.stringify`
+  - `debug` {object, optional} - Publishes formatted generated executors as virtual JavaScript sources. This is intended for local development.
+    - `enabled` {boolean, required} - Enables all debug-only work. Set this to `false` to skip formatting and generated-source changes.
+    - `querySourceName` {string, optional} - A stable name for the generated query source, such as `graphql-jit://graphql-jit/my-service/GetProduct.query.js`.
+    - `variablesSourceName` {string, optional} - A stable name for the generated variable-coercion source, such as `graphql-jit://graphql-jit/my-service/GetProduct.variables.js`.
+    - `formatSourceCode` {(source: string) => string, optional} - A synchronous formatter that runs before compilation. e.g. `@prettier/sync`.
+
+### Debugging generated executors
+
+Start Node with `--inspect` and enable `debug` for the operation being investigated:
+
+```js
+const { format } = require("@prettier/sync");
+
+const compiledQuery = compileQuery(schema, document, "GetProduct", {
+  debug: {
+    enabled: true,
+    querySourceName: "graphql-jit://graphql-jit/shop/GetProduct.query.js",
+    variablesSourceName:
+      "graphql-jit://graphql-jit/shop/GetProduct.variables.js",
+    formatSourceCode: (source) => format(source, { parser: "babel" })
+  }
+});
+```
+
+The debugger exposes separate query and variable-coercion scripts. Set breakpoints directly in those generated JavaScript sources.
 
 #### compiledQuery.query(root: any, context: any, variables: Maybe<{ [key: string]: any }>)
 

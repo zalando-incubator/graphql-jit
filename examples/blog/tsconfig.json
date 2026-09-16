@@ -15,6 +15,7 @@
     "esModuleInterop": true,
     "outDir": "./dist",
     "lib": ["esnext.asynciterable", "es2018"],
+    "types": ["node"],
     "typeRoots": ["../../types", "../../node_modules/@types"],
     "useUnknownInCatchVariables": false
   },
