@@ -8,30 +8,39 @@
     "type": "git",
     "url": "https://github.com/zalando-incubator/graphql-jit.git"
   },
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/typings/index.d.ts",
   "exports": {
-    "./package.json": "./package.json",
     ".": {
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
+      "require": {
+        "types": "./dist/typings/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      },
+      "import": {
+        "types": "./dist/typings/index.d.mts",
+        "default": "./dist/esm/index.js"
+      },
+      "default": {
+        "types": "./dist/typings/index.d.mts",
+        "default": "./dist/esm/index.js"
+      }
     },
-    "./dist": {
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
+    "./*": {
+      "require": {
+        "types": "./dist/typings/*.d.ts",
+        "default": "./dist/cjs/*.js"
+      },
+      "import": {
+        "types": "./dist/typings/*.d.mts",
+        "default": "./dist/esm/*.js"
+      },
+      "default": {
+        "types": "./dist/typings/*.d.mts",
+        "default": "./dist/esm/*.js"
+      }
     },
-    "./dist/*": {
-      "import": "./dist/*.mjs",
-      "require": "./dist/*.js"
-    },
-    "./dist/*.mjs": {
-      "import": "./dist/*.mjs",
-      "require": "./dist/*.js"
-    },
-    "./dist/*.js": {
-      "import": "./dist/*.mjs",
-      "require": "./dist/*.js"
-    }
+    "./package.json": "./package.json"
   },
   "scripts": {
     "benchmark": "NODE_ENV=production node --loader @swc-node/register/esm src/__benchmarks__/benchmarks.ts",
@@ -48,7 +57,7 @@
     "test": "jest"
   },
   "files": [
-    "dist/*"
+    "dist"
   ],
   "jest": {
     "extensionsToTreatAsEsm": [

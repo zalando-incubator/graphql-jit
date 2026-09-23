@@ -1,4 +1,4 @@
-import { type ExecutionContext } from "./execution";
+import { type ExecutionContext } from "./execution.js";
 
 type Serializer = (
   c: ExecutionContext,

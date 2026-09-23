@@ -1,7 +1,7 @@
 import { type TypedDocumentNode } from "@graphql-typed-document-node/core";
 import fastJson from "fast-json-stringify";
-import { genFn } from "./generate";
-import { jitRuntime, type JitRuntime } from "./runtime";
+import { genFn } from "./generate.js";
+import { jitRuntime, type JitRuntime } from "./runtime.js";
 import {
   appendSourceURL,
   createGeneratedSourceName,
