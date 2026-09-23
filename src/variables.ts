@@ -1,4 +1,4 @@
-import { genFn } from "./generate";
+import { genFn } from "./generate.js";
 import {
   GraphQLBoolean,
   GraphQLError,
