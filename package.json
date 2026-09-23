@@ -10,25 +10,25 @@
   },
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
-  "types": "dist/typings/index.d.ts",
+  "types": "dist/cjs/index.d.ts",
   "exports": {
     ".": {
       "require": {
-        "types": "./dist/typings/index.d.ts",
+        "types": "./dist/cjs/index.d.ts",
         "default": "./dist/cjs/index.js"
       },
       "import": {
-        "types": "./dist/typings/index.d.mts",
+        "types": "./dist/esm/index.d.ts",
         "default": "./dist/esm/index.js"
       }
     },
     "./*": {
       "require": {
-        "types": "./dist/typings/*.d.ts",
+        "types": "./dist/cjs/*.d.ts",
         "default": "./dist/cjs/*.js"
       },
       "import": {
-        "types": "./dist/typings/*.d.mts",
+        "types": "./dist/esm/*.d.ts",
         "default": "./dist/esm/*.js"
       }
     },
@@ -36,9 +36,11 @@
   },
   "scripts": {
     "benchmark": "NODE_ENV=production node --loader @swc-node/register/esm src/__benchmarks__/benchmarks.ts",
-    "build": "yarn tsup-node",
+    "build": "node scripts/prepare-build.js && yarn build:cjs && yarn build:esm",
+    "build:cjs": "tsc --project tsconfig.cjs.json",
+    "build:esm": "tsc --project tsconfig.esm.json",
     "check-exports": "node scripts/check-exports.js",
-    "check-tsc": "tsc --noEmit",
+    "check-tsc": "tsc --noEmit --project tsconfig.json",
     "codecov": "codecov",
     "format": "prettier --write 'src/**/*.ts'",
     "lint-fix": "yarn lint --fix",
@@ -84,7 +86,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
-    "@eslint/js": "^9.10.0",
+    "@eslint/js": "^10.0.1",
     "@graphql-tools/schema": "^10.0.0",
     "@prettier/sync": "^0.6.1",
     "@stryker-mutator/core": "^7.1.1",
@@ -99,21 +101,21 @@
     "@types/lodash.memoize": "^4.1.7",
     "@types/lodash.merge": "^4.6.7",
     "@types/lodash.mergewith": "^4.6.7",
-    "@types/node": "^20.6.0",
+    "@types/node": "^22.0.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "benchmark": "^2.1.4",
     "codecov": "^3.8.2",
     "compare-versions": "^6.1.1",
-    "eslint": "^9.10.0",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-prettier": "^5.2.1",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
     "globals": "^15.9.0",
     "graphql": "^17.0.1",
     "jest": "^29.7.0",
     "lint-staged": "^14.0.1",
     "prettier": "^3.0.3",
-    "tsup": "^8.2.4",
-    "typescript": "^5.2.2",
-    "typescript-eslint": "^8.5.0"
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-eslint": "^8.70.1"
   },
   "dependencies": {
     "@graphql-typed-document-node/core": "^3.2.0",
@@ -136,5 +138,5 @@
       ]
     }
   },
-  "packageManager": "yarn@4.14.1"
+  "packageManager": "yarn@4.18.0"
 }
