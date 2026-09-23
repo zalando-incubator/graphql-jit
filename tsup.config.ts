@@ -1,21 +1,27 @@
 import { defineConfig } from "tsup";
 
 const entryPoints = ["src/*.ts"];
+const jsOptions = {
+  entryPoints,
+  bundle: false,
+  sourcemap: true,
+  clean: true,
+  minify: false
+};
 
 export default defineConfig([
   {
-    entryPoints,
-    bundle: false,
-    format: ["cjs", "esm"],
+    ...jsOptions,
+    format: "cjs",
+    outDir: "dist/cjs",
+    publicDir: "build-assets/cjs"
+  },
+  {
+    ...jsOptions,
+    format: "esm",
     outExtension: () => ({ js: ".js" }),
-    esbuildOptions(options, { format }) {
-      options.entryNames = `${format}/[name]`;
-    },
-    sourcemap: true,
-    outDir: "dist",
-    clean: ["!typings/**"],
-    minify: false,
-    publicDir: "build-assets"
+    outDir: "dist/esm",
+    publicDir: "build-assets/esm"
   },
   {
     entryPoints,
