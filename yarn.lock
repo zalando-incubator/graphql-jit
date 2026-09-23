@@ -29,11 +29,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@arethetypeswrong/cli@npm:^0.16.2":
-  version: 0.16.2
-  resolution: "@arethetypeswrong/cli@npm:0.16.2"
+"@arethetypeswrong/cli@npm:^0.18.5":
+  version: 0.18.5
+  resolution: "@arethetypeswrong/cli@npm:0.18.5"
   dependencies:
-    "@arethetypeswrong/core": "npm:0.16.2"
+    "@arethetypeswrong/core": "npm:0.18.5"
     chalk: "npm:^4.1.2"
     cli-table3: "npm:^0.6.3"
     commander: "npm:^10.0.1"
@@ -41,23 +41,24 @@ __metadata:
     marked-terminal: "npm:^7.1.0"
     semver: "npm:^7.5.4"
   bin:
-    attw: dist/index.js
-  checksum: 10c0/451a184b5bfedae5429fec5324a0457a17655f2f1d03add44db82210fd84b8506629d83b27a4c0caf09f35424bf425497d72afaddaa4f9c1898a1dbd1ebb2c3e
+    attw: ./dist/index.js
+  checksum: 10c0/c9550aadb461d913c5f42f6a75a655b310e500d20804aa2c266f87c4b89c33dfd47cd6f56cc8061624c309ac4a6620cf2e84ccdaaf66877a8dcb78dd519b40c7
   languageName: node
   linkType: hard
 
-"@arethetypeswrong/core@npm:0.16.2":
-  version: 0.16.2
-  resolution: "@arethetypeswrong/core@npm:0.16.2"
+"@arethetypeswrong/core@npm:0.18.5":
+  version: 0.18.5
+  resolution: "@arethetypeswrong/core@npm:0.18.5"
   dependencies:
     "@andrewbranch/untar.js": "npm:^1.0.3"
+    "@loaderkit/resolve": "npm:^1.0.2"
     cjs-module-lexer: "npm:^1.2.3"
-    fflate: "npm:^0.8.2"
-    lru-cache: "npm:^10.4.3"
+    fflate: "npm:^0.8.3"
+    lru-cache: "npm:^11.0.1"
     semver: "npm:^7.5.4"
     typescript: "npm:5.6.1-rc"
     validate-npm-package-name: "npm:^5.0.0"
-  checksum: 10c0/ae294d3de2f4d4519735119a8d2868c5fb18a2ccb5696108b39c7947e26298b0294b20c239bcb47ea7c53a48c4860610200a4821d59877b51ababa02d3ad717e
+  checksum: 10c0/fae68eb6ee9324692a427f288bc2db7a85a80b98f028a02fb5dc302edcb7a46c7dce51afb9b83d85e17c19f346b8741ed6b23c25fe9011ed83fd713ce7c029a9
   languageName: node
   linkType: hard
 
@@ -1129,6 +1130,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@braidai/lang@npm:^1.0.0":
+  version: 1.1.2
+  resolution: "@braidai/lang@npm:1.1.2"
+  checksum: 10c0/24bc85bf85dfe027102b19f418a591202b00cc8be12525ceff8adb65d5ebdda0dc1a0463c1e2cb6de1d85cd409012aa85850d9377bae61160162afbea278ab26
+  languageName: node
+  linkType: hard
+
 "@colors/colors@npm:1.5.0":
   version: 1.5.0
   resolution: "@colors/colors@npm:1.5.0"
@@ -1841,6 +1849,15 @@ __metadata:
   version: 2.3.9
   resolution: "@ljharb/through@npm:2.3.9"
   checksum: 10c0/1517ba70839a5c01ece487ee7447167715dd661da6f75ca8deeb7d09c070514ec33f596b500a7aa6d7be0acb3736ba139d6d17cd7b52fcdf9254cbd73ba080ac
+  languageName: node
+  linkType: hard
+
+"@loaderkit/resolve@npm:^1.0.2":
+  version: 1.0.6
+  resolution: "@loaderkit/resolve@npm:1.0.6"
+  dependencies:
+    "@braidai/lang": "npm:^1.0.0"
+  checksum: 10c0/e7dfcc0fa8f073c3048c9b8ef702d82dcc4390dc8d57438ac3a652e4936d66df2ca7ae8a4f2b6901157493dd42236156c1f47a5280f680a12bdef2f1b870135c
   languageName: node
   linkType: hard
 
@@ -4301,10 +4318,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fflate@npm:^0.8.2":
-  version: 0.8.2
-  resolution: "fflate@npm:0.8.2"
-  checksum: 10c0/03448d630c0a583abea594835a9fdb2aaf7d67787055a761515bf4ed862913cfd693b4c4ffd5c3f3b355a70cf1e19033e9ae5aedcca103188aaff91b8bd6e293
+"fflate@npm:^0.8.3":
+  version: 0.8.3
+  resolution: "fflate@npm:0.8.3"
+  checksum: 10c0/eab181ca37f5348ae76d4b6f840e0026e30220e33153289ac942222d8b9638237d486507dbcc09878d724095bd354993a2ee48bbee99c8f2c6440d4448719aa7
   languageName: node
   linkType: hard
 
@@ -4661,7 +4678,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "graphql-jit@workspace:."
   dependencies:
-    "@arethetypeswrong/cli": "npm:^0.16.2"
+    "@arethetypeswrong/cli": "npm:^0.18.5"
     "@eslint/js": "npm:^9.10.0"
     "@graphql-tools/schema": "npm:^10.0.0"
     "@graphql-typed-document-node/core": "npm:^3.2.0"
@@ -6022,10 +6039,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lru-cache@npm:^10.0.1, lru-cache@npm:^10.2.0, lru-cache@npm:^10.4.3":
+"lru-cache@npm:^10.0.1, lru-cache@npm:^10.2.0":
   version: 10.4.3
   resolution: "lru-cache@npm:10.4.3"
   checksum: 10c0/ebd04fbca961e6c1d6c0af3799adcc966a1babe798f685bb84e6599266599cd95d94630b10262f5424539bc4640107e8a33aa28585374abf561d30d16f4b39fb
+  languageName: node
+  linkType: hard
+
+"lru-cache@npm:^11.0.1":
+  version: 11.5.3
+  resolution: "lru-cache@npm:11.5.3"
+  checksum: 10c0/2ad9bce6343a3544a1fd15364d8b35609aa52b2593d21fdc4877cabfe003b0f3deca4f9d6e9d13262f06e9e3d159de45c0a2f3edfc3adb46192333b5f146d8ed
   languageName: node
   linkType: hard
 

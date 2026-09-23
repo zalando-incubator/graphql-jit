@@ -37,7 +37,7 @@
   "scripts": {
     "benchmark": "NODE_ENV=production node --loader @swc-node/register/esm src/__benchmarks__/benchmarks.ts",
     "build": "yarn tsup-node",
-    "check-exports": "attw --pack .",
+    "check-exports": "node scripts/check-exports.js",
     "check-tsc": "tsc --noEmit",
     "codecov": "codecov",
     "format": "prettier --write 'src/**/*.ts'",
@@ -83,7 +83,7 @@
     "graphql": ">=15"
   },
   "devDependencies": {
-    "@arethetypeswrong/cli": "^0.16.2",
+    "@arethetypeswrong/cli": "^0.18.5",
     "@eslint/js": "^9.10.0",
     "@graphql-tools/schema": "^10.0.0",
     "@prettier/sync": "^0.6.1",
