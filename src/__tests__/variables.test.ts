@@ -3,6 +3,7 @@
  */
 
 import {
+  type GraphQLArgumentConfig,
   GraphQLBoolean,
   GraphQLEnumType,
   GraphQLFloat,
@@ -18,7 +19,6 @@ import {
   parse,
   versionInfo
 } from "graphql";
-import { GraphQLArgumentConfig } from "graphql/type/definition";
 import { compileQuery, isCompiledQuery } from "../index";
 import createInspect from "../inspect";
 

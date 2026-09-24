@@ -3,13 +3,13 @@
  */
 
 import {
+  type GraphQLFieldConfig,
   GraphQLInt,
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
   parse
 } from "graphql";
-import { GraphQLFieldConfig } from "graphql/type/definition";
 import { compileQuery } from "../index";
 
 function executeQuery(

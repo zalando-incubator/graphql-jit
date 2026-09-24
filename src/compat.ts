@@ -1,3 +1,4 @@
+import * as graphql from "graphql";
 import {
   GraphQLSchema,
   GraphQLError,
@@ -9,13 +10,13 @@ import {
   type GraphQLObjectType,
   type GraphQLFormattedError,
   type ConstValueNode,
-  GraphQLScalarType
+  GraphQLScalarType,
+  SchemaMetaFieldDef,
+  TypeMetaFieldDef,
+  TypeNameMetaFieldDef
 } from "graphql";
 import { type Maybe } from "./types.js";
-import * as errorUtilities from "graphql/error/index.js";
-import * as utilities from "graphql/utilities/index.js";
 import { type CompilationContext } from "./execution.js";
-import * as execute from "graphql/execution/execute.js";
 
 /**
  * A helper file to support backward compatibility for different versions of graphql-js.
@@ -38,7 +39,7 @@ export function getOperationRootType(
   operation: OperationDefinitionNode
 ): GraphQLObjectType {
   if (versionInfo.major < 16) {
-    return (utilities as any).getOperationRootType(schema, operation);
+    return (graphql as any).getOperationRootType(schema, operation);
   }
 
   const type = (schema as any).getRootType(operation.operation);
@@ -56,7 +57,7 @@ export function getOperationRootType(
  */
 export function formatError(error: GraphQLError): GraphQLFormattedError {
   if (versionInfo.major < 16) {
-    return (errorUtilities as any).formatError(error);
+    return (graphql as any).formatError(error);
   }
 
   return (error as any).toJSON();
@@ -81,10 +82,6 @@ export function getGraphQLErrorOptions(
  * figures out the value that the field returns by calling its resolve function,
  * then calls completeValue to complete promises, serialize scalars, or execute
  * the sub-selection-set for objects.
- *
- * v15 has getFieldDef that accepts field name
- * v16 has getFieldDef that accepts field node
- * v17 drops getFieldDef support and adds getField method
  */
 export function resolveFieldDef(
   compilationContext: CompilationContext,
@@ -92,28 +89,29 @@ export function resolveFieldDef(
   fieldNodes: FieldNode[]
 ): Maybe<GraphQLField<any, any>> {
   const fieldNode = fieldNodes[0];
-
-  if (versionInfo.major < 16) {
-    const fieldName = fieldNode.name.value;
-    return (execute as any).getFieldDef(
-      compilationContext.schema,
-      parentType,
-      fieldName as any
-    );
-  }
+  const fieldName = fieldNode.name.value;
 
   if (versionInfo.major < 17) {
-    return (execute as any).getFieldDef(
-      compilationContext.schema,
-      parentType,
-      fieldNode as any
-    );
+    const schema = compilationContext.schema;
+    if (
+      fieldName === SchemaMetaFieldDef.name &&
+      schema.getQueryType() === parentType
+    ) {
+      return SchemaMetaFieldDef;
+    }
+    if (
+      fieldName === TypeMetaFieldDef.name &&
+      schema.getQueryType() === parentType
+    ) {
+      return TypeMetaFieldDef;
+    }
+    if (fieldName === TypeNameMetaFieldDef.name) {
+      return TypeNameMetaFieldDef;
+    }
+    return parentType.getFields()[fieldName];
   }
 
-  return (compilationContext.schema as any).getField(
-    parentType,
-    fieldNode.name.value
-  );
+  return (compilationContext.schema as any).getField(parentType, fieldName);
 }
 
 /**
