@@ -38,13 +38,13 @@ import {
   isSpecifiedScalarType,
   Kind,
   locatedError,
+  responsePathAsArray,
   TypeNameMetaFieldDef,
   type FieldNode,
   type OperationDefinitionNode,
   type GraphQLTypeResolver
 } from "graphql";
 import { type ExecutionContext as GraphQLContext } from "./compat.js";
-import { pathToArray } from "graphql/jsutils/Path.js";
 import {
   addPath,
   type Arguments,
@@ -1846,7 +1846,7 @@ function compileSubscriptionOperation(
       throw locatedError(
         error,
         resolveInfo.fieldNodes,
-        pathToArray(resolveInfo.path)
+        responsePathAsArray(resolveInfo.path)
       );
     }
   }
