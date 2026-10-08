@@ -10,6 +10,7 @@ import {
   type GraphQLObjectType,
   type GraphQLFormattedError,
   type ConstValueNode,
+  type GraphQLInputType,
   GraphQLScalarType,
   SchemaMetaFieldDef,
   TypeMetaFieldDef,
@@ -115,17 +116,26 @@ export function resolveFieldDef(
 }
 
 /**
- * v17 introduces `arg.default = { value }` for SDL-built schemas.
- * Programmatic schemas still use `arg.defaultValue`.
- * This helper normalizes both to a single value.
+ * v17 introduces `arg.default = { value }` for programmatically-built schemas
+ * and `arg.default = { literal }` for SDL-built schemas (buildSchema/
+ * extendSchema), where `literal` is the unparsed AST node and must still be
+ * coerced against the argument/field's type. Programmatic schemas built
+ * before v17 still use `arg.defaultValue`.
+ * This helper normalizes all three to a single JS value.
  */
-export function getDefaultValue(argOrField: {
-  defaultValue?: unknown;
-  default?: { value?: unknown; literal?: unknown };
-}): unknown {
-  if (argOrField.default !== undefined) {
-    // v17 SDL-built default — `.value` holds the JS value
-    return (argOrField.default as any).value;
+export function getDefaultValue(
+  argOrField: {
+    defaultValue?: unknown;
+    default?: { value?: unknown; literal?: ConstValueNode };
+  },
+  type?: GraphQLInputType
+): unknown {
+  const def = argOrField.default;
+  if (def !== undefined) {
+    if (def.literal !== undefined) {
+      return (graphql as any).coerceInputLiteral(def.literal, type);
+    }
+    return def.value;
   }
   return argOrField.defaultValue;
 }

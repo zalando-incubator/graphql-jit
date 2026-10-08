@@ -411,7 +411,9 @@ function generateInput(
           field.type,
           field.name,
           hasValueName,
-          hasDefaultValue(field) ? getDefaultValue(field) : undefined,
+          hasDefaultValue(field)
+            ? getDefaultValue(field, field.type)
+            : undefined,
           false
         )}
       `);

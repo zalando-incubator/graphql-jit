@@ -4,6 +4,7 @@
 
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import {
+  buildSchema,
   DocumentNode,
   ExecutableDefinitionNode,
   GraphQLBoolean,
@@ -356,6 +357,30 @@ describe("Execute: Handles basic execution tasks", () => {
     expect(resolvedArgs.numArg4).toBe(Infinity);
     expect(resolvedArgs.numArg5).toBe(-Infinity);
     expect(resolvedArgs.numArg6).toBe(-Infinity);
+  });
+
+  test("applies SDL-defined default values for arguments and input fields (#295)", async () => {
+    const schema = buildSchema(`
+      input In {
+        x: Int = 5
+      }
+      type Query {
+        echo(a: Int = 3, input: In): String
+      }
+    `);
+
+    let resolvedArgs: any = {};
+    schema.getQueryType()!.getFields().echo.resolve = (_source, args) => {
+      resolvedArgs = args;
+      return JSON.stringify(args);
+    };
+
+    const result = await executeQuery(schema, parse(`{ echo(input: {}) }`));
+
+    expect(resolvedArgs).toEqual({ a: 3, input: { x: 5 } });
+    expect(result).toEqual({
+      data: { echo: JSON.stringify({ a: 3, input: { x: 5 } }) }
+    });
   });
 
   test("nulls out error subtrees", async () => {

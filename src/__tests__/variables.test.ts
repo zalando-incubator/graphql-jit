@@ -3,6 +3,7 @@
  */
 
 import {
+  buildSchema,
   type GraphQLArgumentConfig,
   GraphQLBoolean,
   GraphQLEnumType,
@@ -1702,6 +1703,43 @@ describe("Execute: Handles inputs", () => {
           }
         ]
       });
+    });
+  });
+});
+
+describe("Execute: Applies SDL-defined default values (#295)", () => {
+  const sdlSchema = buildSchema(`
+    input In {
+      x: Int = 5
+    }
+    type Query {
+      echo(a: Int = 3, input: In): String
+    }
+  `);
+  sdlSchema.getQueryType()!.getFields().echo.resolve = (_source, args) =>
+    JSON.stringify(args);
+
+  test("applies defaults for an inline literal argument", async () => {
+    const result = await executeQuery(
+      `{ echo(input: {}) }`,
+      undefined,
+      sdlSchema
+    );
+
+    expect(result).toEqual({
+      data: { echo: JSON.stringify({ a: 3, input: { x: 5 } }) }
+    });
+  });
+
+  test("applies defaults when the argument comes from a variable", async () => {
+    const result = await executeQuery(
+      `query ($input: In) { echo(input: $input) }`,
+      { input: {} },
+      sdlSchema
+    );
+
+    expect(result).toEqual({
+      data: { echo: JSON.stringify({ a: 3, input: { x: 5 } }) }
     });
   });
 });

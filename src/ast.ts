@@ -772,8 +772,8 @@ export function getArgumentDefs(
   for (const argDef of argDefs) {
     const name = argDef.name;
     if (hasDefaultValue(argDef)) {
-      // handle both v16 defaultValue and v17 default.value
-      values[name] = getDefaultValue(argDef);
+      // handle v16 defaultValue, and v17 default.value/default.literal
+      values[name] = getDefaultValue(argDef, argDef.type);
     }
     const argType = argDef.type;
     const argumentNode = argNodeMap[name];
@@ -919,7 +919,7 @@ export function valueFromAST(
     const fields = Object.values(type.getFields());
     for (const field of fields) {
       if (hasDefaultValue(field)) {
-        coercedObj[field.name] = getDefaultValue(field);
+        coercedObj[field.name] = getDefaultValue(field, field.type);
       }
       const fieldNode = fieldNodes[field.name];
       if (!fieldNode) {
