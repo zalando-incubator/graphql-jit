@@ -5,7 +5,8 @@ import {
   GraphQLSchema,
   GraphQLString,
   Kind,
-  parse
+  parse,
+  versionInfo
 } from "graphql";
 import { compileQuery } from "../index";
 import SpyInstance = jest.SpyInstance;
@@ -183,11 +184,11 @@ describe("Scalars: Is able to serialize custom scalar", () => {
     describe("builtin behaviour", () => {
       let serializeSpy: SpyInstance<any>;
       beforeEach(() => {
-        // v17 built-in scalars implement serialization via
-        // `coerceOutputValue`; `serialize` is just an alias assigned at
-        // construction time, so spying on it would not observe calls made
-        // through `coerceOutputValue`.
-        serializeSpy = jest.spyOn(GraphQLString as any, "coerceOutputValue");
+        // v17 prefers `coerceOutputValue`; `serialize` is only an alias
+        serializeSpy = jest.spyOn(
+          GraphQLString as any,
+          versionInfo.major >= 17 ? "coerceOutputValue" : "serialize"
+        );
       });
 
       afterEach(() => {
@@ -207,9 +208,7 @@ describe("Scalars: Is able to serialize custom scalar", () => {
             scalar: "test"
           }
         });
-        expect((GraphQLString as any).coerceOutputValue).toHaveBeenCalledWith(
-          "test"
-        );
+        expect(serializeSpy).toHaveBeenCalledWith("test");
       });
       test("builtin scalar are skipped", () => {
         const prepared: any = compileQuery(
@@ -224,9 +223,7 @@ describe("Scalars: Is able to serialize custom scalar", () => {
             scalar: "test"
           }
         });
-        expect(
-          (GraphQLString as any).coerceOutputValue
-        ).not.toHaveBeenCalledWith("test");
+        expect(serializeSpy).not.toHaveBeenCalledWith("test");
       });
       test("custom serializer is called", () => {
         const customSerializer = jest.fn(String);
@@ -242,9 +239,7 @@ describe("Scalars: Is able to serialize custom scalar", () => {
             scalar: "test"
           }
         });
-        expect(
-          (GraphQLString as any).coerceOutputValue
-        ).not.toHaveBeenCalledWith("test");
+        expect(serializeSpy).not.toHaveBeenCalledWith("test");
         expect(customSerializer).toHaveBeenCalledWith("test");
       });
     });

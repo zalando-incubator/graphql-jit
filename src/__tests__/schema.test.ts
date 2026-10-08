@@ -410,7 +410,6 @@ describe("Execute: Handles execution with a complex schema", () => {
       BlogSchema,
       queryAST
     ) as ExecutionResult<IntrospectionQuery>;
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 
     const schemaFromIntrospection = buildClientSchema(result.data!);
 
