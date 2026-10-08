@@ -11,6 +11,7 @@ import {
   type GraphQLFormattedError,
   type ConstValueNode,
   type GraphQLInputType,
+  type GraphQLEnumType,
   GraphQLScalarType,
   SchemaMetaFieldDef,
   TypeMetaFieldDef,
@@ -165,6 +166,40 @@ export function coerceInputLiteral(
   }
 
   return (type as any).parseLiteral(valueNode, {});
+}
+
+/**
+ * v17 scalars/enums may define `coerceOutputValue` separately from the
+ * legacy `serialize`; graphql-js's executor always prefers
+ * `coerceOutputValue`. Custom scalars may still only define `serialize`
+ * (or v16), so we check for the method's existence rather than just the
+ * version, and fall back accordingly.
+ */
+export function coerceOutputValue(
+  type: GraphQLScalarType<unknown, unknown> | GraphQLEnumType,
+  value: unknown
+): unknown {
+  if ((type as any).coerceOutputValue) {
+    return (type as any).coerceOutputValue(value);
+  }
+  return (type as any).serialize(value);
+}
+
+/**
+ * v17 scalars/enums may define `coerceInputValue` separately from the
+ * legacy `parseValue`; graphql-js always prefers `coerceInputValue`.
+ * Custom scalars may still only define `parseValue` (or v16), so we check
+ * for the method's existence rather than just the version, and fall back
+ * accordingly.
+ */
+export function coerceInputValue(
+  type: GraphQLScalarType<unknown, unknown> | GraphQLEnumType,
+  value: unknown
+): unknown {
+  if ((type as any).coerceInputValue) {
+    return (type as any).coerceInputValue(value);
+  }
+  return (type as any).parseValue(value);
 }
 
 /**

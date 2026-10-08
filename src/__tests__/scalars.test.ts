@@ -183,7 +183,11 @@ describe("Scalars: Is able to serialize custom scalar", () => {
     describe("builtin behaviour", () => {
       let serializeSpy: SpyInstance<any>;
       beforeEach(() => {
-        serializeSpy = jest.spyOn(GraphQLString, "serialize");
+        // v17 built-in scalars implement serialization via
+        // `coerceOutputValue`; `serialize` is just an alias assigned at
+        // construction time, so spying on it would not observe calls made
+        // through `coerceOutputValue`.
+        serializeSpy = jest.spyOn(GraphQLString as any, "coerceOutputValue");
       });
 
       afterEach(() => {
@@ -203,7 +207,9 @@ describe("Scalars: Is able to serialize custom scalar", () => {
             scalar: "test"
           }
         });
-        expect(GraphQLString.serialize).toHaveBeenCalledWith("test");
+        expect((GraphQLString as any).coerceOutputValue).toHaveBeenCalledWith(
+          "test"
+        );
       });
       test("builtin scalar are skipped", () => {
         const prepared: any = compileQuery(
@@ -218,7 +224,9 @@ describe("Scalars: Is able to serialize custom scalar", () => {
             scalar: "test"
           }
         });
-        expect(GraphQLString.serialize).not.toHaveBeenCalledWith("test");
+        expect(
+          (GraphQLString as any).coerceOutputValue
+        ).not.toHaveBeenCalledWith("test");
       });
       test("custom serializer is called", () => {
         const customSerializer = jest.fn(String);
@@ -234,7 +242,9 @@ describe("Scalars: Is able to serialize custom scalar", () => {
             scalar: "test"
           }
         });
-        expect(GraphQLString.serialize).not.toHaveBeenCalledWith("test");
+        expect(
+          (GraphQLString as any).coerceOutputValue
+        ).not.toHaveBeenCalledWith("test");
         expect(customSerializer).toHaveBeenCalledWith("test");
       });
     });
@@ -277,6 +287,46 @@ describe("Scalars: Is able to deserialize custom scalar", () => {
       data: {
         scalar: "[object Date]"
       }
+    });
+  });
+});
+
+describe("Scalars: prefers v17 coercion methods over legacy ones (#296)", () => {
+  function makeSchema(scalar: GraphQLScalarType) {
+    return new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          echo: {
+            type: scalar,
+            args: { value: { type: scalar } },
+            resolve: (_source, args) => args.value
+          }
+        }
+      })
+    });
+  }
+
+  function makeCustomScalar() {
+    return new GraphQLScalarType({
+      name: "Custom",
+      serialize: (value: any) => `legacy-output:${value}`,
+      coerceOutputValue: (value: any) => `v17-output:${value}`,
+      parseValue: (value: any) => `legacy-input:${value}`,
+      coerceInputValue: (value: any) => `v17-input:${value}`
+    } as any);
+  }
+
+  test("uses coerceInputValue (not parseValue) when a variable is coerced", async () => {
+    const result = await executeQuery(
+      makeSchema(makeCustomScalar()),
+      parse("query ($value: Custom) { echo(value: $value) }"),
+      undefined,
+      { value: "x" }
+    );
+
+    expect(result).toEqual({
+      data: { echo: "v17-output:v17-input:x" }
     });
   });
 });

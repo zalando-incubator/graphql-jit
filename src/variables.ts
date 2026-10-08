@@ -22,7 +22,11 @@ import {
 } from "graphql";
 import { addPath, computeLocations, type ObjectPath } from "./ast.js";
 import { GraphQLError as GraphQLJITError } from "./error.js";
-import { getDefaultValue, hasDefaultValue } from "./compat.js";
+import {
+  coerceInputValue,
+  getDefaultValue,
+  hasDefaultValue
+} from "./compat.js";
 import createInspect from "./inspect.js";
 import {
   appendSourceURL,
@@ -299,7 +303,7 @@ function generateInput(
       default:
         context.dependencies.set(
           `${varType.name}parseValue`,
-          varType.parseValue.bind(varType)
+          (value: unknown) => coerceInputValue(varType, value)
         );
         gen(`
           try {
