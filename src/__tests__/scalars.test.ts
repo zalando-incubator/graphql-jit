@@ -286,7 +286,7 @@ describe("Scalars: Is able to deserialize custom scalar", () => {
   });
 });
 
-describe("Scalars: prefers v17 coercion methods over legacy ones (#296)", () => {
+describe("Scalars: coercion methods when both legacy and v17 APIs are defined (#296)", () => {
   function makeSchema(scalar: GraphQLScalarType) {
     return new GraphQLSchema({
       query: new GraphQLObjectType({
@@ -312,7 +312,8 @@ describe("Scalars: prefers v17 coercion methods over legacy ones (#296)", () => 
     } as any);
   }
 
-  test("uses coerceInputValue (not parseValue) when a variable is coerced", async () => {
+  // v15/v16 ignore `coerceOutputValue` / `coerceInputValue` in the config
+  test("uses the same coercion methods as graphql-js", async () => {
     const result = await executeQuery(
       makeSchema(makeCustomScalar()),
       parse("query ($value: Custom) { echo(value: $value) }"),
@@ -321,7 +322,12 @@ describe("Scalars: prefers v17 coercion methods over legacy ones (#296)", () => 
     );
 
     expect(result).toEqual({
-      data: { echo: "v17-output:v17-input:x" }
+      data: {
+        echo:
+          versionInfo.major >= 17
+            ? "v17-output:v17-input:x"
+            : "legacy-output:legacy-input:x"
+      }
     });
   });
 });
