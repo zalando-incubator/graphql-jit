@@ -462,3 +462,77 @@ describe("custom scalar literals that parse to class instances", () => {
     );
   });
 });
+
+describe("custom scalar argument values", () => {
+  async function resolveLiteral(value: unknown) {
+    const scalar = new GraphQLScalarType({
+      name: "CustomValue",
+      serialize: () => "ok",
+      parseValue: () => value,
+      parseLiteral: () => value
+    });
+    const resolve = jest.fn<string, [unknown, { value: unknown }]>(() => "ok");
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          echo: {
+            type: GraphQLString,
+            args: { value: { type: scalar } },
+            resolve
+          }
+        }
+      })
+    });
+    expect(
+      await executeQuery(schema, parse('{ echo(value: "value") }'))
+    ).toEqual({
+      data: { echo: "ok" }
+    });
+    return resolve.mock.calls[0][1].value;
+  }
+
+  class CustomDate extends Date {}
+
+  test.each([
+    ["bigint", BigInt(42)],
+    ["symbol", Symbol("value")],
+    ["function", () => "value"],
+    ["Date subclass", new CustomDate(0)]
+  ])("preserves the original %s value", async (_name, value) => {
+    expect(await resolveLiteral(value)).toBe(value);
+  });
+
+  test("preserves special values in nested objects and arrays", async () => {
+    const items = new Array(2);
+    items[0] = undefined;
+    items.push(NaN, Infinity, -Infinity, new Date(1234));
+    const value = {
+      nested: { omitted: undefined, nullable: null },
+      items
+    };
+
+    const resolved: any = await resolveLiteral(value);
+    expect(resolved).toEqual({
+      nested: { nullable: null },
+      items: [undefined, null, NaN, Infinity, -Infinity, new Date(1234)]
+    });
+    expect(
+      Object.prototype.hasOwnProperty.call(resolved.nested, "omitted")
+    ).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(resolved.items, 0)).toBe(true);
+  });
+
+  test("preserves an own __proto__ property as an ordinary field", async () => {
+    const value = Object.create(null);
+    value.__proto__ = { label: "value" };
+    value.other = "other";
+
+    const resolved = await resolveLiteral(value);
+    expect(Object.getPrototypeOf(resolved)).toBe(Object.prototype);
+    expect(Object.prototype.hasOwnProperty.call(resolved, "__proto__")).toBe(
+      true
+    );
+    expect(resolved).toEqual(value);
+  });
+});
