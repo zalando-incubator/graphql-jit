@@ -1,5 +1,8 @@
 import {
   DocumentNode,
+  GraphQLInputObjectType,
+  GraphQLList,
+  GraphQLNonNull,
   GraphQLObjectType,
   GraphQLScalarType,
   GraphQLSchema,
@@ -329,5 +332,207 @@ describe("Scalars: coercion methods when both legacy and v17 APIs are defined (#
             : "legacy-output:legacy-input:x"
       }
     });
+  });
+});
+
+describe("custom scalar literals that parse to class instances", () => {
+  class Wrapped {
+    constructor(public value: string) {}
+    toJSON() {
+      return this.value;
+    }
+  }
+
+  const WrappedScalar = new GraphQLScalarType({
+    name: "Wrapped",
+    serialize: (v: any) => (v instanceof Wrapped ? v.value : String(v)),
+    parseValue: (v: any) => new Wrapped(v),
+    parseLiteral: (ast: any) => new Wrapped(ast.value)
+  });
+
+  const Input = new GraphQLInputObjectType({
+    name: "Input",
+    fields: { value: { type: new GraphQLNonNull(WrappedScalar) } }
+  });
+
+  const schema = new GraphQLSchema({
+    query: new GraphQLObjectType({
+      name: "Query",
+      fields: {
+        direct: {
+          type: GraphQLString,
+          args: { value: { type: WrappedScalar } },
+          resolve: (_, { value }) =>
+            value instanceof Wrapped
+              ? `instance:${value.value}`
+              : "not-instance"
+        },
+        nested: {
+          type: GraphQLString,
+          args: { input: { type: Input } },
+          resolve: (_, { input }) =>
+            input.value instanceof Wrapped
+              ? `instance:${input.value.value}`
+              : "not-instance"
+        },
+        list: {
+          type: GraphQLString,
+          args: { values: { type: new GraphQLList(WrappedScalar) } },
+          resolve: (_, { values }) =>
+            values.every((v: unknown) => v instanceof Wrapped)
+              ? `instance:${values.map((v: Wrapped) => v.value).join(",")}`
+              : "not-instance"
+        }
+      }
+    })
+  });
+
+  test.each([
+    ['{ direct(value: "a") }', { direct: "instance:a" }],
+    ['{ nested(input: { value: "a" }) }', { nested: "instance:a" }],
+    ['{ list(values: ["a", "b"]) }', { list: "instance:a,b" }]
+  ])("preserves the parseLiteral result for %s", async (query, data) => {
+    const result = await executeQuery(schema, parse(query));
+    expect(result).toEqual({ data });
+  });
+
+  test("returns the same instance for repeated executions", async () => {
+    const prepared: any = compileQuery(schema, parse('{ direct(value: "a") }'));
+    expect(await prepared.query({}, {}, {})).toEqual({
+      data: { direct: "instance:a" }
+    });
+    expect(await prepared.query({}, {}, {})).toEqual({
+      data: { direct: "instance:a" }
+    });
+  });
+
+  test("does not call toJSON on hoisted values", async () => {
+    class Throwing {
+      toJSON(): never {
+        throw new Error("toJSON must not be called");
+      }
+    }
+    const scalar = new GraphQLScalarType({
+      name: "Throwing",
+      serialize: () => "ok",
+      parseValue: () => new Throwing(),
+      parseLiteral: () => new Throwing()
+    });
+    const throwingSchema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          f: {
+            type: GraphQLString,
+            args: { value: { type: scalar } },
+            resolve: (_, { value }) => String(value instanceof Throwing)
+          }
+        }
+      })
+    });
+    expect(
+      await executeQuery(throwingSchema, parse('{ f(value: "a") }'))
+    ).toEqual({ data: { f: "true" } });
+  });
+
+  test("preserves Array subclasses", async () => {
+    class MyArray extends Array<string> {}
+    const scalar = new GraphQLScalarType({
+      name: "Arr",
+      serialize: () => "ok",
+      parseValue: () => MyArray.from(["a"]),
+      parseLiteral: () => MyArray.from(["a"])
+    });
+    const arraySchema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          f: {
+            type: GraphQLString,
+            args: { value: { type: scalar } },
+            resolve: (_, { value }) => String(value instanceof MyArray)
+          }
+        }
+      })
+    });
+    expect(await executeQuery(arraySchema, parse('{ f(value: "a") }'))).toEqual(
+      {
+        data: { f: "true" }
+      }
+    );
+  });
+});
+
+describe("custom scalar argument values", () => {
+  async function resolveLiteral(value: unknown) {
+    const scalar = new GraphQLScalarType({
+      name: "CustomValue",
+      serialize: () => "ok",
+      parseValue: () => value,
+      parseLiteral: () => value
+    });
+    const resolve = jest.fn<string, [unknown, { value: unknown }]>(() => "ok");
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          echo: {
+            type: GraphQLString,
+            args: { value: { type: scalar } },
+            resolve
+          }
+        }
+      })
+    });
+    expect(
+      await executeQuery(schema, parse('{ echo(value: "value") }'))
+    ).toEqual({
+      data: { echo: "ok" }
+    });
+    return resolve.mock.calls[0][1].value;
+  }
+
+  class CustomDate extends Date {}
+
+  test.each([
+    ["bigint", BigInt(42)],
+    ["symbol", Symbol("value")],
+    ["function", () => "value"],
+    ["Date subclass", new CustomDate(0)]
+  ])("preserves the original %s value", async (_name, value) => {
+    expect(await resolveLiteral(value)).toBe(value);
+  });
+
+  test("preserves special values in nested objects and arrays", async () => {
+    const items = new Array(2);
+    items[0] = undefined;
+    items.push(NaN, Infinity, -Infinity, new Date(1234));
+    const value = {
+      nested: { omitted: undefined, nullable: null },
+      items
+    };
+
+    const resolved: any = await resolveLiteral(value);
+    expect(resolved).toEqual({
+      nested: { nullable: null },
+      items: [undefined, null, NaN, Infinity, -Infinity, new Date(1234)]
+    });
+    expect(
+      Object.prototype.hasOwnProperty.call(resolved.nested, "omitted")
+    ).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(resolved.items, 0)).toBe(true);
+  });
+
+  test("preserves an own __proto__ property as an ordinary field", async () => {
+    const value = Object.create(null);
+    value.__proto__ = { label: "value" };
+    value.other = "other";
+
+    const resolved = await resolveLiteral(value);
+    expect(Object.getPrototypeOf(resolved)).toBe(Object.prototype);
+    expect(Object.prototype.hasOwnProperty.call(resolved, "__proto__")).toBe(
+      true
+    );
+    expect(resolved).toEqual(value);
   });
 });

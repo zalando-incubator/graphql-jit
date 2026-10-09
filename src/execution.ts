@@ -141,6 +141,7 @@ export interface ExecutionContext {
   typeResolvers: { [key: string]: GraphQLTypeResolver<any, any> };
   isTypeOfs: { [key: string]: GraphQLIsTypeOfFn<any, any> };
   resolveInfos: { [key: string]: any };
+  literals: { [key: string]: any };
 }
 
 interface DeferredField {
@@ -180,6 +181,9 @@ export interface CompilationContext extends GraphQLContext {
   typeResolvers: { [key: string]: GraphQLTypeResolver<any, any> };
   isTypeOfs: { [key: string]: GraphQLIsTypeOfFn<any, any> };
   resolveInfos: { [key: string]: any };
+  // Coerced literal argument values that cannot be serialized into the
+  // generated source (e.g. class instances returned by custom scalars).
+  literals: { [key: string]: any };
   deferred: DeferredField[];
   options: CompilerOptions;
   depth: number;
@@ -381,8 +385,14 @@ export function createBoundQuery(
   getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
   operationName?: string
 ) {
-  const { resolvers, typeResolvers, isTypeOfs, serializers, resolveInfos } =
-    compilationContext;
+  const {
+    resolvers,
+    typeResolvers,
+    isTypeOfs,
+    serializers,
+    resolveInfos,
+    literals
+  } = compilationContext;
   const trimmer = createNullTrimmer(compilationContext);
   const fnName = operationName || "query";
 
@@ -420,6 +430,7 @@ export function createBoundQuery(
         isTypeOfs,
         serializers,
         resolveInfos,
+        literals,
         trimmer,
         rt: jitRuntime,
         promiseCounter: 0,
@@ -1291,39 +1302,77 @@ function compileListType(
   ${GLOBAL_SAFE_MAP_NAME}(${GLOBAL_EXECUTION_CONTEXT}, ${name}, ${safeMapHandler}, ${parentIndexes})`;
 }
 
-const MAGIC_MINUS_INFINITY =
-  "__MAGIC_MINUS_INFINITY__71d4310a_d4a3_4a05_b1fe_e60779d24998";
-const MAGIC_PLUS_INFINITY =
-  "__MAGIC_PLUS_INFINITY__bb201c39_3333_4695_b4ad_7f1722e7aa7a";
-const MAGIC_NAN = "__MAGIC_NAN__57f286b9_4c20_487f_b409_79804ddcb4f8";
-const MAGIC_DATE = "__MAGIC_DATE__33a9e76d_02e0_4128_8e92_3530ad3da74d";
-
-function specialValueReplacer(this: any, key: any, value: any) {
-  if (Number.isNaN(value)) {
-    return MAGIC_NAN;
+/**
+ * Whether the value cannot be written into source as a literal: a bigint,
+ * symbol, function, or any object other than a plain object, array or Date.
+ */
+function isUnserializable(value: any): boolean {
+  switch (typeof value) {
+    case "bigint":
+    case "symbol":
+    case "function":
+      return true;
+    case "object": {
+      if (value === null) {
+        return false;
+      }
+      const proto = Object.getPrototypeOf(value);
+      if (Array.isArray(value)) {
+        return proto !== Array.prototype;
+      }
+      if (value instanceof Date) {
+        return proto !== Date.prototype;
+      }
+      return proto !== null && proto !== Object.prototype;
+    }
+    default:
+      return false;
   }
-
-  if (value === Infinity) {
-    return MAGIC_PLUS_INFINITY;
-  }
-
-  if (value === -Infinity) {
-    return MAGIC_MINUS_INFINITY;
-  }
-
-  if (this[key] instanceof Date) {
-    return MAGIC_DATE + this[key].getTime();
-  }
-
-  return value;
 }
 
-function objectStringify(val: any): string {
-  return JSON.stringify(val, specialValueReplacer)
-    .replace(new RegExp(`"${MAGIC_NAN}"`, "g"), "NaN")
-    .replace(new RegExp(`"${MAGIC_PLUS_INFINITY}"`, "g"), "Infinity")
-    .replace(new RegExp(`"${MAGIC_MINUS_INFINITY}"`, "g"), "-Infinity")
-    .replace(new RegExp(`"${MAGIC_DATE}([^"]+)"`, "g"), "new Date($1)");
+/**
+ * Serializes an argument value to a JS expression. Unserializable values are
+ * stored via `hoist` and referenced from `context.literals`.
+ */
+function objectStringify(val: any, hoist: (value: any) => string): string {
+  if (isUnserializable(val)) {
+    return `${GLOBAL_EXECUTION_CONTEXT}.literals.${hoist(val)}`;
+  }
+  if (typeof val === "number") {
+    // JSON.stringify would turn NaN/Infinity into null
+    return Number.isFinite(val) ? JSON.stringify(val) : String(val);
+  }
+  if (val === undefined) {
+    return "undefined";
+  }
+  if (val === null || typeof val !== "object") {
+    return JSON.stringify(val);
+  }
+  if (val instanceof Date) {
+    return `new Date(${val.getTime()})`;
+  }
+  if (Array.isArray(val)) {
+    const items = [];
+    for (let i = 0; i < val.length; ++i) {
+      items.push(i in val ? objectStringify(val[i], hoist) : "null");
+    }
+    return `[${items.join(",")}]`;
+  }
+  const props = [];
+  for (const key of Object.keys(val)) {
+    if (val[key] === undefined) {
+      continue;
+    }
+    // a computed key stops "__proto__" from setting the prototype
+    const name = JSON.stringify(key);
+    props.push(
+      `${key === "__proto__" ? `[${name}]` : name}:${objectStringify(
+        val[key],
+        hoist
+      )}`
+    );
+  }
+  return `{${props.join(",")}}`;
 }
 
 /**
@@ -1412,7 +1461,11 @@ function compileArguments(
   // default to assuming arguments are valid
   let body = `
   let ${validArgs} = true;
-  const ${topLevelArg} = ${objectStringify(args.values)};
+  const ${topLevelArg} = ${objectStringify(args.values, (value) => {
+    const key = `literal${Object.keys(context.literals).length}`;
+    context.literals[key] = value;
+    return key;
+  })};
   `;
   const errorDestination = getErrorDestination(returnType);
   for (const variable of args.missing) {
@@ -1706,6 +1759,7 @@ export function buildCompilationContext(
     typeResolvers: {},
     isTypeOfs: {},
     resolveInfos: {},
+    literals: {},
     hoistedFunctions: [],
     hoistedFunctionNames: new Map(),
     leafErrHandlerCache: new Map(),
@@ -1909,8 +1963,14 @@ function createBoundSubscribe(
   getVariableValues: (inputs: { [key: string]: any }) => CoercedVariableValues,
   operationName: string | undefined
 ): CompiledQuery["subscribe"] {
-  const { resolvers, typeResolvers, isTypeOfs, serializers, resolveInfos } =
-    compilationContext;
+  const {
+    resolvers,
+    typeResolvers,
+    isTypeOfs,
+    serializers,
+    resolveInfos,
+    literals
+  } = compilationContext;
   const trimmer = createNullTrimmer(compilationContext);
   const fnName = operationName || "subscribe";
 
@@ -1939,6 +1999,7 @@ function createBoundSubscribe(
         isTypeOfs,
         serializers,
         resolveInfos,
+        literals,
         trimmer,
         rt: jitRuntime,
         promiseCounter: 0,
