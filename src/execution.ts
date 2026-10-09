@@ -74,7 +74,11 @@ import {
   compileVariableParsing,
   failToParseVariables
 } from "./variables.js";
-import { getGraphQLErrorOptions, getOperationRootType } from "./compat.js";
+import {
+  coerceOutputValue,
+  getGraphQLErrorOptions,
+  getOperationRootType
+} from "./compat.js";
 
 const inspect = createInspect();
 
@@ -1565,7 +1569,8 @@ function getSerializer(
   customSerializer?: GraphQLScalarSerializer<any>
 ) {
   const { name } = scalar;
-  const serialize = customSerializer || ((val: any) => scalar.serialize(val));
+  const serialize =
+    customSerializer || ((val: any) => coerceOutputValue(scalar, val));
   return function leafSerializer(
     context: ExecutionContext,
     v: any,

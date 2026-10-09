@@ -10,6 +10,8 @@ import {
   type GraphQLObjectType,
   type GraphQLFormattedError,
   type ConstValueNode,
+  type GraphQLInputType,
+  type GraphQLEnumType,
   GraphQLScalarType,
   SchemaMetaFieldDef,
   TypeMetaFieldDef,
@@ -114,26 +116,29 @@ export function resolveFieldDef(
   return (compilationContext.schema as any).getField(parentType, fieldName);
 }
 
-/**
- * v17 introduces `arg.default = { value }` for SDL-built schemas.
- * Programmatic schemas still use `arg.defaultValue`.
- * This helper normalizes both to a single value.
- */
-export function getDefaultValue(argOrField: {
+interface DefaultCarrier {
+  type: GraphQLInputType;
   defaultValue?: unknown;
-  default?: { value?: unknown; literal?: unknown };
-}): unknown {
-  if (argOrField.default !== undefined) {
-    // v17 SDL-built default — `.value` holds the JS value
-    return (argOrField.default as any).value;
+  default?: { value?: unknown; literal?: ConstValueNode };
+}
+
+/**
+ * v17 SDL-built schemas store defaults as `default = { literal }` (an AST
+ * node that must be coerced against the type); programmatic v17 schemas use
+ * `default = { value }`, and v16 and lower use `defaultValue`.
+ */
+export function getDefaultValue(argOrField: DefaultCarrier): unknown {
+  const def = argOrField.default;
+  if (def !== undefined) {
+    if (def.literal !== undefined) {
+      return (graphql as any).coerceInputLiteral(def.literal, argOrField.type);
+    }
+    return def.value;
   }
   return argOrField.defaultValue;
 }
 
-export function hasDefaultValue(argOrField: {
-  defaultValue?: unknown;
-  default?: { value?: unknown; literal?: unknown };
-}): boolean {
+export function hasDefaultValue(argOrField: DefaultCarrier): boolean {
   return (
     argOrField.default !== undefined || argOrField.defaultValue !== undefined
   );
@@ -155,6 +160,30 @@ export function coerceInputLiteral(
   }
 
   return (type as any).parseLiteral(valueNode, {});
+}
+
+/**
+ * v17 prefers `coerceOutputValue` over the legacy `serialize`, and the two
+ * can differ when both are defined. Custom scalars may define only one.
+ */
+export function coerceOutputValue(
+  type: GraphQLScalarType<unknown, unknown> | GraphQLEnumType,
+  value: unknown
+): unknown {
+  const t = type as any;
+  return t.coerceOutputValue ? t.coerceOutputValue(value) : t.serialize(value);
+}
+
+/**
+ * v17 prefers `coerceInputValue` over the legacy `parseValue`, and the two
+ * can differ when both are defined. Custom scalars may define only one.
+ */
+export function coerceInputValue(
+  type: GraphQLScalarType<unknown, unknown> | GraphQLEnumType,
+  value: unknown
+): unknown {
+  const t = type as any;
+  return t.coerceInputValue ? t.coerceInputValue(value) : t.parseValue(value);
 }
 
 /**

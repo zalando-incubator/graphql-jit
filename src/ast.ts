@@ -772,7 +772,7 @@ export function getArgumentDefs(
   for (const argDef of argDefs) {
     const name = argDef.name;
     if (hasDefaultValue(argDef)) {
-      // handle both v16 defaultValue and v17 default.value
+      // handle v16 defaultValue, and v17 default.value/default.literal
       values[name] = getDefaultValue(argDef);
     }
     const argType = argDef.type;
