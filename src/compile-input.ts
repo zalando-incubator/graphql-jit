@@ -38,15 +38,22 @@ export function compileInputValue(
     }
   }
   if (isListType(type)) {
-    if (!Array.isArray(val)) {
-      // a programmatic default that is not a list is passed as is
+    if (Object.getPrototypeOf(val) !== Array.prototype) {
+      // a programmatic default that is not a plain array, e.g. an array
+      // subclass, is passed as is, like GraphQL.js does
       return bind(val);
     }
     return `[${val
-      .map((item) => compileInputValue(item, type.ofType, bind))
+      .map((item: unknown) => compileInputValue(item, type.ofType, bind))
       .join(",")}]`;
   }
   if (isInputObjectType(type)) {
+    const proto = Object.getPrototypeOf(val);
+    if (proto !== Object.prototype && proto !== null) {
+      // a programmatic default that is a class instance is passed as is,
+      // like GraphQL.js does
+      return bind(val);
+    }
     const fields = type.getFields();
     const props = [];
     for (const key of Object.keys(val)) {

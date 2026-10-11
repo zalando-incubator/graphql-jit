@@ -21,59 +21,77 @@ describe("programmatic argument defaults", () => {
     name: "DefaultObject",
     fields: { known: { type: GraphQLString } }
   });
+  class Known {
+    constructor(public known: string) {}
+  }
+  class Items extends Array<string> {}
   const cases: [string, GraphQLInputType, unknown, string][] = [
-    ["non-array list", new GraphQLList(GraphQLString), "a", '"a"'],
+    ["non-array list", new GraphQLList(GraphQLString), "a", 'String:"a"'],
     [
       "input object with an extra key",
       objectType,
       { known: "a", extra: "b" },
-      '{"known":"a","extra":"b"}'
+      'Object:{"known":"a","extra":"b"}'
+    ],
+    ["class instance", objectType, new Known("a"), 'Known:{"known":"a"}'],
+    [
+      "array subclass",
+      new GraphQLList(GraphQLString),
+      Items.from(["a"]),
+      'Items:["a"]'
     ]
   ];
 
-  describe.each(["argument", "input field"])("%s defaults", (location) => {
-    test.each(cases)(
-      "preserves a %s default",
-      async (_name, type, value, expected) => {
-        const wrapper = new GraphQLInputObjectType({
-          name: "DefaultWrapper",
-          fields: { value: { type, defaultValue: value } }
-        });
-        const schema = new GraphQLSchema({
-          query: new GraphQLObjectType({
-            name: "Query",
-            fields: {
-              echo: {
-                type: GraphQLString,
-                args:
-                  location === "argument"
-                    ? { value: { type, defaultValue: value } }
-                    : { input: { type: wrapper } },
-                resolve: (_source, args) => {
-                  const resolved =
-                    location === "argument" ? args.value : args.input.value;
-                  return Array.isArray(resolved)
-                    ? `length:${resolved.length}`
-                    : JSON.stringify(resolved);
+  describe.each(["argument", "input field", "variable field"])(
+    "%s defaults",
+    (location) => {
+      test.each(cases)(
+        "preserves a %s default",
+        async (_name, type, value, expected) => {
+          const wrapper = new GraphQLInputObjectType({
+            name: "DefaultWrapper",
+            fields: { value: { type, defaultValue: value } }
+          });
+          const schema = new GraphQLSchema({
+            query: new GraphQLObjectType({
+              name: "Query",
+              fields: {
+                echo: {
+                  type: GraphQLString,
+                  args:
+                    location === "argument"
+                      ? { value: { type, defaultValue: value } }
+                      : { input: { type: wrapper } },
+                  resolve: (_source, args) => {
+                    const resolved =
+                      location === "argument" ? args.value : args.input.value;
+                    return `${resolved.constructor.name}:${JSON.stringify(
+                      resolved
+                    )}`;
+                  }
                 }
               }
-            }
-          })
-        });
-        const document = parse(
-          location === "argument" ? "{ echo }" : "{ echo(input: {}) }"
-        );
-        const reference = await execute({ schema, document });
-        expect(reference).toEqual({ data: { echo: expected } });
-        const prepared = compileQuery(schema, document);
-        expect(
-          isCompiledQuery(prepared)
-            ? await prepared.query(undefined, undefined, {})
-            : prepared
-        ).toEqual(reference);
-      }
-    );
-  });
+            })
+          });
+          const queries: Record<string, string> = {
+            argument: "{ echo }",
+            "input field": "{ echo(input: {}) }",
+            "variable field": "query ($v: DefaultWrapper) { echo(input: $v) }"
+          };
+          const document = parse(queries[location]);
+          const variableValues = { v: {} };
+          const reference = await execute({ schema, document, variableValues });
+          expect(reference).toEqual({ data: { echo: expected } });
+          const prepared = compileQuery(schema, document);
+          expect(
+            isCompiledQuery(prepared)
+              ? await prepared.query(undefined, undefined, variableValues)
+              : prepared
+          ).toEqual(reference);
+        }
+      );
+    }
+  );
 });
 
 function executeQuery(
