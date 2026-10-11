@@ -21,6 +21,7 @@ import {
   type VariableDefinitionNode
 } from "graphql";
 import { addPath, computeLocations, type ObjectPath } from "./ast.js";
+import { compileInputValue } from "./compile-input.js";
 import { GraphQLError as GraphQLJITError } from "./error.js";
 import {
   coerceInputValue,
@@ -56,7 +57,7 @@ interface CompilationContext {
   responsePath: ObjectPath;
   depth: number;
   varDefNode: VariableDefinitionNode;
-  dependencies: Map<string, (...args: any[]) => any>;
+  dependencies: Map<string, unknown>;
   errorMessage?: string;
 }
 
@@ -176,6 +177,24 @@ export function compileVariableParsing(
 const MAX_32BIT_INT = 2147483647;
 const MIN_32BIT_INT = -2147483648;
 
+/**
+ * Default values are internal values, so a custom scalar may use bigints,
+ * dates or other values that cannot be written into source. Containers are
+ * emitted inline, so every execution gets fresh ones, and opaque values are
+ * bound as compiler dependencies.
+ */
+function compileDefault(
+  context: CompilationContext,
+  type: GraphQLInputType,
+  defaultValue: unknown
+): string {
+  return compileInputValue(defaultValue, type, (value) => {
+    const name = `__default${context.dependencies.size}`;
+    context.dependencies.set(name, value);
+    return name;
+  });
+}
+
 function generateInput(
   context: CompilationContext,
   varType: GraphQLInputType,
@@ -184,6 +203,7 @@ function generateInput(
   defaultValue: unknown | undefined,
   wrapInList: boolean
 ) {
+  const declaredType = varType;
   const currentOutput = getObjectPath(context.responsePath);
   const currentInput = getObjectPath(context.inputPath);
   const errorLocation = printErrorLocation(
@@ -205,17 +225,41 @@ function generateInput(
       omittedMessage = `'Variable "$${varName}" of required type "${varType}" was not provided.'`;
     }
     varType = varType.ofType;
-    gen(`
-      if (${currentOutput} == null) {
-        errors.push(new GraphQLJITError(${hasValueName} ? ${nonNullMessage} : ${omittedMessage}, ${errorLocation}));
-      }
-    `);
+    if (defaultValue !== undefined) {
+      // A non-null input with a default is not required; only an explicit
+      // null is an error.
+      gen(`
+        if (${currentOutput} == null) {
+          if (${hasValueName}) {
+            errors.push(new GraphQLJITError(${nonNullMessage}, ${errorLocation}));
+          } else {
+            ${currentOutput} = ${compileDefault(
+              context,
+              declaredType,
+              defaultValue
+            )};
+          }
+        }
+      `);
+    } else {
+      gen(`
+        if (${currentOutput} == null) {
+          errors.push(new GraphQLJITError(${hasValueName} ? ${nonNullMessage} : ${omittedMessage}, ${errorLocation}));
+        }
+      `);
+    }
   } else {
     gen(`
       if (${hasValueName}) { ${currentOutput} = null; }
     `);
     if (defaultValue !== undefined) {
-      gen(`else { ${currentOutput} = ${JSON.stringify(defaultValue)} }`);
+      gen(
+        `else { ${currentOutput} = ${compileDefault(
+          context,
+          declaredType,
+          defaultValue
+        )}; }`
+      );
     }
   }
   gen(`} else {`);

@@ -32,6 +32,21 @@ export function createNullTrimmer(
 }
 
 /**
+ * Creates a check for whether any of the field errors in non null fields
+ * propagate to the root, which makes the whole response `null`.
+ */
+export function createRootNullChecker(
+  compilationContext: CompilationContext
+): (errors: GraphQLError[]) => boolean {
+  const nullable = parseQueryNullables(compilationContext);
+  return (errors) =>
+    errors.some(
+      ({ path }) =>
+        path != null && findNullableAncestor(nullable, path).length === 0
+    );
+}
+
+/**
  * Trims a data response according to the field errors in non null fields.
  *
  * Errors are filtered to ensure a single field error per field.
