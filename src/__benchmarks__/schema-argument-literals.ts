@@ -93,7 +93,7 @@ export const queries = {
   argumentBuiltInLiterals: {
     query: parse(`{ items { plain(n: 1, s: "a", kind: B) } }`)
   },
-  // Custom scalar literal: parsed again on every execution (spec behavior).
+// Custom scalar literal: parsed once when the query is compiled.
   argumentCustomScalarLiteral: {
     query: parse(`{ items { at(when: "${from}") } }`)
   },
