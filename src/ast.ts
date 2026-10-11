@@ -749,6 +749,7 @@ interface MissingVariablePath {
 
 export interface Arguments {
   values: { [argument: string]: any };
+  types: { [argument: string]: GraphQLInputType };
   missing: MissingVariablePath[];
 }
 
@@ -765,12 +766,14 @@ export function getArgumentDefs(
   node: FieldNode | DirectiveNode
 ): Arguments {
   const values: { [key: string]: any } = {};
+  const types: { [key: string]: GraphQLInputType } = {};
   const missing: MissingVariablePath[] = [];
   const argDefs = def.args;
   const argNodes = node.arguments || [];
   const argNodeMap = keyMap(argNodes, (arg) => arg.name.value);
   for (const argDef of argDefs) {
     const name = argDef.name;
+    types[name] = argDef.type;
     if (hasDefaultValue(argDef)) {
       // handle v16 defaultValue, and v17 default.value/default.literal
       values[name] = getDefaultValue(argDef);
@@ -822,7 +825,7 @@ export function getArgumentDefs(
       );
     }
   }
-  return { values, missing };
+  return { values, types, missing };
 }
 
 interface ASTValueWithVariables {
@@ -937,7 +940,11 @@ export function valueFromAST(
           }))
         );
       }
-      coercedObj[field.name] = fieldValue.value;
+      // A variable is only assigned at runtime when provided, otherwise the
+      // field keeps its default or stays absent.
+      if (fieldNode.value.kind !== Kind.VARIABLE) {
+        coercedObj[field.name] = fieldValue.value;
+      }
     }
     return { value: coercedObj, variables };
   }

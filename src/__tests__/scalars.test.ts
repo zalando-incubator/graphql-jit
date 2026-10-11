@@ -1,6 +1,7 @@
 import {
   DocumentNode,
   GraphQLInputObjectType,
+  type GraphQLInputType,
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
@@ -8,11 +9,90 @@ import {
   GraphQLSchema,
   GraphQLString,
   Kind,
+  execute,
   parse,
   versionInfo
 } from "graphql";
-import { compileQuery } from "../index";
+import { compileQuery, isCompiledQuery } from "../index";
 import SpyInstance = jest.SpyInstance;
+
+describe("programmatic argument defaults", () => {
+  const objectType = new GraphQLInputObjectType({
+    name: "DefaultObject",
+    fields: { known: { type: GraphQLString } }
+  });
+  class Known {
+    constructor(public known: string) {}
+  }
+  class Items extends Array<string> {}
+  const cases: [string, GraphQLInputType, unknown, string][] = [
+    ["non-array list", new GraphQLList(GraphQLString), "a", 'String:"a"'],
+    [
+      "input object with an extra key",
+      objectType,
+      { known: "a", extra: "b" },
+      'Object:{"known":"a","extra":"b"}'
+    ],
+    ["class instance", objectType, new Known("a"), 'Known:{"known":"a"}'],
+    [
+      "array subclass",
+      new GraphQLList(GraphQLString),
+      Items.from(["a"]),
+      'Items:["a"]'
+    ]
+  ];
+
+  describe.each(["argument", "input field", "variable field"])(
+    "%s defaults",
+    (location) => {
+      test.each(cases)(
+        "preserves a %s default",
+        async (_name, type, value, expected) => {
+          const wrapper = new GraphQLInputObjectType({
+            name: "DefaultWrapper",
+            fields: { value: { type, defaultValue: value } }
+          });
+          const schema = new GraphQLSchema({
+            query: new GraphQLObjectType({
+              name: "Query",
+              fields: {
+                echo: {
+                  type: GraphQLString,
+                  args:
+                    location === "argument"
+                      ? { value: { type, defaultValue: value } }
+                      : { input: { type: wrapper } },
+                  resolve: (_source, args) => {
+                    const resolved =
+                      location === "argument" ? args.value : args.input.value;
+                    return `${resolved.constructor.name}:${JSON.stringify(
+                      resolved
+                    )}`;
+                  }
+                }
+              }
+            })
+          });
+          const queries: Record<string, string> = {
+            argument: "{ echo }",
+            "input field": "{ echo(input: {}) }",
+            "variable field": "query ($v: DefaultWrapper) { echo(input: $v) }"
+          };
+          const document = parse(queries[location]);
+          const variableValues = { v: {} };
+          const reference = await execute({ schema, document, variableValues });
+          expect(reference).toEqual({ data: { echo: expected } });
+          const prepared = compileQuery(schema, document);
+          expect(
+            isCompiledQuery(prepared)
+              ? await prepared.query(undefined, undefined, variableValues)
+              : prepared
+          ).toEqual(reference);
+        }
+      );
+    }
+  );
+});
 
 function executeQuery(
   schema: GraphQLSchema,
@@ -513,14 +593,12 @@ describe("custom scalar argument values", () => {
     };
 
     const resolved: any = await resolveLiteral(value);
-    expect(resolved).toEqual({
-      nested: { nullable: null },
-      items: [undefined, null, NaN, Infinity, -Infinity, new Date(1234)]
-    });
+    expect(resolved).toBe(value);
     expect(
       Object.prototype.hasOwnProperty.call(resolved.nested, "omitted")
-    ).toBe(false);
+    ).toBe(true);
     expect(Object.prototype.hasOwnProperty.call(resolved.items, 0)).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(resolved.items, 1)).toBe(false);
   });
 
   test("preserves an own __proto__ property as an ordinary field", async () => {
@@ -529,10 +607,157 @@ describe("custom scalar argument values", () => {
     value.other = "other";
 
     const resolved = await resolveLiteral(value);
-    expect(Object.getPrototypeOf(resolved)).toBe(Object.prototype);
+    expect(Object.getPrototypeOf(resolved)).toBe(null);
     expect(Object.prototype.hasOwnProperty.call(resolved, "__proto__")).toBe(
       true
     );
     expect(resolved).toEqual(value);
+  });
+});
+
+test("preserves nested scalar literals while inserting variables into fresh input containers", async () => {
+  const brand = Symbol("brand");
+  const scalar = new GraphQLScalarType({
+    name: "Branded",
+    parseValue: (value) => ({ [brand]: String(value) }),
+    parseLiteral: (node) => {
+      if (node.kind !== Kind.STRING) {
+        throw new Error("Expected a string");
+      }
+      return { [brand]: node.value };
+    },
+    serialize: (value: any) => value[brand]
+  });
+  const inputType = new GraphQLInputObjectType({
+    name: "BrandedInput",
+    fields: {
+      value: { type: new GraphQLNonNull(scalar) },
+      values: { type: new GraphQLList(new GraphQLNonNull(scalar)) },
+      label: { type: GraphQLString }
+    }
+  });
+  const inputs: any[] = [];
+  const schema = new GraphQLSchema({
+    query: new GraphQLObjectType({
+      name: "Query",
+      fields: {
+        echo: {
+          type: GraphQLString,
+          args: { input: { type: inputType } },
+          resolve: (_source, { input }) => {
+            inputs.push(input);
+            return `${input.value[brand]}:${input.values
+              .map((value: any) => value[brand])
+              .join(",")}:${input.label}`;
+          }
+        }
+      }
+    })
+  });
+  const document = parse(`
+    query ($value: Branded!, $label: String) {
+      echo(input: { value: "a", values: ["b", $value], label: $label })
+    }
+  `);
+  const prepared = compileQuery(schema, document);
+  expect(prepared).not.toHaveProperty("errors");
+  if (!isCompiledQuery(prepared)) {
+    return;
+  }
+  for (const label of ["first", "second"]) {
+    const variableValues = { value: label, label };
+    const reference = await execute({ schema, document, variableValues });
+    expect(reference).toEqual({ data: { echo: `a:b,${label}:${label}` } });
+    expect(await prepared.query(undefined, undefined, variableValues)).toEqual(
+      reference
+    );
+  }
+  // GraphQL.js and JIT each resolve once per execution.
+  expect(inputs[1].label).toBe("first");
+  expect(inputs[1].values[1][brand]).toBe("first");
+  expect(inputs[3]).not.toBe(inputs[1]);
+  expect(inputs[3].values).not.toBe(inputs[1].values);
+});
+
+describe.each([
+  ["literal", '{ echo(value: "value") }', undefined],
+  [
+    "variable",
+    "query ($value: Opaque) { echo(value: $value) }",
+    { value: "value" }
+  ]
+])("opaque custom scalar %s round trips", (_name, query, variableValues) => {
+  async function expectRoundTrip<T>(
+    createValue: () => T,
+    serialize: (value: T) => string,
+    expected: string
+  ) {
+    const scalar = new GraphQLScalarType({
+      name: "Opaque",
+      parseValue: () => createValue(),
+      parseLiteral: () => createValue(),
+      serialize: (value) => serialize(value as T)
+    });
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          echo: {
+            type: scalar,
+            args: { value: { type: scalar } },
+            resolve: (_source, args) => args.value
+          }
+        }
+      })
+    });
+    const document = parse(query);
+    const reference = await execute({ schema, document, variableValues });
+    expect(reference).toEqual({ data: { echo: expected } });
+
+    const prepared = compileQuery(schema, document);
+    const result = isCompiledQuery(prepared)
+      ? await prepared.query(undefined, undefined, variableValues)
+      : prepared;
+    expect(result).toEqual(reference);
+  }
+
+  test("preserves symbol properties used by output coercion", async () => {
+    const brand = Symbol("brand");
+    await expectRoundTrip(
+      () => ({ [brand]: "value" }),
+      (value) => value[brand] ?? "missing brand",
+      "value"
+    );
+  });
+
+  test("accepts circular internal values with valid output coercion", async () => {
+    interface CircularValue {
+      value: string;
+      self?: CircularValue;
+    }
+    await expectRoundTrip(
+      () => {
+        const value: CircularValue = { value: "value" };
+        value.self = value;
+        return value;
+      },
+      (value) => value.self?.value ?? "missing self",
+      "value"
+    );
+  });
+
+  test("leaves getter evaluation to output coercion", async () => {
+    await expectRoundTrip(
+      () => {
+        let reads = 0;
+        return {
+          get value() {
+            return ++reads;
+          }
+        };
+      },
+      (value) => String(value.value),
+      "1"
+    );
   });
 });

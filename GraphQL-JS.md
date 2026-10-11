@@ -43,3 +43,62 @@ const resolvers = {
   }
 };
 ```
+
+### Input values
+
+Argument literals are coerced once, when the query is compiled. Lists and input objects are rebuilt for every execution, but the values returned by custom scalars are reused. This leads to a few differences.
+
+#### Custom scalar literals are parsed once
+
+`parseLiteral` (or `coerceInputLiteral`) runs at compile time, not on every execution, and the returned value is shared between executions. Resolvers should not mutate such values.
+
+```ts
+const DateTime = new GraphQLScalarType({
+  name: "DateTime",
+  parseLiteral: (node) => new Date(node.value)
+  // ...
+});
+
+const resolvers = {
+  Query: {
+    nextDay(_, { date }) {
+      // Mutates the Date shared by every execution of the compiled query.
+      // Use `new Date(date)` and mutate the copy instead.
+      date.setDate(date.getDate() + 1);
+      return date.toISOString().slice(0, 10);
+    }
+  }
+};
+```
+
+```graphql
+{
+  nextDay(date: "2024-01-01")
+}
+```
+
+| Execution | GraphQL-JS   | GraphQL-JIT  |
+| --------- | ------------ | ------------ |
+| 1st       | `2024-01-02` | `2024-01-02` |
+| 2nd       | `2024-01-02` | `2024-01-03` |
+| 3rd       | `2024-01-02` | `2024-01-04` |
+
+An invalid literal fails compilation instead of producing a field error. GraphQL validation reports these before execution anyway.
+
+#### Variables inside custom scalar literals are not substituted
+
+When a custom scalar such as `JSON` is written as a literal containing variables, the scalar does not receive the values of those variables.
+
+```graphql
+query ($v: String) {
+  echo(value: { x: $v }) # value is a JSON scalar
+}
+```
+
+With `{ "v": "hi" }`, GraphQL-JS passes `{ x: "hi" }` to the resolver, while GraphQL-JIT passes `{ x: undefined }`. Pass the whole value as a variable instead:
+
+```graphql
+query ($json: JSON) {
+  echo(value: $json)
+}
+```
