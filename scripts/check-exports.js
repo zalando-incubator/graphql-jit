@@ -14,7 +14,8 @@ const result = spawnSync(
     "node16",
     "--no-summary",
     "--include-entrypoints",
-    ...entrypoints
+    ...entrypoints,
+    ...entrypoints.map((entry) => `dist/${entry}`)
   ],
   {
     stdio: "inherit"
