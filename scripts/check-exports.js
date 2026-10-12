@@ -11,7 +11,7 @@ const result = spawnSync(
     "--pack",
     ".",
     "--profile",
-    "node16",
+    "strict",
     "--no-summary",
     "--include-entrypoints",
     ...entrypoints,
