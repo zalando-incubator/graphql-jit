@@ -10,6 +10,10 @@ import {
 } from "graphql";
 import { compileQuery, isCompiledQuery, isPromise } from "../execution";
 import {
+  queries as argumentLiteralQueries,
+  schema as argumentLiteralSchema
+} from "./schema-argument-literals";
+import {
   query as fewResolversQuery,
   schema as fewResolversSchema
 } from "./schema-few-resolvers";
@@ -47,15 +51,24 @@ const benchmarks: { [key: string]: BenchmarkMaterial } = {
     schema: nestedArraySchema(),
     query: nestedArrayQuery,
     variables: { id: "2", width: 300, height: 500 }
-  }
+  },
+  ...Object.fromEntries(
+    Object.entries(argumentLiteralQueries).map(([name, material]) => [
+      name,
+      { schema: argumentLiteralSchema(), ...material }
+    ])
+  )
 };
 
 async function runBenchmarks() {
   const skipJS = process.argv[2] === "skip-js";
   const skipJSON = process.argv[2] === "skip-json";
+  // e.g. BENCHMARK_FILTER=argument yarn benchmark
+  const filter = process.env.BENCHMARK_FILTER;
   const benchs = await Promise.all(
-    Object.entries(benchmarks).map(
-      async ([bench, { query, schema, variables }]) => {
+    Object.entries(benchmarks)
+      .filter(([bench]) => !filter || new RegExp(filter).test(bench))
+      .map(async ([bench, { query, schema, variables }]) => {
         const compiledQuery = compileQuery(schema, query, undefined, {
           debug: { enabled: true }
         });
@@ -142,8 +155,7 @@ async function runBenchmarks() {
             console.log("Starting", bench);
           });
         return suite;
-      }
-    )
+      })
   );
 
   const benchsToRun = benchs.filter(isNotNull);

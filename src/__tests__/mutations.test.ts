@@ -4,9 +4,12 @@
 
 import {
   DocumentNode,
+  execute,
   GraphQLInt,
+  GraphQLNonNull,
   GraphQLObjectType,
   GraphQLSchema,
+  GraphQLString,
   parse
 } from "graphql";
 import { makeExecutableSchema } from "@graphql-tools/schema";
@@ -249,5 +252,257 @@ describe("Execute: Handles mutation execution ordering", () => {
         }
       ]
     });
+  });
+});
+
+describe("Execute: serial execution with invalid arguments", () => {
+  function createSchema(calls: string[], nonNullBad: boolean) {
+    return new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: { noop: { type: GraphQLString } }
+      }),
+      mutation: new GraphQLObjectType({
+        name: "Mutation",
+        fields: {
+          slow: {
+            type: GraphQLString,
+            resolve: async () => {
+              calls.push("slow");
+              return "slow";
+            }
+          },
+          bad: {
+            type: nonNullBad
+              ? new GraphQLNonNull(GraphQLString)
+              : GraphQLString,
+            args: { value: { type: new GraphQLNonNull(GraphQLString) } },
+            resolve: () => {
+              calls.push("bad");
+              return "bad";
+            }
+          },
+          after: {
+            type: GraphQLString,
+            resolve: () => {
+              calls.push("after");
+              return "after";
+            }
+          }
+        }
+      })
+    });
+  }
+
+  // Races against a timeout so a stalled queue fails instead of hanging.
+  async function run(schema: GraphQLSchema, query: string) {
+    const prepared: any = compileQuery(schema, parse(query));
+    expect(prepared).not.toHaveProperty("errors");
+    return Promise.race([
+      Promise.resolve(prepared.query()),
+      new Promise((resolve) => setTimeout(() => resolve("stalled"), 500))
+    ]);
+  }
+
+  async function reference(schema: GraphQLSchema, query: string) {
+    return execute({ schema, document: parse(query) });
+  }
+
+  // The error wording differs between the two executors.
+  function shape(result: any) {
+    return {
+      data: result.data,
+      errors: result.errors?.map((e: any) => ({
+        path: e.path,
+        locations: e.locations
+      }))
+    };
+  }
+
+  test.each([
+    [
+      "without a preceding field",
+      "mutation ($v: String) { bad(value: $v) after }"
+    ],
+    [
+      "after an async field",
+      "mutation ($v: String) { slow bad(value: $v) after }"
+    ]
+  ])("a nullable field continues the queue %s", async (_name, query) => {
+    const calls: string[] = [];
+    const result: any = await run(createSchema(calls, false), query);
+    const expectedCalls: string[] = [];
+    const expected = await reference(createSchema(expectedCalls, false), query);
+
+    expect(shape(result)).toEqual(shape(expected));
+    expect(result.data.after).toBe("after");
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].path).toEqual(["bad"]);
+    expect(calls).toEqual(expectedCalls);
+    expect(calls).not.toContain("bad");
+  });
+
+  test.each([
+    [
+      "without a preceding field",
+      "mutation ($v: String) { bad(value: $v) after }"
+    ],
+    [
+      "after an async field",
+      "mutation ($v: String) { slow bad(value: $v) after }"
+    ]
+  ])(
+    "a non-null field completes without running later fields %s",
+    async (_name, query) => {
+      const calls: string[] = [];
+      const result: any = await run(createSchema(calls, true), query);
+      const expectedCalls: string[] = [];
+      const expected = await reference(
+        createSchema(expectedCalls, true),
+        query
+      );
+
+      expect(shape(result)).toEqual(shape(expected));
+      expect(result.data).toBeNull();
+      expect(result.errors).toHaveLength(1);
+      expect(calls).toEqual(expectedCalls);
+      expect(calls).not.toContain("after");
+    }
+  );
+});
+
+describe("Execute: serial execution after non-null field errors", () => {
+  function createSchema(calls: string[]) {
+    const failing = (mode: string, name: string) => {
+      calls.push(name);
+      switch (mode) {
+        case "throw":
+          throw new Error("failed");
+        case "reject":
+          return Promise.reject(new Error("failed"));
+        case "null":
+          return null;
+        default:
+          return "ok";
+      }
+    };
+    const Wrapper = new GraphQLObjectType({
+      name: "Wrapper",
+      fields: {
+        inner: {
+          type: new GraphQLNonNull(GraphQLString),
+          args: { mode: { type: GraphQLString } },
+          resolve: (_source, { mode }) => failing(mode, "inner")
+        }
+      }
+    });
+    return new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: { noop: { type: GraphQLString } }
+      }),
+      mutation: new GraphQLObjectType({
+        name: "Mutation",
+        fields: {
+          slow: {
+            type: GraphQLString,
+            resolve: async () => {
+              calls.push("slow");
+              return "slow";
+            }
+          },
+          strict: {
+            type: new GraphQLNonNull(GraphQLString),
+            args: { mode: { type: GraphQLString } },
+            resolve: (_source, { mode }) => failing(mode, "strict")
+          },
+          lenient: {
+            type: Wrapper,
+            resolve: () => ({})
+          },
+          required: {
+            type: new GraphQLNonNull(Wrapper),
+            resolve: () => ({})
+          },
+          after: {
+            type: GraphQLString,
+            resolve: () => {
+              calls.push("after");
+              return "after";
+            }
+          }
+        }
+      })
+    });
+  }
+
+  async function run(query: string) {
+    const calls: string[] = [];
+    const prepared: any = compileQuery(createSchema(calls), parse(query));
+    expect(prepared).not.toHaveProperty("errors");
+    // a stalled queue fails instead of hanging
+    const result: any = await Promise.race([
+      Promise.resolve(prepared.query()),
+      new Promise((resolve) => setTimeout(() => resolve("stalled"), 500))
+    ]);
+    return { result, calls };
+  }
+
+  async function reference(query: string) {
+    const calls: string[] = [];
+    const result = await execute({
+      schema: createSchema(calls),
+      document: parse(query)
+    });
+    return { result, calls };
+  }
+
+  // The error wording differs between the two executors.
+  function shape({ result, calls }: { result: any; calls: string[] }) {
+    return {
+      data: result.data,
+      errors: result.errors?.map((e: any) => ({
+        path: e.path,
+        locations: e.locations
+      })),
+      calls
+    };
+  }
+
+  test.each([
+    [
+      "a resolver that throws",
+      'mutation { strict(mode: "throw") after }',
+      true
+    ],
+    [
+      "a resolver that rejects",
+      'mutation { strict(mode: "reject") after }',
+      true
+    ],
+    [
+      "a resolver that rejects after an async field",
+      'mutation { slow strict(mode: "reject") after }',
+      true
+    ],
+    ["a null result", 'mutation { strict(mode: "null") after }', true],
+    [
+      "an error that propagates through non-null parents",
+      'mutation { required { inner(mode: "throw") } after }',
+      true
+    ],
+    [
+      "an error absorbed by a nullable parent",
+      'mutation { lenient { inner(mode: "throw") } after }',
+      false
+    ],
+    ["a field that succeeds", 'mutation { strict(mode: "ok") after }', false]
+  ])("%s", async (_name, query, stops) => {
+    const expected = await reference(query);
+    const actual = await run(query);
+
+    expect(shape(actual)).toEqual(shape(expected));
+    expect(actual.calls.includes("after")).toBe(!stops);
+    expect(actual.result.data === null).toBe(stops);
   });
 });

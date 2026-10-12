@@ -17,6 +17,7 @@ import {
   GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
+  execute,
   parse,
   versionInfo
 } from "graphql";
@@ -185,6 +186,139 @@ const TestType = new GraphQLObjectType({
 });
 
 const schema = new GraphQLSchema({ query: TestType });
+
+describe.each([false, true])(
+  "missing variables in input object literals (runtime coercion: %s)",
+  (runtimeCoercion) => {
+    const marker = new GraphQLScalarType({
+      name: "Marker",
+      parseValue: String,
+      parseLiteral: () => "marker",
+      serialize: String
+    });
+    const inputType = new GraphQLInputObjectType({
+      name: "MissingVariableInput",
+      fields: {
+        a: { type: GraphQLString, defaultValue: "dflt" },
+        b: { type: GraphQLString },
+        marker: { type: marker }
+      }
+    });
+    const wrapperType = new GraphQLInputObjectType({
+      name: "MissingVariableWrapper",
+      fields: {
+        child: { type: inputType },
+        children: { type: new GraphQLList(inputType) },
+        items: { type: new GraphQLList(GraphQLString) },
+        marker: { type: marker }
+      }
+    });
+    const s = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          echo: {
+            type: GraphQLString,
+            args: { input: { type: inputType } },
+            resolve: (_source, args) => {
+              const input = { ...args.input };
+              delete input.marker;
+              return JSON.stringify(input);
+            }
+          },
+          nested: {
+            type: GraphQLString,
+            args: { input: { type: wrapperType } },
+            resolve: (_source, args) =>
+              JSON.stringify(args.input, (key, value) =>
+                key === "marker" ? undefined : value
+              )
+          }
+        }
+      })
+    });
+    const cases: [string, string, Record<string, unknown>, object][] = [
+      ["field default and omission", "", {}, { a: "dflt" }],
+      ["explicit null", "", { v: null, w: null }, { a: null, b: null }],
+      [
+        "provided value",
+        "",
+        { v: "provided", w: "b" },
+        { a: "provided", b: "b" }
+      ],
+      ["variable default", '= "variable"', {}, { a: "variable" }],
+      ["null variable default", "= null", {}, { a: null }],
+      [
+        "runtime override of variable default",
+        '= "variable"',
+        { v: "runtime" },
+        { a: "runtime" }
+      ]
+    ];
+
+    test.each(cases)(
+      "preserves %s",
+      async (_name, defaultValue, variableValues, expected) => {
+        const document = parse(`
+        query ($v: String ${defaultValue}, $w: String) {
+          echo(input: {a: $v, b: $w ${
+            runtimeCoercion ? ', marker: "marker"' : ""
+          }})
+        }
+      `);
+        const reference = await execute({
+          schema: s,
+          document,
+          variableValues
+        });
+        expect(reference).toEqual({ data: { echo: JSON.stringify(expected) } });
+        const prepared = compileQuery(s, document);
+        expect(prepared).not.toHaveProperty("errors");
+        if (!isCompiledQuery(prepared)) {
+          return;
+        }
+        expect(
+          await prepared.query(undefined, undefined, variableValues)
+        ).toEqual(reference);
+      }
+    );
+
+    test.each([
+      ["nested object", "child: {a: $v, b: $w}", { child: { a: "dflt" } }],
+      [
+        "object list",
+        "children: [{a: $v, b: $w}]",
+        { children: [{ a: "dflt" }] }
+      ],
+      [
+        "single object coerced to a list",
+        "children: {a: $v, b: $w}",
+        { children: [{ a: "dflt" }] }
+      ],
+      ["absent list item", "items: [$w]", { items: [null] }]
+    ])("handles absent variables in a %s", async (_name, fields, expected) => {
+      const document = parse(`
+        query ($v: String, $w: String) {
+          nested(input: { ${fields} ${
+            runtimeCoercion ? ', marker: "marker"' : ""
+          } })
+        }
+      `);
+      const reference = await execute({
+        schema: s,
+        document,
+        variableValues: {}
+      });
+      expect(reference).toEqual({ data: { nested: JSON.stringify(expected) } });
+      const prepared = compileQuery(s, document);
+      expect(prepared).not.toHaveProperty("errors");
+      if (!isCompiledQuery(prepared)) {
+        return;
+      }
+      expect(await prepared.query(undefined, undefined, {})).toEqual(reference);
+    });
+  }
+);
 
 function executeQuery(query: string, variableValues?: any, s = schema) {
   const document = parse(query);
@@ -398,9 +532,11 @@ describe("Execute: Handles inputs", () => {
           { a: "foo", b: "bar", c: "baz" }
         );
 
+        // Fields set from variables are added at runtime, after the fields
+        // from literals, so the key order differs from GraphQL.js.
         expect(result).toEqual({
           data: {
-            fieldWithObjectInput: '{ a: "foo", b: ["bar"], c: "baz" }'
+            fieldWithObjectInput: '{ b: ["bar"], a: "foo", c: "baz" }'
           }
         });
       });
@@ -1741,5 +1877,170 @@ describe("Execute: Applies SDL-defined default values (#295)", () => {
     expect(result).toEqual({
       data: { echo: JSON.stringify({ a: 3, input: { x: 5 } }) }
     });
+  });
+});
+
+describe("Execute: non-null inputs with default values", () => {
+  const sdlSchema = buildSchema(`
+    input In {
+      n: String! = "nd"
+      b: String
+    }
+    type Query {
+      echo(input: In, s: String! = "arg"): String
+    }
+  `);
+  sdlSchema.getQueryType()!.getFields().echo.resolve = (_source, args) =>
+    JSON.stringify({ s: args.s, input: args.input });
+
+  test.each([
+    [
+      "omitted input object field",
+      `query ($v: In) { echo(input: $v) }`,
+      {
+        v: { b: "q" }
+      }
+    ],
+    [
+      "omitted variable with default",
+      `query ($v: String! = "vd") { echo(s: $v) }`,
+      {}
+    ],
+    [
+      "provided variable with default",
+      `query ($v: String! = "vd") { echo(s: $v) }`,
+      {
+        v: "given"
+      }
+    ]
+  ])("%s matches GraphQL.js", async (_name, query, variableValues) => {
+    const reference = await execute({
+      schema: sdlSchema,
+      document: parse(query),
+      variableValues
+    });
+    expect(reference.errors).toBeUndefined();
+    expect(await executeQuery(query, variableValues, sdlSchema)).toEqual(
+      reference
+    );
+  });
+
+  test.each([
+    [
+      "input object field",
+      `query ($v: In) { echo(input: $v) }`,
+      {
+        v: { n: null }
+      }
+    ],
+    ["variable", `query ($v: String! = "vd") { echo(s: $v) }`, { v: null }]
+  ])("rejects an explicit null %s", async (_name, query, variableValues) => {
+    const reference = await execute({
+      schema: sdlSchema,
+      document: parse(query),
+      variableValues
+    });
+    expect(reference.errors).toHaveLength(1);
+    const result: any = await executeQuery(query, variableValues, sdlSchema);
+    expect(result.errors).toHaveLength(1);
+    expect(result.data).toBeUndefined();
+  });
+});
+
+describe("Execute: opaque default values in variable coercion", () => {
+  const Big = new GraphQLScalarType({
+    name: "Big",
+    serialize: (value) => String(value),
+    parseValue: (value) => BigInt(value as string)
+  });
+  const Stamp = new GraphQLScalarType({
+    name: "Stamp",
+    serialize: (value) => String((value as Date).getTime()),
+    parseValue: (value) => new Date(value as number)
+  });
+  const OpaqueInput = new GraphQLInputObjectType({
+    name: "OpaqueInput",
+    fields: {
+      big: { type: Big, defaultValue: 42n },
+      requiredBig: { type: new GraphQLNonNull(Big), defaultValue: 7n },
+      at: { type: Stamp, defaultValue: new Date(1000) },
+      bigs: { type: new GraphQLList(Big), defaultValue: [1n, 2n] },
+      label: { type: GraphQLString }
+    }
+  });
+  const opaqueSchema = new GraphQLSchema({
+    query: new GraphQLObjectType({
+      name: "Query",
+      fields: {
+        echo: {
+          type: GraphQLString,
+          args: { input: { type: OpaqueInput } },
+          resolve: (_source, { input }) =>
+            JSON.stringify({
+              big: [typeof input.big, String(input.big)],
+              requiredBig: [
+                typeof input.requiredBig,
+                String(input.requiredBig)
+              ],
+              at: [input.at instanceof Date, String(input.at?.getTime())],
+              bigs: input.bigs.map((big: unknown) => [typeof big, String(big)])
+            })
+        }
+      }
+    })
+  });
+  const query = "query ($v: OpaqueInput) { echo(input: $v) }";
+
+  test.each([
+    ["omitted fields use their defaults", { v: {} }],
+    ["provided fields override defaults", { v: { big: "5", requiredBig: "6" } }]
+  ])("%s", async (_name, variableValues) => {
+    const reference = await execute({
+      schema: opaqueSchema,
+      document: parse(query),
+      variableValues
+    });
+    expect(reference.errors).toBeUndefined();
+    expect(await executeQuery(query, variableValues, opaqueSchema)).toEqual(
+      reference
+    );
+  });
+
+  test("keeps bigint and Date defaults as their internal values", async () => {
+    const result: any = await executeQuery(query, { v: {} }, opaqueSchema);
+    expect(JSON.parse(result.data.echo)).toEqual({
+      big: ["bigint", "42"],
+      requiredBig: ["bigint", "7"],
+      at: [true, "1000"],
+      bigs: [
+        ["bigint", "1"],
+        ["bigint", "2"]
+      ]
+    });
+  });
+
+  test("gives each execution its own list", async () => {
+    const lists: unknown[] = [];
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          echo: {
+            type: GraphQLString,
+            args: { input: { type: OpaqueInput } },
+            resolve: (_source, { input }) => {
+              lists.push(input.bigs);
+              input.bigs.push(3n);
+              return String(input.bigs.length);
+            }
+          }
+        }
+      })
+    });
+    const first = await executeQuery(query, { v: {} }, schema);
+    const second = await executeQuery(query, { v: {} }, schema);
+    expect(first).toEqual({ data: { echo: "3" } });
+    expect(second).toEqual({ data: { echo: "3" } });
+    expect(lists[0]).not.toBe(lists[1]);
   });
 });
