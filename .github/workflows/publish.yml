@@ -1,18 +1,28 @@
 name: Publish
 on:
   release:
-    types: [created]
+    types:
+      - created
+
 jobs:
-  build:
+  publish:
+    # prevents this action from running on forks
+    if: github.repository == 'zalando-incubator/graphql-jit'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
-      - uses: actions/checkout@v2
-      # Setup .npmrc file to publish to npm
-      - uses: actions/setup-node@v2
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 14
-          registry-url: "https://registry.npmjs.org"
-      - run: yarn install
-      - run: yarn publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          node-version: 24
+          package-manager-cache: false
+      - run: yarn install --frozen-lockfile
+
+      - name: Publish Release
+        run: |
+          RELEASE_VERSION="${{ github.event.release.tag_name }}"
+          RELEASE_VERSION="${RELEASE_VERSION#v}"
+          npm pkg set version="$RELEASE_VERSION"
+          npm publish --tag latest-0.7.x
