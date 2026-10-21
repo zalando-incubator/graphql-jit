@@ -61,9 +61,14 @@ import {
   serializeObjectPathForSkipInclude
 } from "./ast.js";
 import { GraphQLError as GraphqlJitError } from "./error.js";
+import { compileInputValue } from "./compile-input.js";
 import createInspect from "./inspect.js";
 import { queryToJSONSchema } from "./json.js";
-import { createNullTrimmer, type NullTrimmer } from "./non-null.js";
+import {
+  createNullTrimmer,
+  createRootNullChecker,
+  type NullTrimmer
+} from "./non-null.js";
 import {
   createResolveInfoThunk,
   type ResolveInfoEnricherInput
@@ -181,9 +186,10 @@ export interface CompilationContext extends GraphQLContext {
   typeResolvers: { [key: string]: GraphQLTypeResolver<any, any> };
   isTypeOfs: { [key: string]: GraphQLIsTypeOfFn<any, any> };
   resolveInfos: { [key: string]: any };
-  // Coerced literal argument values that cannot be serialized into the
-  // generated source (e.g. class instances returned by custom scalars).
+  // Opaque scalar and enum argument values kept outside the generated source.
   literals: { [key: string]: any };
+  // Shared by reference with the sub contexts, which are copies of this one.
+  literalCount: { value: number };
   deferred: DeferredField[];
   options: CompilerOptions;
   depth: number;
@@ -199,6 +205,8 @@ const SAFETY_CHECK_PREFIX = "__validNode";
 const GLOBAL_DATA_NAME = "__context.data";
 const GLOBAL_ERRORS_NAME = "__context.errors";
 const GLOBAL_NULL_ERRORS_NAME = "__context.nullErrors";
+// Key in `literals` of the check for errors that null the whole response.
+const NULLS_RESPONSE_LITERAL = "nullsResponse";
 const GLOBAL_ROOT_NAME = "__context.rootValue";
 export const GLOBAL_VARIABLES_NAME = "__context.variables";
 const GLOBAL_CONTEXT_NAME = "__context.context";
@@ -503,6 +511,7 @@ function compileOperation(
   "use strict";
 `;
   if (serialExecution) {
+    context.literals[NULLS_RESPONSE_LITERAL] = createRootNullChecker(context);
     body += `${GLOBAL_EXECUTION_CONTEXT}.queue = [];`;
   }
   body += generateUniqueDeclarations(context, true);
@@ -512,8 +521,12 @@ function compileOperation(
     body += `
     ${GLOBAL_EXECUTION_CONTEXT}.finalResolve = () => {};
     ${GLOBAL_RESOLVE} = (context) => {
-      if (context.jobCounter >= context.queue.length) {
-        // All mutations have finished
+      // Stop when all mutations have finished, or when an error in a non-null
+      // field has nulled the whole response.
+      if (
+        context.jobCounter >= context.queue.length ||
+        context.literals.${NULLS_RESPONSE_LITERAL}(context.nullErrors)
+      ) {
         context.finalResolve(context);
         return;
       }
@@ -640,6 +653,10 @@ function compileDeferredField(
           }
         }
       );
+    }${
+      // Invalid arguments skip the resolver and its handler, which is also what
+      // advances a serial (mutation) queue.
+      appendix ? ` else {${appendix}}` : ""
     }`;
   context.hoistedFunctions.push(`
     function ${resolverHandler}(${GLOBAL_EXECUTION_CONTEXT}, ${GLOBAL_PARENT_NAME}, ${jsFieldName}, ${parentIndexes}) {
@@ -1303,79 +1320,6 @@ function compileListType(
 }
 
 /**
- * Whether the value cannot be written into source as a literal: a bigint,
- * symbol, function, or any object other than a plain object, array or Date.
- */
-function isUnserializable(value: any): boolean {
-  switch (typeof value) {
-    case "bigint":
-    case "symbol":
-    case "function":
-      return true;
-    case "object": {
-      if (value === null) {
-        return false;
-      }
-      const proto = Object.getPrototypeOf(value);
-      if (Array.isArray(value)) {
-        return proto !== Array.prototype;
-      }
-      if (value instanceof Date) {
-        return proto !== Date.prototype;
-      }
-      return proto !== null && proto !== Object.prototype;
-    }
-    default:
-      return false;
-  }
-}
-
-/**
- * Serializes an argument value to a JS expression. Unserializable values are
- * stored via `hoist` and referenced from `context.literals`.
- */
-function objectStringify(val: any, hoist: (value: any) => string): string {
-  if (isUnserializable(val)) {
-    return `${GLOBAL_EXECUTION_CONTEXT}.literals.${hoist(val)}`;
-  }
-  if (typeof val === "number") {
-    // JSON.stringify would turn NaN/Infinity into null
-    return Number.isFinite(val) ? JSON.stringify(val) : String(val);
-  }
-  if (val === undefined) {
-    return "undefined";
-  }
-  if (val === null || typeof val !== "object") {
-    return JSON.stringify(val);
-  }
-  if (val instanceof Date) {
-    return `new Date(${val.getTime()})`;
-  }
-  if (Array.isArray(val)) {
-    const items = [];
-    for (let i = 0; i < val.length; ++i) {
-      items.push(i in val ? objectStringify(val[i], hoist) : "null");
-    }
-    return `[${items.join(",")}]`;
-  }
-  const props = [];
-  for (const key of Object.keys(val)) {
-    if (val[key] === undefined) {
-      continue;
-    }
-    // a computed key stops "__proto__" from setting the prototype
-    const name = JSON.stringify(key);
-    props.push(
-      `${key === "__proto__" ? `[${name}]` : name}:${objectStringify(
-        val[key],
-        hoist
-      )}`
-    );
-  }
-  return `{${props.join(",")}}`;
-}
-
-/**
  * Calculates a GraphQLResolveInfo object for the resolver calls.
  *
  * if the resolver does not use, it returns null.
@@ -1458,14 +1402,25 @@ function compileArguments(
   returnType: GraphQLOutputType,
   path: ObjectPath
 ): string {
+  const bind = (value: any) => {
+    const key = `literal${context.literalCount.value++}`;
+    context.literals[key] = value;
+    return `${GLOBAL_EXECUTION_CONTEXT}.literals.${key}`;
+  };
+  const valuesExpression = `{${Object.keys(args.values)
+    .map(
+      (name) =>
+        `${JSON.stringify(name)}:${compileInputValue(
+          args.values[name],
+          args.types[name],
+          bind
+        )}`
+    )
+    .join(",")}}`;
   // default to assuming arguments are valid
   let body = `
   let ${validArgs} = true;
-  const ${topLevelArg} = ${objectStringify(args.values, (value) => {
-    const key = `literal${Object.keys(context.literals).length}`;
-    context.literals[key] = value;
-    return key;
-  })};
+  const ${topLevelArg} = ${valuesExpression};
   `;
   const errorDestination = getErrorDestination(returnType);
   for (const variable of args.missing) {
@@ -1760,6 +1715,7 @@ export function buildCompilationContext(
     isTypeOfs: {},
     resolveInfos: {},
     literals: {},
+    literalCount: { value: 0 },
     hoistedFunctions: [],
     hoistedFunctionNames: new Map(),
     leafErrHandlerCache: new Map(),
