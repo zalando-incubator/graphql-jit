@@ -145,17 +145,17 @@ export function hasDefaultValue(argOrField: DefaultCarrier): boolean {
 }
 
 /**
- * v17 deprecates parseLiteral in favor of coerceInputLiteral for custom scalars
- * However, custom scalars may still only define parseLiteral, so we check
- * for the method's existence rather than just the version.
+ * v17 deprecates parseLiteral in favor of coerceInputLiteral for custom scalars.
+ * Custom scalars may still only define parseLiteral, so on v17 we also check
+ * for the method's existence.
  */
 export function coerceInputLiteral(
   type: GraphQLScalarType<unknown, unknown>,
   valueNode: ConstValueNode
 ): any {
-  // Use coerceInputLiteral if available (built-in scalars in v17+)
-  // Otherwise fall back to parseLiteral (custom scalars, or v16)
-  if ((type as any).coerceInputLiteral) {
+  // Use coerceInputLiteral if available (built-in scalars in v17+).
+  // Otherwise fall back to parseLiteral (custom scalars, or v16 and lower).
+  if (versionInfo.major >= 17 && (type as any).coerceInputLiteral) {
     return (type as any).coerceInputLiteral(valueNode);
   }
 
@@ -171,7 +171,9 @@ export function coerceOutputValue(
   value: unknown
 ): unknown {
   const t = type as any;
-  return t.coerceOutputValue ? t.coerceOutputValue(value) : t.serialize(value);
+  return versionInfo.major >= 17 && t.coerceOutputValue
+    ? t.coerceOutputValue(value)
+    : t.serialize(value);
 }
 
 /**
@@ -183,7 +185,9 @@ export function coerceInputValue(
   value: unknown
 ): unknown {
   const t = type as any;
-  return t.coerceInputValue ? t.coerceInputValue(value) : t.parseValue(value);
+  return versionInfo.major >= 17 && t.coerceInputValue
+    ? t.coerceInputValue(value)
+    : t.parseValue(value);
 }
 
 /**
