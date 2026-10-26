@@ -386,33 +386,50 @@ describe("Scalars: coercion methods when both legacy and v17 APIs are defined (#
   }
 
   function makeCustomScalar() {
-    return new GraphQLScalarType({
+    const scalar = new GraphQLScalarType({
       name: "Custom",
       serialize: (value: any) => `legacy-output:${value}`,
-      coerceOutputValue: (value: any) => `v17-output:${value}`,
       parseValue: (value: any) => `legacy-input:${value}`,
-      coerceInputValue: (value: any) => `v17-input:${value}`
-    } as any);
+      parseLiteral: (node: any) => `legacy-literal:${node.value}`
+    });
+
+    return Object.assign(scalar, {
+      coerceOutputValue: (value: any) => `v17-output:${value}`,
+      coerceInputValue: (value: any) => `v17-input:${value}`,
+      coerceInputLiteral: (node: any) => `v17-literal:${node.value}`
+    });
   }
 
-  // v15/v16 ignore `coerceOutputValue` / `coerceInputValue` in the config
-  test("uses the same coercion methods as graphql-js", async () => {
-    const result = await executeQuery(
-      makeSchema(makeCustomScalar()),
-      parse("query ($value: Custom) { echo(value: $value) }"),
+  test.each([
+    [
+      "variable values",
+      "query ($value: Custom) { echo(value: $value) }",
+      { value: "x" },
+      versionInfo.major >= 17
+        ? "v17-output:v17-input:x"
+        : "legacy-output:legacy-input:x"
+    ],
+    [
+      "literal values",
+      '{ echo(value: "x") }',
       undefined,
-      { value: "x" }
-    );
+      versionInfo.major >= 17
+        ? "v17-output:v17-literal:x"
+        : "legacy-output:legacy-literal:x"
+    ]
+  ])(
+    "uses the same coercion methods as graphql-js for %s",
+    async (_name, query, variableValues, expected) => {
+      const schema = makeSchema(makeCustomScalar());
+      const document = parse(query);
+      const reference = await execute({ schema, document, variableValues });
 
-    expect(result).toEqual({
-      data: {
-        echo:
-          versionInfo.major >= 17
-            ? "v17-output:v17-input:x"
-            : "legacy-output:legacy-input:x"
-      }
-    });
-  });
+      expect(reference).toEqual({ data: { echo: expected } });
+      expect(
+        await executeQuery(schema, document, undefined, variableValues)
+      ).toEqual(reference);
+    }
+  );
 });
 
 describe("custom scalar literals that parse to class instances", () => {
