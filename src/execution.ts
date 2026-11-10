@@ -54,12 +54,10 @@ import {
   type FieldsAndNodes,
   flattenPath,
   getArgumentDefs,
-  type JitFieldNode,
-  joinSkipIncludePath,
   type ObjectPath,
-  resolveFieldDef,
-  serializeObjectPathForSkipInclude
+  resolveFieldDef
 } from "./ast.js";
+import { compileFieldNodesShouldInclude } from "./skip-include.js";
 import { GraphQLError as GraphqlJitError } from "./error.js";
 import { compileInputValue } from "./compile-input.js";
 import createInspect from "./inspect.js";
@@ -103,19 +101,6 @@ export interface CompilerOptions {
   customSerializers: { [key: string]: (v: any) => any };
 
   resolverInfoEnricher?: (inp: ResolveInfoEnricherInput) => object;
-
-  /**
-   * This option is a temporary workaround to rollout and test the new skip/include behavior.
-   * It will be removed in the next version along with the old behavior.
-   *
-   * Set this to true if you face issues with skip/include in fragment spreads.
-   *
-   * default: false
-   *
-   * @see https://github.com/zalando-incubator/graphql-jit/pull/197
-   *
-   */
-  useExperimentalPathBasedSkipInclude: boolean;
 
   /** Expose generated executors to JavaScript debuggers with virtual names. */
   debug?: CompilerDebugOptions;
@@ -280,7 +265,6 @@ export function compileQuery<
       customJSONSerializer: false,
       disableLeafSerialization: false,
       customSerializers: {},
-      useExperimentalPathBasedSkipInclude: false,
       ...partialOptions
     };
 
@@ -817,7 +801,7 @@ function compileType(
       errorDestination
     );
   } else if (isObjectType(type)) {
-    const fieldMap = collectSubfields(context, type, fieldNodes, previousPath);
+    const fieldMap = collectSubfields(context, type, fieldNodes);
     body += compileObjectType(
       context,
       type,
@@ -914,7 +898,7 @@ function compileLeafType(
 function compileObjectType(
   context: CompilationContext,
   type: GraphQLObjectType,
-  fieldNodes: JitFieldNode[],
+  fieldNodes: FieldNode[],
   originPaths: string[],
   destinationPaths: string[],
   responsePath: ObjectPath | undefined,
@@ -971,61 +955,11 @@ function compileObjectType(
     /**
      * Value of the object
      *
-     * The combined condition for whether a field should be included
-     * in the object.
-     *
-     * Here, the logical operation is `||` because every fieldNode
-     * is at the same level in the tree, if at least "one of" the nodes
-     * is included, then the field is included.
-     *
-     * For example,
-     *
-     * ```graphql
-     * {
-     *   foo @skip(if: $c1)
-     *   ... { foo @skip(if: $c2) }
-     * }
-     * ```
-     *
-     * The logic for `foo` becomes -
-     *
-     * `compilationFor($c1) || compilationFor($c2)`
+     * The condition for whether the field should be included in the
+     * object. See `compileFieldNodesShouldInclude`.
      */
-    const serializedResponsePath = joinSkipIncludePath(
-      serializeObjectPathForSkipInclude(responsePath),
-      name
-    );
-
-    const fieldConditionsList = (
-      context.options.useExperimentalPathBasedSkipInclude
-        ? fieldNodes.map(
-            (it) => it.__internalShouldIncludePath?.[serializedResponsePath]
-          )
-        : fieldNodes.map((it) => it.__internalShouldInclude)
-    ).filter(isNotNull);
-
-    let fieldCondition = fieldConditionsList
-      .map((it) => {
-        if (it.length > 0) {
-          return `(${it.join(" && ")})`;
-        }
-        // default: if there are no conditions, it means that the field
-        // is always included in the path
-        return "true";
-      })
-      .filter(isNotNull)
-      .join(" || ");
-
-    // if it's an empty string, it means that the field is always included
-    if (!fieldCondition) {
-      // if there are no conditions, it means that the field
-      // is always included in the path
-      fieldCondition = "true";
-    }
-
-    const alwaysIncluded = fieldCondition
-      .split(" || ")
-      .every((p) => p === "true");
+    const fieldCondition = compileFieldNodesShouldInclude(fieldNodes);
+    const alwaysIncluded = fieldCondition === "true";
 
     if (!alwaysIncluded) {
       body(`(${fieldCondition})`);
@@ -2025,8 +1959,4 @@ function mapAsyncIterator<T, U, R = undefined>(
 
 function joinOriginPaths(originPaths: string[]) {
   return originPaths.join(".");
-}
-
-function isNotNull<T>(it: T): it is Exclude<T, null | undefined> {
-  return it != null;
 }

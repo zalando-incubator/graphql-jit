@@ -132,8 +132,7 @@ describe("json schema creator", () => {
     customJSONSerializer: false,
     disableLeafSerialization: false,
     disablingCapturingStackErrors: false,
-    customSerializers: {},
-    useExperimentalPathBasedSkipInclude: false
+    customSerializers: {}
   });
   const jsonSchema = queryToJSONSchema(context);
   test("json schema creation", () => {
@@ -209,8 +208,7 @@ describe("JSON schema creation with abstract types", () => {
     customJSONSerializer: false,
     disableLeafSerialization: false,
     disablingCapturingStackErrors: false,
-    customSerializers: {},
-    useExperimentalPathBasedSkipInclude: false
+    customSerializers: {}
   });
 
   const jsonSchema = queryToJSONSchema(context);
