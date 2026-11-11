@@ -132,6 +132,7 @@ export interface ExecutionContext {
   isTypeOfs: { [key: string]: GraphQLIsTypeOfFn<any, any> };
   resolveInfos: { [key: string]: any };
   literals: { [key: string]: any };
+  conditions?: boolean[];
 }
 
 interface DeferredField {
@@ -175,6 +176,12 @@ export interface CompilationContext extends GraphQLContext {
   literals: { [key: string]: any };
   // Shared by reference with the sub contexts, which are copies of this one.
   literalCount: { value: number };
+  // Hoisted multi-branch skip/include OR expressions emitted in `__computeConditions`.
+  conditions: string[];
+  // Deduplicates `conditions` slot indices by compiled expression string across types.
+  conditionIndexByExpr: Map<string, number>;
+  // Memoizes compiled condition expression per `OrNode`.
+  printedOrNodes: WeakMap<object, string>;
   deferred: DeferredField[];
   options: CompilerOptions;
   depth: number;
@@ -499,9 +506,27 @@ function compileOperation(
     body += `${GLOBAL_EXECUTION_CONTEXT}.queue = [];`;
   }
   body += generateUniqueDeclarations(context, true);
-  body += `${GLOBAL_DATA_NAME} = ${topLevel}\n`;
+  const topLevelAndDeferred =
+    `${GLOBAL_DATA_NAME} = ${topLevel}\n` +
+    (serialExecution
+      ? compileDeferredFieldsSerially(context)
+      : compileDeferredFields(context));
+  if (context.conditions.length > 0) {
+    body += `__computeConditions(${GLOBAL_EXECUTION_CONTEXT});\n`;
+    const stmts = context.conditions
+      .map(
+        (expr, idx) =>
+          `${GLOBAL_EXECUTION_CONTEXT}.conditions[${idx}] = ${expr};`
+      )
+      .join("\n  ");
+    context.hoistedFunctions.push(`
+function __computeConditions(${GLOBAL_EXECUTION_CONTEXT}) {
+  ${GLOBAL_EXECUTION_CONTEXT}.conditions = [];
+  ${stmts}
+}`);
+  }
+  body += topLevelAndDeferred;
   if (serialExecution) {
-    body += compileDeferredFieldsSerially(context);
     body += `
     ${GLOBAL_EXECUTION_CONTEXT}.finalResolve = () => {};
     ${GLOBAL_RESOLVE} = (context) => {
@@ -526,7 +551,6 @@ function compileOperation(
     }
   `;
   } else {
-    body += compileDeferredFields(context);
     body += `
     return ${GLOBAL_RUNTIME_NAME}.finalizeResult(${GLOBAL_EXECUTION_CONTEXT});`;
   }
@@ -958,7 +982,7 @@ function compileObjectType(
      * The condition for whether the field should be included in the
      * object. See `compileFieldNodesShouldInclude`.
      */
-    const fieldCondition = compileFieldNodesShouldInclude(fieldNodes);
+    const fieldCondition = compileFieldNodesShouldInclude(context, fieldNodes);
     const alwaysIncluded = fieldCondition === "true";
 
     if (!alwaysIncluded) {
@@ -1650,6 +1674,9 @@ export function buildCompilationContext(
     resolveInfos: {},
     literals: {},
     literalCount: { value: 0 },
+    conditions: [],
+    conditionIndexByExpr: new Map(),
+    printedOrNodes: new WeakMap(),
     hoistedFunctions: [],
     hoistedFunctionNames: new Map(),
     leafErrHandlerCache: new Map(),

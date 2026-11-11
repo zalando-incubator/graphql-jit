@@ -1898,6 +1898,14 @@ describe("Execute: handles directives", () => {
         "fragment spread twice in the same selection set",
         `{ user { ...P @include(if: $a) ...P @include(if: $b) } }
         fragment P on User { posts }`
+      ],
+      [
+        "diamond fragment spreads collapsing to the same condition",
+        `{ user { ...A @include(if: $a) ...A @include(if: $b) } }
+        fragment A on User { ...B ...C }
+        fragment B on User { ...D }
+        fragment C on User { ...D }
+        fragment D on User { name }`
       ]
     ])("%s", async (_, selection) => {
       const document = parse(`query ($a: Boolean!, $b: Boolean!) ${selection}`);
@@ -1912,6 +1920,71 @@ describe("Execute: handles directives", () => {
             await execute({ schema, document, rootValue: root, variableValues })
           );
         }
+      }
+    });
+
+    test("compiles deep diamond and cross-linked fragment chains in linear time and size", async () => {
+      const n = 20;
+      const vars = Array.from(
+        { length: n },
+        (_, i) => `$x${i}: Boolean!, $y${i}: Boolean!`
+      ).join(", ");
+      let frags = "";
+      for (let i = 0; i < n; i++) {
+        frags += `fragment A${i} on User { ...A${
+          i + 1
+        } @include(if: $x${i}) ...B${i + 1} @include(if: $y${i}) }\n`;
+        frags += `fragment B${i} on User { ...A${i + 1} @skip(if: $x${i}) ...B${
+          i + 1
+        } @skip(if: $y${i}) }\n`;
+      }
+      frags += `fragment A${n} on User { name }\nfragment B${n} on User { posts }`;
+      const document = parse(`query (${vars}) { user { ...A0 } }\n${frags}`);
+      const compiled: any = compileQuery(schema, document, "", {
+        debug: { enabled: true }
+      });
+      if (!isCompiledQuery(compiled)) {
+        throw new Error(JSON.stringify(compiled));
+      }
+      expect(
+        compiled.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation.length
+      ).toBeLessThan(15000);
+      const variableValues: { [key: string]: boolean } = {};
+      for (let i = 0; i < n; i++) {
+        variableValues[`x${i}`] = i % 2 === 0;
+        variableValues[`y${i}`] = i % 3 === 0;
+      }
+      expect(await compiled.query(root, {}, variableValues)).toEqual(
+        await execute({ schema, document, rootValue: root, variableValues })
+      );
+    });
+
+    test("compiles deep unconditioned fragment diamonds under a single condition in linear time", async () => {
+      const n = 24;
+      let frags = "";
+      for (let i = 0; i < n; i++) {
+        frags += `fragment A${i} on User { ...A${i + 1} ...B${i + 1} }\n`;
+        frags += `fragment B${i} on User { ...A${i + 1} ...B${i + 1} }\n`;
+      }
+      frags += `fragment A${n} on User { name }\nfragment B${n} on User { posts }`;
+      const document = parse(
+        `query ($a: Boolean!) { user { ...A0 @include(if: $a) } }\n${frags}`
+      );
+      const start = Date.now();
+      const compiled = compileQuery(schema, document);
+      expect(Date.now() - start).toBeLessThan(100);
+      if (!isCompiledQuery(compiled)) {
+        throw new Error(JSON.stringify(compiled));
+      }
+      for (const a of [false, true]) {
+        expect(await compiled.query(root, {}, { a })).toEqual(
+          await execute({
+            schema,
+            document,
+            rootValue: root,
+            variableValues: { a }
+          })
+        );
       }
     });
   });

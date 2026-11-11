@@ -38,11 +38,13 @@ import {
   resolveFieldDef
 } from "./compat.js";
 import {
+  addFragmentShouldIncludeBranch,
   ALWAYS_INCLUDE,
   andShouldInclude,
   compileSkipInclude,
+  createFragmentShouldInclude,
   getFieldNodeShouldInclude,
-  orShouldInclude,
+  type OrNode,
   setFieldNodeShouldInclude,
   type ShouldInclude
 } from "./skip-include.js";
@@ -63,14 +65,14 @@ const inspect = createInspect();
  *
  * As skip/include directives can only be evaluated at runtime,
  * the condition under which each collected field node is included
- * is using `compileFieldNodesShouldInclude`.
+ * is recorded with it; see `compileFieldNodesShouldInclude`.
  */
 export function collectFields(
   compilationContext: CompilationContext,
   runtimeType: GraphQLObjectType,
   selectionSet: SelectionSetNode,
   fields: FieldsAndNodes,
-  visitedFragmentNames: { [key: string]: ShouldInclude }
+  visitedFragmentNames: { [key: string]: OrNode }
 ): FieldsAndNodes {
   return collectFieldsImpl(
     compilationContext,
@@ -91,7 +93,7 @@ function collectFieldsImpl(
   runtimeType: GraphQLObjectType,
   selectionSet: SelectionSetNode,
   fields: FieldsAndNodes,
-  visitedFragmentNames: { [key: string]: ShouldInclude },
+  visitedFragmentNames: { [key: string]: OrNode },
   parentShouldInclude: ShouldInclude
 ): FieldsAndNodes {
   interface StackItem {
@@ -166,17 +168,18 @@ function collectFieldsImpl(
         );
 
         // If a fragment is spread multiple times under different @skip/@include checks,
-        // one spread may be skipped at runtime while another is included. Track visited
-        // routes and only expand routes that aren't covered yet.
-        const visited = visitedFragmentNames[fragName] ?? [];
-        const merged = orShouldInclude(visited, fragmentShouldInclude);
-        const added = merged.filter((it) => !visited.includes(it));
-        if (added.length === 0) {
+        // one spread may be skipped at runtime while another is included. Visit each
+        // fragment's selection set once with a mutable OrNode, and append additional
+        // branches on subsequent spreads.
+        const visited = visitedFragmentNames[fragName];
+        if (visited) {
+          addFragmentShouldIncludeBranch(visited, fragmentShouldInclude);
           break;
         }
-        visitedFragmentNames[fragName] = merged;
+        const fragmentNode = createFragmentShouldInclude(fragmentShouldInclude);
+        visitedFragmentNames[fragName] = fragmentNode;
 
-        pushSelections(fragment.selectionSet.selections, added);
+        pushSelections(fragment.selectionSet.selections, fragmentNode);
         break;
       }
     }
@@ -196,17 +199,8 @@ function addFieldNode(
     fieldNodes = fields[name] = [];
   }
 
-  const existing = getFieldNodeShouldInclude(fieldNodes, fieldNode);
-  if (existing) {
-    setFieldNodeShouldInclude(
-      fieldNodes,
-      fieldNode,
-      orShouldInclude(existing, shouldInclude)
-    );
-  } else {
-    setFieldNodeShouldInclude(fieldNodes, fieldNode, shouldInclude);
-    fieldNodes.push(fieldNode);
-  }
+  setFieldNodeShouldInclude(fieldNodes, fieldNode, shouldInclude);
+  fieldNodes.push(fieldNode);
 }
 
 /**
@@ -256,14 +250,20 @@ export function collectSubfields(
   for (const fieldNode of fieldNodes) {
     const selectionSet = fieldNode.selectionSet;
     if (selectionSet) {
-      // The sub-fields of a field node are only included when the node is
+      // When fieldNodes.length === 1, the parent object already gates the entire
+      // sub-object on that fieldNode's condition, so only propagate when multiple
+      // fieldNodes merge into the same sub-object.
+      const parentShouldInclude =
+        fieldNodes.length === 1
+          ? ALWAYS_INCLUDE
+          : getFieldNodeShouldInclude(fieldNodes, fieldNode) ?? ALWAYS_INCLUDE;
       subFieldNodes = collectFieldsImpl(
         compilationContext,
         returnType,
         selectionSet,
         subFieldNodes,
         visitedFragmentNames,
-        getFieldNodeShouldInclude(fieldNodes, fieldNode) ?? ALWAYS_INCLUDE
+        parentShouldInclude
       );
     }
   }

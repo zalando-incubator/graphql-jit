@@ -14,32 +14,27 @@ import { type CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution.js";
 import { getGraphQLErrorOptions } from "./compat.js";
 
 /**
- * The condition under which a selection is included:
- * It is included if every compiled skip/include expression of at least
- * one of the conjunctions is true.
- *
- * Each conjunction holds the directives along one route of
- * selection sets and fragments.
- *
- * For example,
- *
- * ```graphql
- *   {
- *     user @include(if: $a) { ...UserFields @skip(if: $b) }
- *     user { ... @include(if: $c) { ...UserFields } }
- *   }
- *   fragment UserFields on User { name }
- * ```
- *
- * Route ;; Directives ;; Conjunction
- * 1st user -> ...UserFields -> name ;; include_if $a ;; skip_if $b ;; [a, !b]
- * 2nd user -> ...{} -> ...UserFields ;; include_if $c ;; [c]
- *
+ * The condition under which a selection is included, represented as a DAG of
+ * `&&` and `||` nodes:
+ * - `"true"`: unconditionally included
+ * - `AndNode`: all expressions and parent condition must be true
+ * - `OrNode`: at least one branch must be true (used when a fragment is spread
+ *   multiple times in the same selection set)
  */
-export type ShouldInclude = string[][];
+export type ShouldInclude = "true" | AndNode | OrNode;
 
-// One route with no conditions, i.e. `true`. `[]` (no routes) would be `false`.
-export const ALWAYS_INCLUDE: ShouldInclude = [[]];
+export interface AndNode {
+  readonly kind: "and";
+  readonly parent: ShouldInclude;
+  readonly expressions: readonly string[];
+}
+
+export interface OrNode {
+  readonly kind: "or";
+  readonly branches: ShouldInclude[];
+}
+
+export const ALWAYS_INCLUDE: ShouldInclude = "true";
 
 /**
  * Maps (fieldNodes, fieldNode) to that node's skip/include condition.
@@ -73,6 +68,48 @@ export function setFieldNodeShouldInclude(
   shouldIncludeByNode.set(fieldNode, shouldInclude);
 }
 
+export function createFragmentShouldInclude(
+  firstBranch: ShouldInclude
+): OrNode {
+  return { kind: "or", branches: [firstBranch] };
+}
+
+export function addFragmentShouldIncludeBranch(
+  node: OrNode,
+  branch: ShouldInclude
+) {
+  if (!node.branches.includes(branch)) {
+    node.branches.push(branch);
+  }
+}
+
+/**
+ * Combines `shouldInclude` with `compiledSkipInclude` using `&&`.
+ */
+export function andShouldInclude(
+  shouldInclude: ShouldInclude,
+  compiledSkipInclude: string
+): ShouldInclude {
+  if (compiledSkipInclude === "true") {
+    return shouldInclude;
+  }
+  if (shouldInclude !== "true" && shouldInclude.kind === "and") {
+    if (shouldInclude.expressions.includes(compiledSkipInclude)) {
+      return shouldInclude;
+    }
+    return {
+      kind: "and",
+      parent: shouldInclude.parent,
+      expressions: [...shouldInclude.expressions, compiledSkipInclude]
+    };
+  }
+  return {
+    kind: "and",
+    parent: shouldInclude,
+    expressions: [compiledSkipInclude]
+  };
+}
+
 /**
  * Compiles the condition under which a field, collected as the given field
  * nodes, is included in its object. The field is included if at least one
@@ -94,63 +131,83 @@ export function setFieldNodeShouldInclude(
  * @returns "true" if the field is always included
  */
 export function compileFieldNodesShouldInclude(
+  context: CompilationContext,
   fieldNodes: FieldNode[]
 ): string {
-  let shouldInclude: ShouldInclude = [];
+  const parts: string[] = [];
   for (const fieldNode of fieldNodes) {
-    shouldInclude = orShouldInclude(
-      shouldInclude,
-      getFieldNodeShouldInclude(fieldNodes, fieldNode) ?? ALWAYS_INCLUDE
-    );
+    const cond = getFieldNodeShouldInclude(fieldNodes, fieldNode) ?? "true";
+    const compiled = printShouldInclude(context, cond, false);
+    if (compiled === "true") {
+      return "true";
+    }
+    if (!parts.includes(compiled)) {
+      parts.push(compiled);
+    }
   }
+  return parts.join(" || ");
+}
 
-  if (shouldInclude.some((it) => it.length === 0)) {
+function printShouldInclude(
+  context: CompilationContext,
+  node: ShouldInclude,
+  inAnd: boolean
+): string {
+  if (node === "true") {
     return "true";
   }
-  return shouldInclude.map((it) => `(${it.join(" && ")})`).join(" || ");
-}
-
-/**
- * Combines `shouldInclude` with `compiledSkipInclude` using `&&`
- * by appending the expression to each route
- */
-export function andShouldInclude(
-  shouldInclude: ShouldInclude,
-  compiledSkipInclude: string
-): ShouldInclude {
-  // `true` appears for every selection without skip/include directives,
-  // and `X && true` is `X`. Leaving it out keeps the generated code small.
-  if (compiledSkipInclude === "true") {
-    return shouldInclude;
-  }
-  return shouldInclude.map((it) =>
-    it.includes(compiledSkipInclude) ? it : [...it, compiledSkipInclude]
-  );
-}
-
-/**
- * Combines @param a and @param b using `||`, dropping redundant routes
- * already covered by a broader route.
- *
- * e.g. `[a, b]` when `[a]` exists.
- */
-export function orShouldInclude(
-  a: ShouldInclude,
-  b: ShouldInclude
-): ShouldInclude {
-  let result = a;
-  for (const conjunction of b) {
-    if (result.some((it) => isSubset(it, conjunction))) {
-      continue;
+  if (node.kind === "and") {
+    const parentStr = printShouldInclude(context, node.parent, true);
+    const parts: string[] = [];
+    if (parentStr !== "true") {
+      parts.push(parentStr);
     }
-    result = result.filter((it) => !isSubset(conjunction, it));
-    result.push(conjunction);
+    for (const expr of node.expressions) {
+      if (!parts.includes(expr)) {
+        parts.push(expr);
+      }
+    }
+    if (parts.length === 1) {
+      return parts[0];
+    }
+    const joined = parts.join(" && ");
+    return inAnd ? joined : `(${joined})`;
   }
-  return result;
-}
 
-function isSubset(a: string[], b: string[]) {
-  return a.every((it) => b.includes(it));
+  // OrNode
+  const cached = context.printedOrNodes.get(node);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const branchStrs: string[] = [];
+  for (const branch of node.branches) {
+    const str = printShouldInclude(context, branch, false);
+    if (str === "true") {
+      context.printedOrNodes.set(node, "true");
+      return "true";
+    }
+    if (!branchStrs.includes(str)) {
+      branchStrs.push(str);
+    }
+  }
+
+  if (branchStrs.length === 1) {
+    const single = branchStrs[0];
+    context.printedOrNodes.set(node, single);
+    return single;
+  }
+
+  const expr = branchStrs.join(" || ");
+  let slot = context.conditionIndexByExpr.get(expr);
+  if (slot === undefined) {
+    slot = context.conditions.length;
+    context.conditions.push(expr);
+    context.conditionIndexByExpr.set(expr, slot);
+  }
+  const ref = `__context.conditions[${slot}]`;
+  context.printedOrNodes.set(node, ref);
+  return ref;
 }
 
 /**
@@ -171,7 +228,7 @@ export function compileSkipInclude(
 
   const { skipValue, includeValue } = compileSkipIncludeDirectiveValues(
     compilationContext,
-    node
+    node.directives
   );
 
   /**
@@ -186,7 +243,7 @@ export function compileSkipInclude(
    * condition is true or the @include condition is false.
    */
   if (skipValue != null && includeValue != null) {
-    return `${skipValue} === false && ${includeValue} === true`;
+    return `(${skipValue} === false && ${includeValue} === true)`;
   } else if (skipValue != null) {
     return `(${skipValue} === false)`;
   } else if (includeValue != null) {
@@ -200,16 +257,16 @@ export function compileSkipInclude(
  * Compile skip or include directive values into JIT compatible
  * runtime code.
  *
- * @param node {SelectionNode}
+ * @param directives {readonly DirectiveNode[]}
  */
 function compileSkipIncludeDirectiveValues(
   compilationContext: CompilationContext,
-  node: SelectionNode
+  directives: readonly DirectiveNode[]
 ) {
-  const skipDirective = node.directives?.find(
+  const skipDirective = directives.find(
     (it) => it.name.value === GraphQLSkipDirective.name
   );
-  const includeDirective = node.directives?.find(
+  const includeDirective = directives.find(
     (it) => it.name.value === GraphQLIncludeDirective.name
   );
 
