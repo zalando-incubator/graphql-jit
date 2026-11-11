@@ -17,13 +17,13 @@ import {
   type OperationDefinitionNode,
   type SourceLocation,
   typeFromAST,
-  valueFromAST,
   type VariableDefinitionNode
 } from "graphql";
 import { addPath, computeLocations, type ObjectPath } from "./ast.js";
 import { compileInputValue } from "./compile-input.js";
 import { GraphQLError as GraphQLJITError } from "./error.js";
 import {
+  coerceConstLiteral,
   coerceInputValue,
   getDefaultValue,
   hasDefaultValue
@@ -119,7 +119,9 @@ export function compileVariableParsing(
       varType,
       varName,
       hasValueName,
-      valueFromAST(varDefNode.defaultValue, varType),
+      varDefNode.defaultValue
+        ? coerceConstLiteral(varDefNode.defaultValue, varType)
+        : undefined,
       false
     );
   }

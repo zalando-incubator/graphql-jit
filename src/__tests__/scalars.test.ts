@@ -9,6 +9,7 @@ import {
   GraphQLSchema,
   GraphQLString,
   Kind,
+  buildSchema,
   execute,
   parse,
   versionInfo
@@ -416,6 +417,14 @@ describe("Scalars: coercion methods when both legacy and v17 APIs are defined (#
       versionInfo.major >= 17
         ? "v17-output:v17-literal:x"
         : "legacy-output:legacy-literal:x"
+    ],
+    [
+      "variable default values",
+      'query ($value: Custom = "x") { echo(value: $value) }',
+      {},
+      versionInfo.major >= 17
+        ? "v17-output:v17-literal:x"
+        : "legacy-output:legacy-literal:x"
     ]
   ])(
     "uses the same coercion methods as graphql-js for %s",
@@ -428,6 +437,40 @@ describe("Scalars: coercion methods when both legacy and v17 APIs are defined (#
       expect(
         await executeQuery(schema, document, undefined, variableValues)
       ).toEqual(reference);
+    }
+  );
+
+  test.each([
+    [
+      "omitted variable for an argument default",
+      "query ($v: Custom) { echo(value: $v) }"
+    ],
+    [
+      "input field default inside a variable default",
+      "query ($v: In = {}) { echoIn(input: $v) }"
+    ]
+  ])(
+    "uses the same coercion methods as graphql-js for an SDL %s",
+    async (_name, query) => {
+      const schema = buildSchema(`
+      scalar Custom
+      input In { value: Custom = "x" }
+      type Query {
+        echo(value: Custom = "x"): Custom
+        echoIn(input: In): Custom
+      }
+    `);
+      Object.assign(schema.getType("Custom")!, makeCustomScalar());
+      const fields = schema.getQueryType()!.getFields();
+      fields.echo.resolve = (_source, args) => args.value;
+      fields.echoIn.resolve = (_source, args) => args.input.value;
+      const document = parse(query);
+      const reference = await execute({ schema, document, variableValues: {} });
+
+      expect(reference.errors).toBeUndefined();
+      expect(await executeQuery(schema, document, undefined, {})).toEqual(
+        reference
+      );
     }
   );
 });

@@ -131,11 +131,27 @@ export function getDefaultValue(argOrField: DefaultCarrier): unknown {
   const def = argOrField.default;
   if (def !== undefined) {
     if (def.literal !== undefined) {
-      return (graphql as any).coerceInputLiteral(def.literal, argOrField.type);
+      return coerceConstLiteral(def.literal, argOrField.type);
     }
     return def.value;
   }
   return argOrField.defaultValue;
+}
+
+/**
+ * Coerces a constant literal, such as a variable or SDL default value.
+ * v17's `valueFromAST` ignores input field defaults stored in `.default`,
+ * so `coerceInputLiteral` is used there instead.
+ */
+export function coerceConstLiteral(
+  valueNode: ConstValueNode,
+  type: GraphQLInputType
+): unknown {
+  /* istanbul ignore if -- v17 only */
+  if (versionInfo.major >= 17) {
+    return (graphql as any).coerceInputLiteral(valueNode, type);
+  }
+  return graphql.valueFromAST(valueNode, type);
 }
 
 export function hasDefaultValue(argOrField: DefaultCarrier): boolean {
