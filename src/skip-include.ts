@@ -355,10 +355,11 @@ function validateSkipIncludeVariableType(
         (variableDefinition.type.kind === Kind.NON_NULL_TYPE &&
           variableDefinition.type.type.kind === Kind.NAMED_TYPE &&
           variableDefinition.type.type.name.value === "Boolean") ||
-        // or the variable definition is a nullable Boolean type with a default value
+        // or the variable definition is a nullable Boolean type with a non-null default value
         (variableDefinition.type.kind === Kind.NAMED_TYPE &&
           variableDefinition.type.name.value === "Boolean" &&
-          variableDefinition.defaultValue != null)
+          variableDefinition.defaultValue != null &&
+          variableDefinition.defaultValue.kind !== Kind.NULL)
       )
     )
   ) {

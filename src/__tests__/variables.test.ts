@@ -1947,6 +1947,43 @@ describe("Execute: non-null inputs with default values", () => {
   });
 });
 
+describe("Execute: variables combined with SDL-defined defaults (#313)", () => {
+  const sdlSchema = buildSchema(`
+    input P { a: Int, b: String = "dflt" }
+    type Query {
+      f(p: P! = {}): String
+      g(p: [P]): String
+      h(x: Int! = 5): String
+    }
+  `);
+  const fields = sdlSchema.getQueryType()!.getFields();
+  for (const name of ["f", "g", "h"]) {
+    fields[name].resolve = (_source, args) => JSON.stringify(args);
+  }
+
+  test.each([
+    [
+      "omitted variable for a scalar argument default",
+      "query ($v: Int) { h(x: $v) }"
+    ],
+    [
+      "omitted variable for an input object argument default",
+      "query ($v: P) { f(p: $v) }"
+    ],
+    ["empty object variable default", "query ($v: P = {}) { f(p: $v) }"],
+    ["object variable default", "query ($v: P = {a: 1}) { f(p: $v) }"],
+    ["list variable default", "query ($v: [P] = [{a: 1}]) { g(p: $v) }"]
+  ])("%s matches GraphQL.js", async (_name, query) => {
+    const reference = await execute({
+      schema: sdlSchema,
+      document: parse(query),
+      variableValues: {}
+    });
+    expect(reference.errors).toBeUndefined();
+    expect(await executeQuery(query, {}, sdlSchema)).toEqual(reference);
+  });
+});
+
 describe("Execute: opaque default values in variable coercion", () => {
   const Big = new GraphQLScalarType({
     name: "Big",

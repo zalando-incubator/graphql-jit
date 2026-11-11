@@ -80,7 +80,8 @@ import {
 import {
   coerceOutputValue,
   getGraphQLErrorOptions,
-  getOperationRootType
+  getOperationRootType,
+  hasDefaultValue
 } from "./compat.js";
 
 const inspect = createInspect();
@@ -1410,7 +1411,7 @@ function compileArguments(
     if (
       variable.argument &&
       isNonNullType(variable.argument.definition.type) &&
-      variable.argument.definition.defaultValue === undefined
+      !hasDefaultValue(variable.argument.definition)
     ) {
       const message = `'Argument "${
         variable.argument.definition.name

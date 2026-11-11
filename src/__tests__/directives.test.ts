@@ -1342,6 +1342,24 @@ describe("Execute: handles directives", () => {
           ]
         });
       });
+
+      test("invalid type for if - nullable variable with null default", async () => {
+        const query = `
+          query ($skip: Boolean = null) {
+            foo @skip(if: $skip) {
+              a
+            }
+          }
+        `;
+        const result = await executeTestQuery(query, {}, schema);
+        expect(result).toMatchObject({
+          errors: [
+            expect.objectContaining({
+              message: `Variable 'skip' of type 'Boolean' used in position expecting type 'Boolean!'`
+            })
+          ]
+        });
+      });
     });
   });
 
