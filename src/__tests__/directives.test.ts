@@ -3,7 +3,7 @@
  */
 
 import { makeExecutableSchema } from "@graphql-tools/schema";
-import { parse } from "graphql";
+import { execute, parse } from "graphql";
 import { CompilerOptions, isCompiledQuery } from "../execution";
 import { compileQuery } from "../index";
 
@@ -1655,10 +1655,7 @@ describe("Execute: handles directives", () => {
       const result = executeTestQuery(
         query,
         { includeOnly: false },
-        testSchema,
-        {
-          useExperimentalPathBasedSkipInclude: true
-        }
+        testSchema
       );
 
       expect(result.data).toEqual({
@@ -1747,9 +1744,7 @@ describe("Execute: handles directives", () => {
         fragment bFrag on B {
           title
         }`;
-        const result = executeTestQuery(query, { includeOnly: false }, schema, {
-          useExperimentalPathBasedSkipInclude: true
-        });
+        const result = executeTestQuery(query, { includeOnly: false }, schema);
 
         expect(result.data).toEqual({
           someQuery: [
@@ -1785,9 +1780,7 @@ describe("Execute: handles directives", () => {
         fragment bFrag on B {
           title
         }`;
-        const result = executeTestQuery(query, { skipOnly: true }, schema, {
-          useExperimentalPathBasedSkipInclude: true
-        });
+        const result = executeTestQuery(query, { skipOnly: true }, schema);
         expect(result.errors).toBeUndefined();
 
         expect(result.data).toEqual({
@@ -1806,6 +1799,193 @@ describe("Execute: handles directives", () => {
           ]
         });
       });
+    });
+  });
+
+  describe("fragment under a skipped field also selected without the directive", () => {
+    const schema = makeExecutableSchema({
+      typeDefs: `
+        type Query { user: User }
+        type User { name: String, posts: [String] }
+      `,
+      resolvers: {
+        Query: { user: () => ({ name: "boo", posts: ["p1"] }) }
+      }
+    });
+
+    test.each([
+      ["fragment spread", "...Posts", "fragment Posts on User { posts }"],
+      ["inline fragment", "... on User { posts }", ""]
+    ])("%s", async (_, selection, fragment) => {
+      const query = `query ($include: Boolean!) {
+        user { name }
+        user @include(if: $include) { ${selection} }
+      }
+      ${fragment}`;
+
+      expect(await executeTestQuery(query, { include: false }, schema)).toEqual(
+        { data: { user: { name: "boo" } } }
+      );
+      expect(await executeTestQuery(query, { include: true }, schema)).toEqual({
+        data: { user: { name: "boo", posts: ["p1"] } }
+      });
+    });
+  });
+
+  describe("same result as graphql-js when a field is reached in several ways", () => {
+    const schema = makeExecutableSchema({
+      typeDefs: `
+        interface Node { id: String }
+        type User implements Node { id: String, name: String, posts: [String], friend: User }
+        type Post implements Node { id: String }
+        type Query { user: User, other: User, nodes: [Node] }
+      `,
+      resolvers: {
+        Node: { __resolveType: (node: any) => node.__typename }
+      }
+    });
+    const user: any = {
+      __typename: "User",
+      id: "b",
+      name: "boo",
+      posts: ["p1"]
+    };
+    user.friend = user;
+    const root = {
+      user,
+      other: user,
+      nodes: [user, { __typename: "Post", id: "p" }]
+    };
+
+    test.each([
+      [
+        "fragment spread under two conditional parents",
+        `{ user @include(if: $a) { ...P } user @include(if: $b) { ...P } }
+        fragment P on User { posts }`
+      ],
+      [
+        "fragment spread on two paths with different conditions",
+        `{ user @include(if: $a) { ...P } other @include(if: $b) { ...P } }
+        fragment P on User { name posts }`
+      ],
+      [
+        "conditional parent inside a fragment",
+        `{ user { name } ...F }
+        fragment F on Query { user @include(if: $a) { ...P } }
+        fragment P on User { posts friend @skip(if: $b) { name } }`
+      ],
+      [
+        "skipped parent next to an unconditional one, nested",
+        `{ user { friend { name } } user @include(if: $a) { friend { ...P } } }
+        fragment P on User { posts }`
+      ],
+      [
+        "conditional fragment spread, spread again under a conditional parent",
+        `{ user { ...P @include(if: $a) } user @include(if: $b) { ...P } }
+        fragment P on User { posts }`
+      ],
+      [
+        "conditional inline fragments around the same field",
+        `{ ... @include(if: $a) { user { ...P } } ... @include(if: $b) { user { name } } }
+        fragment P on User { posts }`
+      ],
+      [
+        "fragment spread under differently conditioned types",
+        `{ nodes { ... on User @include(if: $a) { ...F } ... on Post { ...F } } }
+        fragment F on Node { id }`
+      ],
+      [
+        "fragment spread twice in the same selection set",
+        `{ user { ...P @include(if: $a) ...P @include(if: $b) } }
+        fragment P on User { posts }`
+      ],
+      [
+        "diamond fragment spreads collapsing to the same condition",
+        `{ user { ...A @include(if: $a) ...A @include(if: $b) } }
+        fragment A on User { ...B ...C }
+        fragment B on User { ...D }
+        fragment C on User { ...D }
+        fragment D on User { name }`
+      ]
+    ])("%s", async (_, selection) => {
+      const document = parse(`query ($a: Boolean!, $b: Boolean!) ${selection}`);
+      const compiled = compileQuery(schema, document);
+      if (!isCompiledQuery(compiled)) {
+        throw new Error(JSON.stringify(compiled));
+      }
+      for (const a of [false, true]) {
+        for (const b of [false, true]) {
+          const variableValues = { a, b };
+          expect(await compiled.query(root, {}, variableValues)).toEqual(
+            await execute({ schema, document, rootValue: root, variableValues })
+          );
+        }
+      }
+    });
+
+    test("compiles deep diamond and cross-linked fragment chains in linear time and size", async () => {
+      const n = 20;
+      const vars = Array.from(
+        { length: n },
+        (_, i) => `$x${i}: Boolean!, $y${i}: Boolean!`
+      ).join(", ");
+      let frags = "";
+      for (let i = 0; i < n; i++) {
+        frags += `fragment A${i} on User { ...A${
+          i + 1
+        } @include(if: $x${i}) ...B${i + 1} @include(if: $y${i}) }\n`;
+        frags += `fragment B${i} on User { ...A${i + 1} @skip(if: $x${i}) ...B${
+          i + 1
+        } @skip(if: $y${i}) }\n`;
+      }
+      frags += `fragment A${n} on User { name }\nfragment B${n} on User { posts }`;
+      const document = parse(`query (${vars}) { user { ...A0 } }\n${frags}`);
+      const compiled: any = compileQuery(schema, document, "", {
+        debug: { enabled: true }
+      });
+      if (!isCompiledQuery(compiled)) {
+        throw new Error(JSON.stringify(compiled));
+      }
+      expect(
+        compiled.__DO_NOT_USE_THIS_OR_YOU_WILL_BE_FIRED_compilation.length
+      ).toBeLessThan(15000);
+      const variableValues: { [key: string]: boolean } = {};
+      for (let i = 0; i < n; i++) {
+        variableValues[`x${i}`] = i % 2 === 0;
+        variableValues[`y${i}`] = i % 3 === 0;
+      }
+      expect(await compiled.query(root, {}, variableValues)).toEqual(
+        await execute({ schema, document, rootValue: root, variableValues })
+      );
+    });
+
+    test("compiles deep unconditioned fragment diamonds under a single condition in linear time", async () => {
+      const n = 24;
+      let frags = "";
+      for (let i = 0; i < n; i++) {
+        frags += `fragment A${i} on User { ...A${i + 1} ...B${i + 1} }\n`;
+        frags += `fragment B${i} on User { ...A${i + 1} ...B${i + 1} }\n`;
+      }
+      frags += `fragment A${n} on User { name }\nfragment B${n} on User { posts }`;
+      const document = parse(
+        `query ($a: Boolean!) { user { ...A0 @include(if: $a) } }\n${frags}`
+      );
+      const start = Date.now();
+      const compiled = compileQuery(schema, document);
+      expect(Date.now() - start).toBeLessThan(100);
+      if (!isCompiledQuery(compiled)) {
+        throw new Error(JSON.stringify(compiled));
+      }
+      for (const a of [false, true]) {
+        expect(await compiled.query(root, {}, { a })).toEqual(
+          await execute({
+            schema,
+            document,
+            rootValue: root,
+            variableValues: { a }
+          })
+        );
+      }
     });
   });
 });
