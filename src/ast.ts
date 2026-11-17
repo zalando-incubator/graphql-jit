@@ -35,6 +35,7 @@ import { isAbstractType } from "graphql/type";
 import { CompilationContext, GLOBAL_VARIABLES_NAME } from "./execution";
 import createInspect from "./inspect";
 import { Maybe } from "./types";
+import { assertValidName } from "./validation";
 
 export interface JitFieldNode extends FieldNode {
   __internalShouldInclude?: string;
@@ -523,7 +524,9 @@ function doesFragmentConditionMatch(
  * Implements the logic to compute the key of a given field's entry
  */
 function getFieldEntryKey(node: FieldNode): string {
-  return node.alias ? node.alias.value : node.name.value;
+  const name = node.alias ? node.alias.value : node.name.value;
+  assertValidName(name, node.alias ? "field alias" : "field name");
+  return name;
 }
 
 /**
