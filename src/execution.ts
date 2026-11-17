@@ -83,6 +83,7 @@ import {
   getOperationRootType,
   hasDefaultValue
 } from "./compat.js";
+import { assertValidName } from "./validation.js";
 
 const inspect = createInspect();
 
@@ -1384,6 +1385,7 @@ function compileArguments(
   const errorDestination = getErrorDestination(returnType);
   for (const variable of args.missing) {
     const varName = variable.valueNode.name.value;
+    assertValidName(varName, "variable name");
     body += `if (Object.prototype.hasOwnProperty.call(${GLOBAL_VARIABLES_NAME}, "${varName}")) {`;
     if (variable.argument && isNonNullType(variable.argument.definition.type)) {
       const message = `'Argument "${
