@@ -22,6 +22,7 @@ import {
 import { addPath, computeLocations, ObjectPath } from "./ast";
 import { GraphQLError as GraphQLJITError } from "./error";
 import createInspect from "./inspect";
+import { assertValidName } from "./validation";
 
 const inspect = createInspect();
 
@@ -71,6 +72,7 @@ export function compileVariableParsing(
       dependencies
     };
     const varName = varDefNode.variable.name.value;
+    assertValidName(varName, "variable name");
     const varType = typeFromAST(schema, varDefNode.type as any);
     if (!varType || !isInputType(varType)) {
       // Must use input types for variables. This should be caught during
