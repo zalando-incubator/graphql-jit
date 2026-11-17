@@ -41,6 +41,7 @@ import {
   hasDefaultValue,
   resolveFieldDef
 } from "./compat.js";
+import { assertValidName } from "./validation.js";
 
 export interface JitFieldNode extends FieldNode {
   /**
@@ -700,7 +701,9 @@ function doesFragmentConditionMatch(
  * Implements the logic to compute the key of a given field's entry
  */
 function getFieldEntryKey(node: FieldNode): string {
-  return node.alias ? node.alias.value : node.name.value;
+  const name = node.alias ? node.alias.value : node.name.value;
+  assertValidName(name, node.alias ? "field alias" : "field name");
+  return name;
 }
 
 export { resolveFieldDef };
