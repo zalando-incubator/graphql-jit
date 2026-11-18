@@ -1,5 +1,10 @@
 import {
+  GraphQLEnumType,
+  GraphQLInputObjectType,
+  GraphQLList,
+  GraphQLNonNull,
   GraphQLObjectType,
+  GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
   parse,
@@ -57,5 +62,47 @@ describe("invalid names in a hand-built document", () => {
       invalidName;
     const prepared: any = compileQuery(schema, document);
     expect(prepared.errors[0].message).toMatch(/^Invalid variable name/);
+  });
+});
+
+// GraphQL.js validates type names when a type is constructed (v16+), but
+// the name can still be changed afterwards, and v15 does not validate it.
+describe("invalid type names in a programmatic schema", () => {
+  function schemaWithInput(type: any) {
+    return new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          a: {
+            type: GraphQLString,
+            args: { x: { type } },
+            resolve: () => "a"
+          }
+        }
+      })
+    });
+  }
+
+  it.each([
+    [
+      "input object",
+      new GraphQLInputObjectType({
+        name: "In",
+        fields: { f: { type: GraphQLString } }
+      })
+    ],
+    ["enum", new GraphQLEnumType({ name: "In", values: { A: {} } })],
+    [
+      "custom scalar",
+      new GraphQLScalarType({ name: "In", parseValue: (v) => v })
+    ]
+  ])("rejects an invalid %s type name in variables", (_, type: any) => {
+    const schema = schemaWithInput(new GraphQLList(new GraphQLNonNull(type)));
+    type.name = "invalid-name";
+    const prepared: any = compileQuery(
+      schema,
+      parse("query($v: [In!]) { a(x: $v) }")
+    );
+    expect(prepared.errors[0].message).toMatch(/^Invalid type name/);
   });
 });
