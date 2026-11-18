@@ -4,22 +4,25 @@ import {
   GraphQLError,
   GraphQLFloat,
   GraphQLID,
+  type GraphQLInputObjectType,
   type GraphQLInputType,
   GraphQLInt,
+  type GraphQLList,
+  getNamedType,
   GraphQLSchema,
   GraphQLString,
   isEnumType,
+  isInputObjectType,
   isInputType,
   isListType,
   isNonNullType,
   isScalarType,
   print,
   type OperationDefinitionNode,
-  type SourceLocation,
   typeFromAST,
   type VariableDefinitionNode
 } from "graphql";
-import { addPath, computeLocations, type ObjectPath } from "./ast.js";
+import { computeLocations } from "./ast.js";
 import { compileInputValue } from "./compile-input.js";
 import { GraphQLError as GraphQLJITError } from "./error.js";
 import {
@@ -54,12 +57,15 @@ export function failToParseVariables(x: any): x is FailedVariableCoercion {
 }
 
 interface CompilationContext {
-  inputPath: ObjectPath;
-  responsePath: ObjectPath;
-  depth: number;
-  varDefNode: VariableDefinitionNode;
   dependencies: Map<string, unknown>;
-  errorMessage?: string;
+  /**
+   * Input object types are coerced by one hoisted function per type, which
+   * makes recursive input types possible and keeps the generated code linear
+   * in the number of types instead of the number of paths through them.
+   */
+  hoistedFunctions: Map<string, string>;
+  /** Used to generate unique names for locals. */
+  counter: number;
 }
 
 interface VariableCompilationDebugOptions {
@@ -67,11 +73,32 @@ interface VariableCompilationDebugOptions {
   operation: OperationDefinitionNode;
 }
 
-function createSubCompilationContext(
-  context: CompilationContext
-): CompilationContext {
-  return { ...context };
+/**
+ * Every field below is a JS expression in the generated code.
+ */
+interface InputValue {
+  type: GraphQLInputType;
+  /** A local that holds the input value. */
+  value: string;
+  /** Where the coerced value is written to. */
+  target: string;
+  /**
+   * The path of the value as a linked list of `{prev, key}`. Only evaluated on
+   * errors and when descending into an input object, so it is cheap to pass
+   * object literals here.
+   */
+  path: string;
+  /** The name used in `Variable "$..."` error messages. */
+  varName: string;
+  /** Whether the value was provided. Only evaluated if the value is nullish. */
+  hasValue: string;
+  defaultValue: unknown | undefined;
+  /** The message prefix for nested errors, unset for top level variables. */
+  errorMessage?: string;
+  /** The source locations of the variable definition. */
+  loc: string;
 }
+
 export function compileVariableParsing(
   schema: GraphQLSchema,
   varDefNodes: ReadonlyArray<VariableDefinitionNode>,
@@ -79,17 +106,16 @@ export function compileVariableParsing(
 ): (inputs: { [key: string]: any }) => CoercedVariableValues {
   const errors = [];
   const coercedValues: { [key: string]: any } = Object.create(null);
+  const context: CompilationContext = {
+    dependencies: new Map(),
+    hoistedFunctions: new Map(),
+    counter: 0
+  };
 
+  let constants = "";
   let mainBody = "";
-  const dependencies = new Map();
-  for (const varDefNode of varDefNodes) {
-    const context: CompilationContext = {
-      varDefNode,
-      depth: 0,
-      inputPath: addPath(undefined, "input"),
-      responsePath: addPath(undefined, "coerced"),
-      dependencies
-    };
+  for (let i = 0; i < varDefNodes.length; i++) {
+    const varDefNode = varDefNodes[i];
     const varName = varDefNode.variable.name.value;
     assertValidName(varName, "variable name");
     const varType = typeFromAST(schema, varDefNode.type as any);
@@ -110,39 +136,71 @@ export function compileVariableParsing(
 
     // Ensure a constant shape of the input map
     coercedValues[varName] = undefined;
-    const hasValueName = hasValue(addPath(context.inputPath, varName));
-    mainBody += `const ${hasValueName} = Object.prototype.hasOwnProperty.call(${getObjectPath(
-      context.inputPath
-    )}, "${varName}");\n`;
-    context.inputPath = addPath(context.inputPath, varName);
-    context.responsePath = addPath(context.responsePath, varName);
-    mainBody += generateInput(
-      context,
-      varType,
-      varName,
-      hasValueName,
-      varDefNode.defaultValue
+
+    const key = JSON.stringify(varName);
+    constants += `
+      const __path${i} = { prev: undefined, key: ${key} };
+      const __loc${i} = ${JSON.stringify(computeLocations([varDefNode]))};
+    `;
+    const value = `__variable${i}`;
+    mainBody += `const ${value} = input[${key}];\n`;
+    mainBody += generateInput(context, {
+      type: varType,
+      value,
+      target: `coerced[${key}]`,
+      path: `__path${i}`,
+      varName: key,
+      hasValue: `__hasOwn.call(input, ${key})`,
+      defaultValue: varDefNode.defaultValue
         ? coerceConstLiteral(varDefNode.defaultValue, varType)
         : undefined,
-      false
-    );
+      loc: `__loc${i}`
+    });
   }
 
   if (errors.length > 0) {
     throw errors;
   }
 
+  // Circular or extremely deep values of recursive input types exhaust the
+  // stack; return that as an error like GraphQL.js instead of throwing.
   const gen = genFn();
-  gen(`function getVariables(input) {
-      const errors = [];
-      const coerced = ${JSON.stringify(coercedValues)}
-      ${mainBody}
-      if (errors.length > 0) {
-        return {errors, coerced: undefined};
+  gen(`(function () {
+    const __hasOwn = Object.prototype.hasOwnProperty;
+
+    function __printPath(path) {
+      let printed = "";
+      for (let p = path; p.prev !== undefined; p = p.prev) {
+        printed = (typeof p.key === "number" ? "[" + p.key + "]" : "." + p.key) + printed;
       }
-      return {errors: undefined, coerced};
+      return "value" + printed;
     }
-  `);
+
+    ${constants}
+
+    ${Array.from(context.hoistedFunctions.values()).join("\n")}
+
+    return function getVariables(input) {
+      try {
+        const errors = [];
+        const coerced = ${JSON.stringify(coercedValues)};
+        ${mainBody}
+        if (errors.length > 0) {
+          return {errors, coerced: undefined};
+        }
+        return {errors: undefined, coerced};
+      } catch (error) {
+        return {
+          errors: [
+            error instanceof GraphQLJITError
+              ? error
+              : new GraphQLJITError(error.message, undefined, undefined, error)
+          ],
+          coerced: undefined
+        };
+      }
+    };
+  })()`);
 
   const functionExpression = gen.toString();
   const functionBody = debug
@@ -168,11 +226,13 @@ export function compileVariableParsing(
   return Function.apply(
     null,
     ["GraphQLJITError", "inspect"]
-      .concat(Array.from(dependencies.keys()))
+      .concat(Array.from(context.dependencies.keys()))
       .concat(generatedSource)
   ).apply(
     null,
-    [GraphQLJITError, inspect].concat(Array.from(dependencies.values()))
+    [GraphQLJITError, inspect as unknown].concat(
+      Array.from(context.dependencies.values())
+    )
   );
 }
 
@@ -199,66 +259,54 @@ function compileDefault(
   });
 }
 
-function generateInput(
-  context: CompilationContext,
-  varType: GraphQLInputType,
-  varName: string,
-  hasValueName: string,
-  defaultValue: unknown | undefined,
-  wrapInList: boolean
-) {
+function invalidValue(input: InputValue, message: string) {
+  return `errors.push(new GraphQLJITError('Variable "$' + ${input.varName} + '" got invalid value ' +
+    inspect(${input.value}) + "; " + ${message}, ${input.loc}));`;
+}
+
+function generateInput(context: CompilationContext, input: InputValue) {
+  const { value, target, hasValue, defaultValue, loc } = input;
+  let varType = input.type;
   const declaredType = varType;
-  const currentOutput = getObjectPath(context.responsePath);
-  const currentInput = getObjectPath(context.inputPath);
-  const errorLocation = printErrorLocation(
-    computeLocations([context.varDefNode])
-  );
+  // Type names are written into the generated source, as part of
+  // identifiers and string literals.
+  assertValidName(getNamedType(varType).name, "type name");
 
   const gen = genFn();
-  gen(`if (${currentInput} == null) {`);
+  gen(`if (${value} == null) {`);
 
   if (isNonNullType(varType)) {
     let nonNullMessage;
     let omittedMessage;
-    if (context.errorMessage) {
-      const objectPath = printObjectPath(context.responsePath);
-      nonNullMessage = `${context.errorMessage} + \`Expected non-nullable type ${varType} not to be null at ${objectPath}.\``;
-      omittedMessage = `${context.errorMessage} + \`Field ${objectPath} of required type ${varType} was not provided.\``;
+    if (input.errorMessage) {
+      const path = `__printPath(${input.path})`;
+      nonNullMessage = `${input.errorMessage} + "Expected non-nullable type ${varType} not to be null at " + ${path} + "."`;
+      omittedMessage = `${input.errorMessage} + "Field " + ${path} + " of required type ${varType} was not provided."`;
     } else {
-      nonNullMessage = `'Variable "$${varName}" of non-null type "${varType}" must not be null.'`;
-      omittedMessage = `'Variable "$${varName}" of required type "${varType}" was not provided.'`;
+      nonNullMessage = `'Variable "$' + ${input.varName} + '" of non-null type "${varType}" must not be null.'`;
+      omittedMessage = `'Variable "$' + ${input.varName} + '" of required type "${varType}" was not provided.'`;
     }
     varType = varType.ofType;
     if (defaultValue !== undefined) {
       // A non-null input with a default is not required; only an explicit
       // null is an error.
       gen(`
-        if (${currentOutput} == null) {
-          if (${hasValueName}) {
-            errors.push(new GraphQLJITError(${nonNullMessage}, ${errorLocation}));
-          } else {
-            ${currentOutput} = ${compileDefault(
-              context,
-              declaredType,
-              defaultValue
-            )};
-          }
+        if (${hasValue}) {
+          errors.push(new GraphQLJITError(${nonNullMessage}, ${loc}));
+        } else {
+          ${target} = ${compileDefault(context, declaredType, defaultValue)};
         }
       `);
     } else {
       gen(`
-        if (${currentOutput} == null) {
-          errors.push(new GraphQLJITError(${hasValueName} ? ${nonNullMessage} : ${omittedMessage}, ${errorLocation}));
-        }
+        errors.push(new GraphQLJITError(${hasValue} ? ${nonNullMessage} : ${omittedMessage}, ${loc}));
       `);
     }
   } else {
-    gen(`
-      if (${hasValueName}) { ${currentOutput} = null; }
-    `);
+    gen(`if (${hasValue}) { ${target} = null; }`);
     if (defaultValue !== undefined) {
       gen(
-        `else { ${currentOutput} = ${compileDefault(
+        `else { ${target} = ${compileDefault(
           context,
           declaredType,
           defaultValue
@@ -268,276 +316,241 @@ function generateInput(
   }
   gen(`} else {`);
   if (isScalarType(varType)) {
-    switch (varType.name) {
+    const name = varType.name;
+    switch (name) {
       case GraphQLID.name:
         gen(`
-          if (typeof ${currentInput} === "string") {
-            ${currentOutput} = ${currentInput};
-          } else if (Number.isInteger(${currentInput})) {
-            ${currentOutput} = ${currentInput}.toString();
+          if (typeof ${value} === "string") {
+            ${target} = ${value};
+          } else if (Number.isInteger(${value})) {
+            ${target} = ${value}.toString();
           } else {
-            errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
-              inspect(${currentInput}) + "; " +
-              'Expected type ${varType.name}; ' +
-              '${varType.name} cannot represent value: ' +
-              inspect(${currentInput}), ${errorLocation})
-            );
+            ${invalidValue(
+              input,
+              `'Expected type ${name}; ${name} cannot represent value: ' + inspect(${value})`
+            )}
           }
         `);
         break;
       case GraphQLString.name:
         gen(`
-          if (typeof ${currentInput} === "string") {
-              ${currentOutput} = ${currentInput};
+          if (typeof ${value} === "string") {
+            ${target} = ${value};
           } else {
-            errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
-              inspect(${currentInput}) + "; " +
-              'Expected type ${varType.name}; ' +
-              '${varType.name} cannot represent a non string value: ' +
-              inspect(${currentInput}), ${errorLocation})
-            );
+            ${invalidValue(
+              input,
+              `'Expected type ${name}; ${name} cannot represent a non string value: ' + inspect(${value})`
+            )}
           }
         `);
         break;
       case GraphQLBoolean.name:
         gen(`
-        if (typeof ${currentInput} === "boolean") {
-            ${currentOutput} = ${currentInput};
-        } else {
-          errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
-          inspect(${currentInput}) + "; " +
-          'Expected type ${varType.name}; ' +
-          '${varType.name} cannot represent a non boolean value: ' +
-          inspect(${currentInput}), ${errorLocation}));
-        }
+          if (typeof ${value} === "boolean") {
+            ${target} = ${value};
+          } else {
+            ${invalidValue(
+              input,
+              `'Expected type ${name}; ${name} cannot represent a non boolean value: ' + inspect(${value})`
+            )}
+          }
         `);
         break;
       case GraphQLInt.name:
         gen(`
-        if (Number.isInteger(${currentInput})) {
-          if (${currentInput} > ${MAX_32BIT_INT} || ${currentInput} < ${MIN_32BIT_INT}) {
-            errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
-            inspect(${currentInput}) + "; " +
-            'Expected type ${varType.name}; ' +
-            '${varType.name} cannot represent non 32-bit signed integer value: ' +
-            inspect(${currentInput}), ${errorLocation}));
+          if (Number.isInteger(${value})) {
+            if (${value} > ${MAX_32BIT_INT} || ${value} < ${MIN_32BIT_INT}) {
+              ${invalidValue(
+                input,
+                `'Expected type ${name}; ${name} cannot represent non 32-bit signed integer value: ' + inspect(${value})`
+              )}
+            } else {
+              ${target} = ${value};
+            }
           } else {
-            ${currentOutput} = ${currentInput};
+            ${invalidValue(
+              input,
+              `'Expected type ${name}; ${name} cannot represent non-integer value: ' + inspect(${value})`
+            )}
           }
-        } else {
-          errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
-            inspect(${currentInput}) + "; " +
-            'Expected type ${varType.name}; ' +
-            '${varType.name} cannot represent non-integer value: ' +
-            inspect(${currentInput}), ${errorLocation})
-          );
-        }
         `);
         break;
       case GraphQLFloat.name:
         gen(`
-        if (Number.isFinite(${currentInput})) {
-            ${currentOutput} = ${currentInput};
-        } else {
-          errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
-            inspect(${currentInput}) + "; " +
-            'Expected type ${varType.name}; ' +
-            '${varType.name} cannot represent non numeric value: ' +
-            inspect(${currentInput}), ${errorLocation})
-          );
-        }
+          if (Number.isFinite(${value})) {
+            ${target} = ${value};
+          } else {
+            ${invalidValue(
+              input,
+              `'Expected type ${name}; ${name} cannot represent non numeric value: ' + inspect(${value})`
+            )}
+          }
         `);
         break;
-      default:
-        context.dependencies.set(
-          `${varType.name}parseValue`,
-          (value: unknown) => coerceInputValue(varType, value)
+      default: {
+        const scalarType = varType;
+        context.dependencies.set(`${name}parseValue`, (v: unknown) =>
+          coerceInputValue(scalarType, v)
         );
         gen(`
           try {
-            const parseResult = ${varType.name}parseValue(${currentInput});
+            const parseResult = ${name}parseValue(${value});
             if (parseResult === undefined || parseResult !== parseResult) {
-              errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
-              inspect(${currentInput}) + "; " +
-              'Expected type ${varType.name}.', ${errorLocation}));
+              ${invalidValue(input, `'Expected type ${name}.'`)}
             }
-            ${currentOutput} = parseResult;
+            ${target} = parseResult;
           } catch (error) {
-            errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
-              inspect(${currentInput}) + "; " +
-              'Expected type ${varType.name}.', ${errorLocation}, undefined, error)
+            errors.push(new GraphQLJITError('Variable "$' + ${
+              input.varName
+            } + '" got invalid value ' +
+              inspect(${value}) + "; " +
+              'Expected type ${name}.', ${loc}, undefined, error)
             );
           }
         `);
+      }
     }
   } else if (isEnumType(varType)) {
-    context.dependencies.set(
-      `${varType.name}getValue`,
-      varType.getValue.bind(varType)
-    );
+    const name = varType.name;
+    context.dependencies.set(`${name}getValue`, varType.getValue.bind(varType));
     gen(`
-      if (typeof ${currentInput} === "string") {
-        const enumValue = ${varType.name}getValue(${currentInput});
+      if (typeof ${value} === "string") {
+        const enumValue = ${name}getValue(${value});
         if (enumValue) {
-          ${currentOutput} = enumValue.value;
+          ${target} = enumValue.value;
         } else {
-          errors.push(
-            new GraphQLJITError('Variable "$${varName}" got invalid value ' +
-            inspect(${currentInput}) + "; " +
-            'Expected type ${varType.name}.', ${errorLocation})
-          );
+          ${invalidValue(input, `'Expected type ${name}.'`)}
         }
       } else {
-        errors.push(
-          new GraphQLJITError('Variable "$${varName}" got invalid value ' +
-          inspect(${currentInput}) + "; " +
-          'Expected type ${varType.name}.', ${errorLocation})
-        );
+        ${invalidValue(input, `'Expected type ${name}.'`)}
       }
-      `);
+    `);
   } else if (isListType(varType)) {
-    context.errorMessage = `'Variable "$${varName}" got invalid value ' + inspect(${currentInput}) + '; '`;
-    const hasValueName = hasValue(context.inputPath);
-    const index = `idx${context.depth}`;
-
-    const subContext = createSubCompilationContext(context);
-    subContext.responsePath = addPath(
-      subContext.responsePath,
-      index,
-      "variable"
+    gen(generateListInput(context, varType, input));
+  } else if (isInputObjectType(varType)) {
+    const fn = hoistInputObjectParser(context, varType);
+    gen(
+      `${target} = ${fn}(${value}, ${input.varName}, ${input.path}, errors, ${loc});`
     );
-    subContext.inputPath = addPath(subContext.inputPath, index, "variable");
-    subContext.depth++;
-    gen(`
-      if (Array.isArray(${currentInput})) {
-        ${currentOutput} = [];
-        for (let ${index} = 0; ${index} < ${currentInput}.length; ++${index}) {
-          const ${hasValueName} =
-          ${getObjectPath(subContext.inputPath)} !== undefined;
-          ${generateInput(
-            subContext,
-            varType.ofType,
-            varName,
-            hasValueName,
-            undefined,
-            false
-          )}
-        }
-      } else {
-        ${generateInput(
-          context,
-          varType.ofType,
-          varName,
-          hasValueName,
-          undefined,
-          true
-        )}
-      }
-    `);
-  } else if (isInputType(varType)) {
-    gen(`
-      if (typeof ${currentInput} !== 'object') {
-        errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
-        inspect(${currentInput}) + "; " +
-        'Expected type ${varType.name} to be an object.', ${errorLocation}));
-      } else {
-        ${currentOutput} = {};
-    `);
-    const fields = varType.getFields();
-    const allowedFields = [];
-    for (const field of Object.values(fields)) {
-      const subContext = createSubCompilationContext(context);
-      allowedFields.push(field.name);
-      const hasValueName = hasValue(addPath(subContext.inputPath, field.name));
-      gen(`
-        const ${hasValueName} = Object.prototype.hasOwnProperty.call(
-          ${getObjectPath(subContext.inputPath)}, "${field.name}"
-        );
-      `);
-      subContext.inputPath = addPath(subContext.inputPath, field.name);
-      subContext.responsePath = addPath(subContext.responsePath, field.name);
-      subContext.errorMessage = `'Variable "$${varName}" got invalid value ' + inspect(${currentInput}) + '; '`;
-      gen(`
-        ${generateInput(
-          subContext,
-          field.type,
-          field.name,
-          hasValueName,
-          hasDefaultValue(field) ? getDefaultValue(field) : undefined,
-          false
-        )}
-      `);
-    }
-
-    gen(`
-      const allowedFields = ${JSON.stringify(allowedFields)};
-      for (const fieldName of Object.keys(${currentInput})) {
-        if (!allowedFields.includes(fieldName)) {
-          errors.push(new GraphQLJITError('Variable "$${varName}" got invalid value ' +
-            inspect(${currentInput}) + "; " +
-            'Field "' + fieldName + '" is not defined by type ${
-              varType.name
-            }.', ${errorLocation}));
-          break;
-        }
-      }
-    }`);
   } else {
     /* istanbul ignore next line */
     throw new Error(`unknown type: ${varType}`);
-  }
-  if (wrapInList) {
-    gen(`${currentOutput} = [${currentOutput}];`);
   }
   gen(`}`);
   return gen.toString();
 }
 
-function hasValue(path: ObjectPath) {
-  const flattened = [];
-  let curr: ObjectPath | undefined = path;
-  while (curr) {
-    flattened.push(curr.key);
-    curr = curr.prev;
-  }
-  return `hasValue${flattened.join("_")}`;
+function generateListInput(
+  context: CompilationContext,
+  varType: GraphQLList<GraphQLInputType>,
+  input: InputValue
+) {
+  const { value, target } = input;
+  const id = context.counter++;
+  const index = `__index${id}`;
+  const item = `__item${id}`;
+  const list = `__list${id}`;
+  const errorMessage = `'Variable "$' + ${input.varName} + '" got invalid value ' + inspect(${value}) + '; '`;
+
+  const gen = genFn();
+  gen(`
+    if (Array.isArray(${value})) {
+    const ${list} = [];
+    for (let ${index} = 0; ${index} < ${value}.length; ++${index}) {
+      const ${item} = ${value}[${index}];
+      ${generateInput(context, {
+        type: varType.ofType,
+        value: item,
+        target: `${list}[${index}]`,
+        path: `{ prev: ${input.path}, key: ${index} }`,
+        varName: input.varName,
+        hasValue: `${item} !== undefined`,
+        defaultValue: undefined,
+        errorMessage,
+        loc: input.loc
+      })}
+    }
+    ${target} = ${list};
+  } else {`);
+  gen(
+    generateInput(context, {
+      ...input,
+      type: varType.ofType,
+      defaultValue: undefined,
+      errorMessage
+    })
+  );
+  gen(`${target} = [${target}];`);
+  gen(`}`);
+  return gen.toString();
 }
 
-function printErrorLocation(location: SourceLocation[]) {
-  return JSON.stringify(location);
-}
+/**
+ * Returns the name of a function that coerces a non null value of the given
+ * input object type. The function is generated only once per type, also when
+ * the type references itself.
+ */
+function hoistInputObjectParser(
+  context: CompilationContext,
+  varType: GraphQLInputObjectType
+): string {
+  const fnName = `__parse${varType.name}`;
+  if (context.hoistedFunctions.has(fnName)) {
+    return fnName;
+  }
+  // reserve the name before generating the body for recursive types
+  context.hoistedFunctions.set(fnName, "");
 
-function getObjectPath(path: ObjectPath): string {
-  const flattened = [];
-  let curr: ObjectPath | undefined = path;
-  while (curr) {
-    flattened.unshift({ key: curr.key, type: curr.type });
-    curr = curr.prev;
-  }
-  let name = flattened[0].key;
-  for (let i = 1; i < flattened.length; ++i) {
-    name +=
-      flattened[i].type === "literal"
-        ? `["${flattened[i].key}"]`
-        : `[${flattened[i].key}]`;
-  }
-  return name;
-}
+  const errorMessage = `'Variable "$' + varName + '" got invalid value ' + inspect(v) + '; '`;
+  const fields = Object.values(varType.getFields());
 
-function printObjectPath(path: ObjectPath) {
-  const flattened = [];
-  let curr: ObjectPath | undefined = path;
-  while (curr) {
-    flattened.unshift({ key: curr.key, type: curr.type });
-    curr = curr.prev;
+  const gen = genFn();
+  gen(`
+    function ${fnName}(v, varName, path, errors, loc) {
+      if (typeof v !== "object") {
+        errors.push(new GraphQLJITError(${errorMessage} +
+          'Expected type ${varType.name} to be an object.', loc));
+        return;
+      }
+      const out = {};
+  `);
+  for (let i = 0; i < fields.length; i++) {
+    const field = fields[i];
+    const key = JSON.stringify(field.name);
+    const value = `__field${i}`;
+    gen(`const ${value} = v[${key}];`);
+    gen(
+      generateInput(context, {
+        type: field.type,
+        value,
+        target: `out[${key}]`,
+        path: `{ prev: path, key: ${key} }`,
+        varName: key,
+        hasValue: `__hasOwn.call(v, ${key})`,
+        defaultValue: hasDefaultValue(field)
+          ? getDefaultValue(field)
+          : undefined,
+        errorMessage,
+        loc: "loc"
+      })
+    );
   }
-  const initialIndex = Math.min(flattened.length - 1, 1);
-  let name = "value";
-  for (let i = initialIndex + 1; i < flattened.length; ++i) {
-    name +=
-      flattened[i].type === "literal"
-        ? `.${flattened[i].key}`
-        : `[$\{${flattened[i].key}}]`;
-  }
-  return name;
+
+  const isUnknownField = fields
+    .map((f) => `k !== ${JSON.stringify(f.name)}`)
+    .join(" && ");
+  gen(`
+    for (const k in v) {
+      if (${isUnknownField} && __hasOwn.call(v, k)) {
+        errors.push(new GraphQLJITError(${errorMessage} +
+          'Field "' + k + '" is not defined by type ${varType.name}.', loc));
+        break;
+      }
+    }
+  `);
+  gen(`return out;`);
+  gen(`}`);
+
+  context.hoistedFunctions.set(fnName, gen.toString());
+  return fnName;
 }
