@@ -143,11 +143,24 @@ export function compileVariableParsing(
       const __loc${i} = ${JSON.stringify(computeLocations([varDefNode]))};
     `;
     const value = `__variable${i}`;
-    mainBody += `const ${value} = input[${key}];\n`;
+    // Only own properties of the input are variable values. Other names
+    // cannot be inherited from a plain object, so they are read directly.
+    mainBody +=
+      varName in Object.prototype
+        ? `const ${value} = __hasOwn.call(input, ${key}) ? input[${key}] : undefined;\n`
+        : `const ${value} = input[${key}];\n`;
+    // Assigning "__proto__" would set the prototype of `coerced`, so that
+    // variable is coerced into a local and defined as an own property.
+    const isProtoKey = varName === "__proto__";
+    const target = isProtoKey ? `__coerced${i}` : `coerced[${key}]`;
+    if (isProtoKey) {
+      constants += `const __unset${i} = {};\n`;
+      mainBody += `let ${target} = __unset${i};\n`;
+    }
     mainBody += generateInput(context, {
       type: varType,
       value,
-      target: `coerced[${key}]`,
+      target,
       path: `__path${i}`,
       varName: key,
       hasValue: `__hasOwn.call(input, ${key})`,
@@ -156,6 +169,11 @@ export function compileVariableParsing(
         : undefined,
       loc: `__loc${i}`
     });
+    if (isProtoKey) {
+      mainBody += `if (${target} !== __unset${i}) {
+        Object.defineProperty(coerced, ${key}, { value: ${target}, writable: true, enumerable: true, configurable: true });
+      }\n`;
+    }
   }
 
   if (errors.length > 0) {
