@@ -536,7 +536,7 @@ describe("custom scalar literals that parse to class instances", () => {
     expect(result).toEqual({ data });
   });
 
-  test("returns the same instance for repeated executions", async () => {
+  test("returns an instance for repeated executions", async () => {
     const prepared: any = compileQuery(schema, parse('{ direct(value: "a") }'));
     expect(await prepared.query({}, {}, {})).toEqual({
       data: { direct: "instance:a" }
@@ -600,6 +600,163 @@ describe("custom scalar literals that parse to class instances", () => {
         data: { f: "true" }
       }
     );
+  });
+});
+
+describe("custom scalar literals that parse to objects", () => {
+  // GraphQL-JS parses literals for every execution, so a resolver gets its own
+  // value and can mutate it. Defaults from the schema are shared instead.
+  const DateTime = new GraphQLScalarType({
+    name: "DateTime",
+    serialize: (value: any) => value.toISOString().slice(0, 10),
+    parseValue: (value: any) => new Date(value),
+    parseLiteral: (ast: any) => new Date(ast.value)
+  });
+  const Range = new GraphQLInputObjectType({
+    name: "Range",
+    fields: { from: { type: DateTime } }
+  });
+  const schemaDefault = new Date("2024-02-01");
+
+  let seen: Date[] = [];
+  // Records the values a resolver receives and returns them.
+  const record = (value: Date | Date[]) => {
+    seen = seen.concat(value);
+    return value;
+  };
+  const Item = new GraphQLObjectType({
+    name: "Item",
+    fields: {
+      date: {
+        type: DateTime,
+        args: { date: { type: DateTime } },
+        resolve: (_, { date }) => record(date)
+      }
+    }
+  });
+  const schema = new GraphQLSchema({
+    query: new GraphQLObjectType({
+      name: "Query",
+      fields: {
+        date: {
+          type: DateTime,
+          args: { date: { type: DateTime } },
+          resolve: (_, { date }) => record(date)
+        },
+        range: {
+          type: DateTime,
+          args: { range: { type: Range } },
+          resolve: (_, { range }) => record(range.from)
+        },
+        dates: {
+          type: new GraphQLList(DateTime),
+          args: { dates: { type: new GraphQLList(DateTime) } },
+          resolve: (_, { dates }) => record(dates)
+        },
+        withDefault: {
+          type: DateTime,
+          args: { date: { type: DateTime, defaultValue: schemaDefault } },
+          resolve: (_, { date }) => record(date)
+        },
+        nextDay: {
+          type: DateTime,
+          args: { date: { type: DateTime } },
+          resolve: (_, { date }) => {
+            date.setUTCDate(date.getUTCDate() + 1);
+            return date;
+          }
+        },
+        items: {
+          type: new GraphQLList(Item),
+          resolve: () => [{}, {}]
+        }
+      }
+    })
+  });
+
+  async function countValues(run: () => any) {
+    seen = [];
+    for (let i = 0; i < 3; i++) {
+      expect((await run()).errors).toBeUndefined();
+    }
+    return new Set(seen).size;
+  }
+
+  test.each([
+    ["an argument literal", '{ date(date: "2024-01-01") }', 3],
+    ["an input object literal", '{ range(range: { from: "2024-01-01" }) }', 3],
+    ["a list literal", '{ dates(dates: ["2024-01-01", "2024-01-02"]) }', 6],
+    ["a field in a list", '{ items { date(date: "2024-01-01") } }', 6],
+    [
+      "a variable default",
+      'query ($d: DateTime = "2024-01-01") { date(date: $d) }',
+      3
+    ],
+    [
+      "a nested variable default",
+      'query ($r: Range = { from: "2024-01-01" }) { range(range: $r) }',
+      3
+    ],
+    ["a schema default", "{ withDefault }", 1]
+  ])(
+    "matches GraphQL-JS in sharing the values of %s",
+    async (_name, query, distinct) => {
+      const document = parse(query);
+      const prepared = compileQuery(schema, document);
+      if (!isCompiledQuery(prepared)) {
+        throw new Error(JSON.stringify(prepared));
+      }
+      expect(await countValues(() => execute({ schema, document }))).toBe(
+        distinct
+      );
+      expect(
+        await countValues(() => prepared.query(undefined, undefined, {}))
+      ).toBe(distinct);
+    }
+  );
+
+  test("does not keep the mutations of a resolver for the next execution", async () => {
+    const prepared: any = compileQuery(
+      schema,
+      parse('{ nextDay(date: "2024-01-01") }')
+    );
+    for (let i = 0; i < 3; i++) {
+      expect(await prepared.query(undefined, undefined, {})).toEqual({
+        data: { nextDay: "2024-01-02" }
+      });
+    }
+  });
+
+  test("parses literals with primitive values only when compiling", async () => {
+    const parseLiteral = jest.fn((ast: any) => ast.value);
+    const Text = new GraphQLScalarType({
+      name: "Text",
+      serialize: String,
+      parseValue: String,
+      parseLiteral
+    });
+    const textSchema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          echo: {
+            type: GraphQLString,
+            args: { text: { type: Text } },
+            resolve: (_, { text }) => text
+          }
+        }
+      })
+    });
+    const prepared: any = compileQuery(
+      textSchema,
+      parse('{ echo(text: "a") }')
+    );
+    for (let i = 0; i < 3; i++) {
+      expect(await prepared.query(undefined, undefined, {})).toEqual({
+        data: { echo: "a" }
+      });
+    }
+    expect(parseLiteral).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -38,6 +38,7 @@ import {
   resolveFieldDef
 } from "./compat.js";
 import { assertValidName } from "./validation.js";
+import { isMutable, ScalarLiteral } from "./compile-input.js";
 import {
   addFragmentShouldIncludeBranch,
   ALWAYS_INCLUDE,
@@ -517,6 +518,15 @@ export function valueFromAST(
     }
     if (isInvalid(result)) {
       return; // Invalid: intentionally return no value.
+    }
+    if (isMutable(result)) {
+      // GraphQL-JS parses the literal again for every execution, so each one
+      // gets its own value. Parsing it here only validates it.
+      return {
+        value: new ScalarLiteral(() =>
+          coerceInputLiteral(type, valueNode as ConstValueNode)
+        )
+      };
     }
     return { value: result };
   }

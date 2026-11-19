@@ -1,5 +1,6 @@
 import { genFn } from "./generate.js";
 import {
+  type ConstValueNode,
   GraphQLBoolean,
   GraphQLError,
   GraphQLFloat,
@@ -23,7 +24,7 @@ import {
   type VariableDefinitionNode
 } from "graphql";
 import { computeLocations } from "./ast.js";
-import { compileInputValue } from "./compile-input.js";
+import { compileInputValue, isMutable } from "./compile-input.js";
 import { GraphQLError as GraphQLJITError } from "./error.js";
 import {
   coerceConstLiteral,
@@ -93,6 +94,11 @@ interface InputValue {
   /** Whether the value was provided. Only evaluated if the value is nullish. */
   hasValue: string;
   defaultValue: unknown | undefined;
+  /**
+   * The literal `defaultValue` was coerced from, for the default of a variable
+   * definition. Unset for defaults from the schema.
+   */
+  defaultLiteral?: ConstValueNode;
   /** The message prefix for nested errors, unset for top level variables. */
   errorMessage?: string;
   /** The source locations of the variable definition. */
@@ -154,6 +160,7 @@ export function compileVariableParsing(
       defaultValue: varDefNode.defaultValue
         ? coerceConstLiteral(varDefNode.defaultValue, varType)
         : undefined,
+      defaultLiteral: varDefNode.defaultValue,
       loc: `__loc${i}`
     });
   }
@@ -246,17 +253,34 @@ const MIN_32BIT_INT = -2147483648;
  * dates or other values that cannot be written into source. Containers are
  * emitted inline, so every execution gets fresh ones, and opaque values are
  * bound as compiler dependencies.
+ *
+ * GraphQL-JS coerces the default literal of a variable definition for every
+ * execution, while defaults from the schema are shared. When such a literal
+ * holds a custom scalar that parses to an object, it is coerced again for
+ * every execution, so that each one gets its own value.
  */
 function compileDefault(
   context: CompilationContext,
   type: GraphQLInputType,
-  defaultValue: unknown
+  defaultValue: unknown,
+  literal: ConstValueNode | undefined
 ): string {
-  return compileInputValue(defaultValue, type, (value) => {
+  const bind = (value: unknown) => {
     const name = `__default${context.dependencies.size}`;
     context.dependencies.set(name, value);
     return name;
-  });
+  };
+  if (literal !== undefined) {
+    let mutable = false;
+    compileInputValue(defaultValue, type, (value) => {
+      mutable = mutable || isMutable(value);
+      return "";
+    });
+    if (mutable) {
+      return `${bind(() => coerceConstLiteral(literal, type))}()`;
+    }
+  }
+  return compileInputValue(defaultValue, type, bind);
 }
 
 function invalidValue(input: InputValue, message: string) {
@@ -265,7 +289,7 @@ function invalidValue(input: InputValue, message: string) {
 }
 
 function generateInput(context: CompilationContext, input: InputValue) {
-  const { value, target, hasValue, defaultValue, loc } = input;
+  const { value, target, hasValue, defaultValue, defaultLiteral, loc } = input;
   let varType = input.type;
   const declaredType = varType;
   // Type names are written into the generated source, as part of
@@ -294,7 +318,12 @@ function generateInput(context: CompilationContext, input: InputValue) {
         if (${hasValue}) {
           errors.push(new GraphQLJITError(${nonNullMessage}, ${loc}));
         } else {
-          ${target} = ${compileDefault(context, declaredType, defaultValue)};
+          ${target} = ${compileDefault(
+            context,
+            declaredType,
+            defaultValue,
+            defaultLiteral
+          )};
         }
       `);
     } else {
@@ -309,7 +338,8 @@ function generateInput(context: CompilationContext, input: InputValue) {
         `else { ${target} = ${compileDefault(
           context,
           declaredType,
-          defaultValue
+          defaultValue,
+          defaultLiteral
         )}; }`
       );
     }

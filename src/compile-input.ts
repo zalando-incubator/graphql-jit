@@ -7,12 +7,33 @@ import {
 } from "graphql";
 
 /**
+ * A custom scalar literal from the document that parses to an object.
+ *
+ * GraphQL-JS parses literals on every execution, so each resolver call gets
+ * its own value. A value parsed at compile time would instead be shared by
+ * every execution of the compiled query, and a resolver that mutates it would
+ * change it for the following executions. `compileInputValue` emits a call to
+ * `parse` for these.
+ */
+export class ScalarLiteral {
+  constructor(readonly parse: () => unknown) {}
+}
+
+/** Whether a value can be mutated, so that it must not be shared. */
+export function isMutable(value: unknown): boolean {
+  return (
+    (typeof value === "object" && value !== null) || typeof value === "function"
+  );
+}
+
+/**
  * Emits a coerced input value as a JS expression. Lists and input objects are
  * emitted inline, so every execution gets fresh containers that variables can
  * be written into. Scalar and enum values are internal values that need not be
  * serializable (bigint, Date, class instances...), so non-primitive ones are
  * stored outside the source with `bind`, which returns the expression to read
- * them back.
+ * them back. A `ScalarLiteral` is stored the same way and called, so it is
+ * parsed again every time the expression is evaluated.
  */
 export function compileInputValue(
   val: any,
@@ -26,6 +47,9 @@ export function compileInputValue(
     return compileInputValue(val, type.ofType, bind);
   }
   if (isLeafType(type)) {
+    if (val instanceof ScalarLiteral) {
+      return `${bind(val.parse)}()`;
+    }
     switch (typeof val) {
       case "number":
         // JSON.stringify would turn NaN/Infinity into null

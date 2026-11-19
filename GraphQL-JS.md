@@ -46,44 +46,11 @@ const resolvers = {
 
 ### Input values
 
-Argument literals are coerced once, when the query is compiled. Lists and input objects are rebuilt for every execution, but the values returned by custom scalars are reused. This leads to a few differences.
+Argument literals are coerced when the query is compiled. Lists and input objects are rebuilt for every execution. A custom scalar literal that parses to an object, such as a `Date`, is parsed again for every execution, like GraphQL-JS does, so resolvers can mutate the value they receive. Literals that parse to strings, numbers or booleans are only parsed once. This leads to a few differences.
 
-#### Custom scalar literals are parsed once
+#### Invalid literals fail compilation
 
-`parseLiteral` (or `coerceInputLiteral`) runs at compile time, not on every execution, and the returned value is shared between executions. Resolvers should not mutate such values.
-
-```ts
-const DateTime = new GraphQLScalarType({
-  name: "DateTime",
-  parseLiteral: (node) => new Date(node.value)
-  // ...
-});
-
-const resolvers = {
-  Query: {
-    nextDay(_, { date }) {
-      // Mutates the Date shared by every execution of the compiled query.
-      // Use `new Date(date)` and mutate the copy instead.
-      date.setDate(date.getDate() + 1);
-      return date.toISOString().slice(0, 10);
-    }
-  }
-};
-```
-
-```graphql
-{
-  nextDay(date: "2024-01-01")
-}
-```
-
-| Execution | GraphQL-JS   | GraphQL-JIT  |
-| --------- | ------------ | ------------ |
-| 1st       | `2024-01-02` | `2024-01-02` |
-| 2nd       | `2024-01-02` | `2024-01-03` |
-| 3rd       | `2024-01-02` | `2024-01-04` |
-
-An invalid literal fails compilation instead of producing a field error. GraphQL validation reports these before execution anyway.
+`parseLiteral` (or `coerceInputLiteral`) runs when the query is compiled, so an invalid literal fails compilation instead of producing a field error. GraphQL validation reports these before execution anyway.
 
 #### Variables inside custom scalar literals are not substituted
 
