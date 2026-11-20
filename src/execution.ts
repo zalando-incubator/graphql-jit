@@ -38,6 +38,7 @@ import {
   isSpecifiedScalarType,
   Kind,
   locatedError,
+  print,
   responsePathAsArray,
   TypeNameMetaFieldDef,
   type FieldNode,
@@ -59,7 +60,7 @@ import {
 } from "./ast.js";
 import { compileFieldNodesShouldInclude } from "./skip-include.js";
 import { GraphQLError as GraphqlJitError } from "./error.js";
-import { compileInputValue } from "./compile-input.js";
+import { compileInputValue, type ScalarLiteral } from "./compile-input.js";
 import createInspect from "./inspect.js";
 import { queryToJSONSchema } from "./json.js";
 import {
@@ -1375,22 +1376,50 @@ function compileArguments(
     context.literals[key] = value;
     return `${GLOBAL_EXECUTION_CONTEXT}.literals.${key}`;
   };
+  const errorDestination = getErrorDestination(returnType);
+  // Custom scalar literals that are parsed again for every execution, see
+  // ScalarLiteral. They were valid when compiling, so parsing them can only
+  // fail if it does not return the same result every time. The argument is
+  // then invalid, like in GraphQL-JS: the resolver is skipped with an error.
+  let parsedLiterals = "";
+  let parsedLiteralCount = 0;
   const valuesExpression = `{${Object.keys(args.values)
-    .map(
-      (name) =>
-        `${JSON.stringify(name)}:${compileInputValue(
-          args.values[name],
-          args.types[name],
-          bind
-        )}`
-    )
+    .map((name) => {
+      const parseLiteral = (literal: ScalarLiteral) => {
+        const parsed = `${topLevelArg}Literal${parsedLiteralCount++}`;
+        const valueNode = args.nodes[name].value;
+        // The printed value comes from the query, so the message is written
+        // into the source as a JSON string, which is a string literal.
+        const message = `Argument "${name}" of type "${
+          args.types[name]
+        }" has invalid value ${print(valueNode)}.`;
+        parsedLiterals += `
+        const ${parsed} = ${bind(literal.parse)}();
+        if (${parsed} === undefined && ${validArgs}) {
+          ${errorDestination}.push(${createErrorObject(
+            context,
+            [valueNode],
+            path,
+            JSON.stringify(message)
+          )});
+          ${validArgs} = false;
+        }`;
+        return parsed;
+      };
+      return `${JSON.stringify(name)}:${compileInputValue(
+        args.values[name],
+        args.types[name],
+        bind,
+        parseLiteral
+      )}`;
+    })
     .join(",")}}`;
   // default to assuming arguments are valid
   let body = `
   let ${validArgs} = true;
+  ${parsedLiterals}
   const ${topLevelArg} = ${valuesExpression};
   `;
-  const errorDestination = getErrorDestination(returnType);
   for (const variable of args.missing) {
     const varName = variable.valueNode.name.value;
     assertValidName(varName, "variable name");

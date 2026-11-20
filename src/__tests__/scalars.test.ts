@@ -536,7 +536,7 @@ describe("custom scalar literals that parse to class instances", () => {
     expect(result).toEqual({ data });
   });
 
-  test("returns the same instance for repeated executions", async () => {
+  test("returns an instance for repeated executions", async () => {
     const prepared: any = compileQuery(schema, parse('{ direct(value: "a") }'));
     expect(await prepared.query({}, {}, {})).toEqual({
       data: { direct: "instance:a" }
@@ -600,6 +600,446 @@ describe("custom scalar literals that parse to class instances", () => {
         data: { f: "true" }
       }
     );
+  });
+});
+
+describe("custom scalar literals that parse to objects", () => {
+  // GraphQL-JS parses literals for every execution, so a resolver gets its own
+  // value and can mutate it. Defaults from the schema are shared instead.
+  const DateTime = new GraphQLScalarType({
+    name: "DateTime",
+    serialize: (value: any) => value.toISOString().slice(0, 10),
+    parseValue: (value: any) => new Date(value),
+    parseLiteral: (ast: any) => new Date(ast.value)
+  });
+  const Range = new GraphQLInputObjectType({
+    name: "Range",
+    fields: { from: { type: DateTime } }
+  });
+  const schemaDefault = new Date("2024-02-01");
+
+  let seen: Date[] = [];
+  // Records the values a resolver receives and returns them.
+  const record = (value: Date | Date[]) => {
+    seen = seen.concat(value);
+    return value;
+  };
+  const Item = new GraphQLObjectType({
+    name: "Item",
+    fields: {
+      date: {
+        type: DateTime,
+        args: { date: { type: DateTime } },
+        resolve: (_, { date }) => record(date)
+      }
+    }
+  });
+  const schema = new GraphQLSchema({
+    query: new GraphQLObjectType({
+      name: "Query",
+      fields: {
+        date: {
+          type: DateTime,
+          args: { date: { type: DateTime } },
+          resolve: (_, { date }) => record(date)
+        },
+        range: {
+          type: DateTime,
+          args: { range: { type: Range } },
+          resolve: (_, { range }) => record(range.from)
+        },
+        dates: {
+          type: new GraphQLList(DateTime),
+          args: { dates: { type: new GraphQLList(DateTime) } },
+          resolve: (_, { dates }) => record(dates)
+        },
+        withDefault: {
+          type: DateTime,
+          args: { date: { type: DateTime, defaultValue: schemaDefault } },
+          resolve: (_, { date }) => record(date)
+        },
+        nextDay: {
+          type: DateTime,
+          args: { date: { type: DateTime } },
+          resolve: (_, { date }) => {
+            date.setUTCDate(date.getUTCDate() + 1);
+            return date;
+          }
+        },
+        items: {
+          type: new GraphQLList(Item),
+          resolve: () => [{}, {}]
+        }
+      }
+    })
+  });
+
+  async function countValues(run: () => any) {
+    seen = [];
+    for (let i = 0; i < 3; i++) {
+      expect((await run()).errors).toBeUndefined();
+    }
+    return new Set(seen).size;
+  }
+
+  test.each([
+    ["an argument literal", '{ date(date: "2024-01-01") }', 3],
+    ["an input object literal", '{ range(range: { from: "2024-01-01" }) }', 3],
+    ["a list literal", '{ dates(dates: ["2024-01-01", "2024-01-02"]) }', 6],
+    ["a field in a list", '{ items { date(date: "2024-01-01") } }', 6],
+    [
+      "a variable default",
+      'query ($d: DateTime = "2024-01-01") { date(date: $d) }',
+      3
+    ],
+    [
+      "a nested variable default",
+      'query ($r: Range = { from: "2024-01-01" }) { range(range: $r) }',
+      3
+    ],
+    ["a schema default", "{ withDefault }", 1]
+  ])(
+    "matches GraphQL-JS in sharing the values of %s",
+    async (_name, query, distinct) => {
+      const document = parse(query);
+      const prepared = compileQuery(schema, document);
+      if (!isCompiledQuery(prepared)) {
+        throw new Error(JSON.stringify(prepared));
+      }
+      expect(await countValues(() => execute({ schema, document }))).toBe(
+        distinct
+      );
+      expect(
+        await countValues(() => prepared.query(undefined, undefined, {}))
+      ).toBe(distinct);
+    }
+  );
+
+  test("does not keep the mutations of a resolver for the next execution", async () => {
+    const prepared: any = compileQuery(
+      schema,
+      parse('{ nextDay(date: "2024-01-01") }')
+    );
+    for (let i = 0; i < 3; i++) {
+      expect(await prepared.query(undefined, undefined, {})).toEqual({
+        data: { nextDay: "2024-01-02" }
+      });
+    }
+  });
+
+  test("parses literals with primitive values only when compiling", async () => {
+    const parseLiteral = jest.fn((ast: any) => ast.value);
+    const Text = new GraphQLScalarType({
+      name: "Text",
+      serialize: String,
+      parseValue: String,
+      parseLiteral
+    });
+    const textSchema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          echo: {
+            type: GraphQLString,
+            args: { text: { type: Text } },
+            resolve: (_, { text }) => text
+          }
+        }
+      })
+    });
+    const prepared: any = compileQuery(
+      textSchema,
+      parse('{ echo(text: "a") }')
+    );
+    for (let i = 0; i < 3; i++) {
+      expect(await prepared.query(undefined, undefined, {})).toEqual({
+        data: { echo: "a" }
+      });
+    }
+    expect(parseLiteral).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("custom scalar literal values for every execution", () => {
+  class Money {
+    constructor(public amount: string) {}
+  }
+
+  // A schema whose `Value` scalar parses literals with `parseLiteral`, and
+  // whose resolvers record the values they receive.
+  function setup(parseLiteral: (ast: any) => unknown) {
+    const received: any[] = [];
+    const Value = new GraphQLScalarType({
+      name: "Value",
+      serialize: () => "ok",
+      parseValue: (value) => value,
+      parseLiteral: jest.fn(parseLiteral)
+    });
+    const field = (type: GraphQLInputType) => ({
+      type: GraphQLString,
+      args: { v: { type } },
+      resolve: (_: unknown, { v }: { v: unknown }) => {
+        received.push(v);
+        return "ok";
+      }
+    });
+    const ValueInput = new GraphQLInputObjectType({
+      name: "ValueInput",
+      fields: { value: { type: Value } }
+    });
+    const schema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          value: field(Value),
+          values: field(new GraphQLList(Value)),
+          input: field(ValueInput),
+          other: { type: GraphQLString, resolve: () => "ok" },
+          parent: {
+            type: new GraphQLObjectType({
+              name: "Parent",
+              fields: { value: field(Value) }
+            }),
+            resolve: () => Promise.resolve({})
+          }
+        }
+      })
+    });
+    return { schema, received, parseLiteral: Value.parseLiteral };
+  }
+
+  function compile(schema: GraphQLSchema, query: string) {
+    const prepared = compileQuery(schema, parse(query));
+    if (!isCompiledQuery(prepared)) {
+      throw new Error(JSON.stringify(prepared));
+    }
+    return prepared;
+  }
+
+  async function runThreeTimes(
+    create: (ast: any) => unknown,
+    query = '{ value(v: "a") }'
+  ) {
+    const { schema, received, parseLiteral } = setup(create);
+    const prepared = compile(schema, query);
+    for (let i = 0; i < 3; i++) {
+      expect((await prepared.query(undefined, undefined, {})).errors).toBe(
+        undefined
+      );
+    }
+    expect(received).toHaveLength(3);
+    return { received, parseLiteral };
+  }
+
+  test.each([
+    ["a date", () => new Date("2024-01-01")],
+    [
+      "a plain object",
+      () => ({ a: 1, nested: { list: [1, "b", null], at: new Date(0) } })
+    ],
+    [
+      "an object without prototype",
+      () => Object.assign(Object.create(null), { a: 1 })
+    ],
+    ["an own __proto__ property", () => JSON.parse('{"__proto__":1,"b":2}')],
+    [
+      "special values",
+      () => ({ values: [NaN, Infinity, -Infinity, -0, undefined, true] })
+    ]
+  ])("copies %s instead of parsing it again", async (_name, create) => {
+    const { received, parseLiteral } = await runThreeTimes(create);
+    // twice when compiling, see ScalarLiteral
+    expect(parseLiteral).toHaveBeenCalledTimes(2);
+    expect(new Set(received).size).toBe(3);
+    for (const value of received) {
+      expect(value).toStrictEqual(create());
+      expect(Object.getPrototypeOf(value)).toBe(
+        Object.getPrototypeOf(create())
+      );
+      expect(Object.keys(value)).toEqual(Object.keys(create()));
+    }
+  });
+
+  test("copies an invalid date instead of parsing it again", async () => {
+    const { received, parseLiteral } = await runThreeTimes(
+      () => new Date("invalid")
+    );
+    expect(parseLiteral).toHaveBeenCalledTimes(2);
+    expect(new Set(received).size).toBe(3);
+    for (const value of received) {
+      expect(Object.getPrototypeOf(value)).toBe(Date.prototype);
+      expect(value.getTime()).toBeNaN();
+    }
+  });
+
+  test("copies nested objects", async () => {
+    const { received } = await runThreeTimes(() => ({
+      nested: { list: [{ a: 1 }], at: new Date(0) }
+    }));
+    const [first, second] = received;
+    expect(second.nested).not.toBe(first.nested);
+    expect(second.nested.list).not.toBe(first.nested.list);
+    expect(second.nested.list[0]).not.toBe(first.nested.list[0]);
+    expect(second.nested.at).not.toBe(first.nested.at);
+  });
+
+  test("shares the objects that parsing returns every time, like GraphQL-JS", async () => {
+    const shared = { a: 1 };
+    const { received, parseLiteral } = await runThreeTimes(() => ({
+      shared,
+      own: {}
+    }));
+    expect(parseLiteral).toHaveBeenCalledTimes(2);
+    expect(new Set(received).size).toBe(3);
+    expect(new Set(received.map((value) => value.own)).size).toBe(3);
+    for (const value of received) {
+      expect(value.shared).toBe(shared);
+    }
+  });
+
+  test.each([
+    ["a class instance", (ast: any) => new Money(ast.value)],
+    ["a date subclass", () => new (class extends Date {})(0)],
+    ["a date with own properties", () => Object.assign(new Date(0), { a: 1 })],
+    ["a frozen object", () => Object.freeze({ a: 1 })],
+    [
+      "an object with a getter",
+      () => ({
+        get a() {
+          return 1;
+        }
+      })
+    ],
+    ["an object with a symbol key", () => ({ [Symbol.for("a")]: 1 })],
+    ["an array with holes", () => new Array(2)],
+    ["an array with other properties", () => Object.assign([1], { a: 1 })],
+    ["an array of class instances", (ast: any) => [new Money(ast.value)]],
+    [
+      "an object found twice in the value",
+      () => {
+        const inner = {};
+        return { a: inner, b: inner };
+      }
+    ],
+    ["a value that is not the same every time", () => ({ a: Math.random() })]
+  ])("parses %s again for every execution", async (_name, create) => {
+    const { received, parseLiteral } = await runThreeTimes(create);
+    expect(parseLiteral).toHaveBeenCalledTimes(5);
+    expect(new Set(received).size).toBe(3);
+  });
+
+  test("parses a variable default again if it cannot be copied", async () => {
+    const { received, parseLiteral } = await runThreeTimes(
+      (ast) => new Money(ast.value),
+      'query ($v: Value = "a") { value(v: $v) }'
+    );
+    expect(parseLiteral).toHaveBeenCalledTimes(5);
+    expect(new Set(received).size).toBe(3);
+    expect(received[0]).toEqual(new Money("a"));
+  });
+
+  test.each([
+    ["a list", 'query ($v: [Value] = ["a"]) { values(v: $v) }'],
+    [
+      "an input object",
+      'query ($v: ValueInput = { value: "a" }) { input(v: $v) }'
+    ]
+  ])(
+    "parses a variable default with %s again if the second parse differs",
+    async (_name, query) => {
+      let calls = 0;
+      const { received, parseLiteral } = await runThreeTimes(
+        // the second parse, when compiling, fails
+        () => (++calls === 2 ? undefined : new Date(0)),
+        query
+      );
+      expect(parseLiteral).toHaveBeenCalledTimes(5);
+      expect(new Set(received).size).toBe(3);
+    }
+  );
+
+  test("copies a variable default instead of parsing it again", async () => {
+    const { received, parseLiteral } = await runThreeTimes(
+      () => new Date(0),
+      'query ($v: Value = "a") { value(v: $v) }'
+    );
+    expect(parseLiteral).toHaveBeenCalledTimes(2);
+    expect(new Set(received).size).toBe(3);
+    expect(received[0]).toEqual(new Date(0));
+  });
+
+  test.each([
+    [
+      "throws",
+      () => {
+        throw new Error("cannot parse");
+      }
+    ],
+    ["returns undefined", () => undefined]
+  ])(
+    "reports an invalid argument when parsing again %s",
+    async (_name, failure) => {
+      let fail = false;
+      const { schema, received } = setup((ast) =>
+        fail ? failure() : new Money(ast.value)
+      );
+      const prepared = compile(
+        schema,
+        '{ value(v: "a") other parent { value(v: "b") } }'
+      );
+      fail = true;
+      const result = await prepared.query(undefined, undefined, {});
+      expect(received).toEqual([]);
+      expect(result.data).toEqual({
+        value: null,
+        other: "ok",
+        parent: { value: null }
+      });
+      expect(
+        result.errors?.map(({ message, locations, path }) => ({
+          message,
+          locations,
+          path
+        }))
+      ).toEqual([
+        {
+          message: 'Argument "v" of type "Value" has invalid value "a".',
+          locations: [{ line: 1, column: 12 }],
+          path: ["value"]
+        },
+        {
+          message: 'Argument "v" of type "Value" has invalid value "b".',
+          locations: [{ line: 1, column: 41 }],
+          path: ["parent", "value"]
+        }
+      ]);
+    }
+  );
+
+  test("reports an invalid variable default when parsing it again fails", async () => {
+    let fail = false;
+    const { schema, received } = setup((ast) => {
+      if (fail) {
+        throw new Error("cannot parse");
+      }
+      return new Money(ast.value);
+    });
+    const prepared = compile(
+      schema,
+      'query ($v: Value = "a") { value(v: $v) }'
+    );
+    fail = true;
+    const result = await prepared.query(undefined, undefined, {});
+    expect(received).toEqual([]);
+    expect(result.data).toBeUndefined();
+    expect(
+      result.errors?.map(({ message, locations }) => ({ message, locations }))
+    ).toEqual([
+      {
+        message: 'Variable "$v" has invalid default value "a".',
+        locations: [{ line: 1, column: 8 }]
+      }
+    ]);
   });
 });
 

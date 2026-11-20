@@ -1,6 +1,7 @@
 import {
   GraphQLInputObjectType,
   GraphQLObjectType,
+  GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
   parse
@@ -51,3 +52,62 @@ test.each([
     data: { f: payload }
   });
 });
+
+// A custom scalar literal that parses to a class instance is parsed again for
+// every execution. When that fails, the printed literal is part of the error
+// message, which is written into the source.
+class Opaque {
+  constructor(readonly value: string) {}
+}
+let failParsing = false;
+const opaqueSchema = new GraphQLSchema({
+  query: new GraphQLObjectType({
+    name: "Query",
+    fields: {
+      g: {
+        type: GraphQLString,
+        args: {
+          o: {
+            type: new GraphQLScalarType({
+              name: "Opaque",
+              serialize: () => "ok",
+              parseValue: (value) => value,
+              parseLiteral: (ast: any) => {
+                if (failParsing) {
+                  throw new Error("cannot parse");
+                }
+                return new Opaque(ast.value);
+              }
+            })
+          }
+        },
+        resolve: () => "ok"
+      }
+    }
+  })
+});
+
+test.each([
+  [
+    "an argument literal",
+    `{ g(o: ${quoted}) }`,
+    `Argument "o" of type "Opaque" has invalid value ${quoted}.`
+  ],
+  [
+    "a variable default",
+    `query ($v: Opaque = ${quoted}) { g(o: $v) }`,
+    `Variable "$v" has invalid default value ${quoted}.`
+  ]
+])(
+  "%s parsed again is written into the source as data",
+  async (_name, query, message) => {
+    failParsing = false;
+    const compiled = compileQuery(opaqueSchema, parse(query));
+    if (!isCompiledQuery(compiled)) {
+      throw new Error("expected a compiled query");
+    }
+    failParsing = true;
+    const result = await compiled.query(undefined, undefined, {});
+    expect(result.errors?.map((error) => error.message)).toEqual([message]);
+  }
+);

@@ -93,7 +93,8 @@ export const queries = {
   argumentBuiltInLiterals: {
     query: parse(`{ items { plain(n: 1, s: "a", kind: B) } }`)
   },
-  // Custom scalar literal: parsed once when the query is compiled.
+  // Custom scalar literals that parse to a Date: every field execution gets
+  // its own copy of the Date, like with GraphQL-JS.
   argumentCustomScalarLiteral: {
     query: parse(`{ items { at(when: "${from}") } }`)
   },

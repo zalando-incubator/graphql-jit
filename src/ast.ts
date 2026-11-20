@@ -38,6 +38,7 @@ import {
   resolveFieldDef
 } from "./compat.js";
 import { assertValidName } from "./validation.js";
+import { isMutable, ScalarLiteral } from "./compile-input.js";
 import {
   addFragmentShouldIncludeBranch,
   ALWAYS_INCLUDE,
@@ -298,6 +299,8 @@ interface MissingVariablePath {
 export interface Arguments {
   values: { [argument: string]: any };
   types: { [argument: string]: GraphQLInputType };
+  /** The nodes of the arguments given in the document. */
+  nodes: { [argument: string]: ArgumentNode };
   missing: MissingVariablePath[];
 }
 
@@ -315,6 +318,7 @@ export function getArgumentDefs(
 ): Arguments {
   const values: { [key: string]: any } = {};
   const types: { [key: string]: GraphQLInputType } = {};
+  const nodes: { [key: string]: ArgumentNode } = {};
   const missing: MissingVariablePath[] = [];
   const argDefs = def.args;
   const argNodes = node.arguments || [];
@@ -328,6 +332,9 @@ export function getArgumentDefs(
     }
     const argType = argDef.type;
     const argumentNode = argNodeMap[name];
+    if (argumentNode) {
+      nodes[name] = argumentNode;
+    }
     let hasVariables = false;
     if (argumentNode && argumentNode.value.kind === Kind.VARIABLE) {
       hasVariables = true;
@@ -373,7 +380,7 @@ export function getArgumentDefs(
       );
     }
   }
-  return { values, types, missing };
+  return { values, types, nodes, missing };
 }
 
 interface ASTValueWithVariables {
@@ -521,6 +528,20 @@ export function valueFromAST(
     }
     if (isInvalid(result)) {
       return; // Invalid: intentionally return no value.
+    }
+    if (isMutable(result)) {
+      // GraphQL-JS parses the literal for every execution, so each one gets
+      // its own value. Parsing it twice tells which parts of the value are new
+      // every time, see ScalarLiteral.
+      const parse = () => {
+        try {
+          const value = coerceInputLiteral(type, valueNode as ConstValueNode);
+          return isInvalid(value) ? undefined : value;
+        } catch {
+          return undefined;
+        }
+      };
+      return { value: new ScalarLiteral(result, parse(), parse) };
     }
     return { value: result };
   }
