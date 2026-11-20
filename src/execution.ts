@@ -1380,6 +1380,8 @@ function compileArguments(
       const parseLiteral = (literal: ScalarLiteral) => {
         const parsed = `${topLevelArg}Literal${parsedLiteralCount++}`;
         const valueNode = args.nodes[name].value;
+        // The printed value comes from the query, so the message is written
+        // into the source as a JSON string, which is a string literal.
         const message = `Argument "${name}" of type "${
           args.types[name]
         }" has invalid value ${print(valueNode)}.`;

@@ -285,15 +285,16 @@ function compileDefault(
   }
   // The literal was valid when compiling, so coercing it can only fail if
   // parsing does not return the same result every time.
-  const message = JSON.stringify(
-    ` has invalid default value ${print(defaultLiteral)}.`
-  );
+  const message = ` has invalid default value ${print(defaultLiteral)}.`;
+  // The printed literal comes from the query, so it is written into the
+  // source as a JSON string, which is a string literal.
+  const messageLiteral = JSON.stringify(message);
   return `{
     const __coerced = ${bind(coerce)}();
     if (__coerced === undefined) {
       errors.push(new GraphQLJITError('Variable "$' + ${
         input.varName
-      } + '"' + ${message}, ${input.loc}));
+      } + '"' + ${messageLiteral}, ${input.loc}));
     } else {
       ${target} = __coerced;
     }
