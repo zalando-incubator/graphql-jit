@@ -663,9 +663,11 @@ function compileType(
   let errorDestination;
   if (isNonNullType(type)) {
     type = type.ofType;
-    const nullErrorStr = `"Cannot return null for non-nullable field ${
-      parentType.name
-    }.${getFieldNodesName(fieldNodes)}."`;
+    const nullErrorStr = JSON.stringify(
+      `Cannot return null for non-nullable field ${
+        parentType.name
+      }.${getFieldNodesName(fieldNodes)}.`
+    );
     body += `(${GLOBAL_NULL_ERRORS_NAME}.push(${createErrorObject(
       context,
       fieldNodes,
@@ -991,13 +993,15 @@ function compileAbstractType(
     '`Runtime Object type "${nodeType}" is not a possible type for "' +
     type.name +
     '".`';
-  const noTypeError = `${finalTypeName} ? ${notPossibleTypeError} : "Abstract type ${
-    type.name
-  } must resolve to an Object type at runtime for field ${
-    parentType.name
-  }.${getFieldNodesName(fieldNodes)}. Either the ${
-    type.name
-  } type should provide a \\"resolveType\\" function or each possible types should provide an \\"isTypeOf\\" function."`;
+  const noTypeError = `${finalTypeName} ? ${notPossibleTypeError} : ${JSON.stringify(
+    `Abstract type ${
+      type.name
+    } must resolve to an Object type at runtime for field ${
+      parentType.name
+    }.${getFieldNodesName(fieldNodes)}. Either the ${
+      type.name
+    } type should provide a "resolveType" function or each possible types should provide an "isTypeOf" function.`
+  )}`;
   /* eslint-enable max-len */
   return `((nodeType, err) =>
   {
@@ -1083,9 +1087,11 @@ function compileListType(
     addPath(responsePath, "idx" + newDepth, "variable")
   );
 
-  const errorMessage = `"Expected Iterable, but did not find one for field ${
-    parentType.name
-  }.${getFieldNodesName(fieldNodes)}."`;
+  const errorMessage = JSON.stringify(
+    `Expected Iterable, but did not find one for field ${
+      parentType.name
+    }.${getFieldNodesName(fieldNodes)}.`
+  );
   const errorCase = `(${errorDestination}.push(${createErrorObject(
     context,
     fieldNodes,
@@ -1457,11 +1463,13 @@ function getErrorDestination(type: GraphQLType): string {
   return isNonNullType(type) ? GLOBAL_NULL_ERRORS_NAME : GLOBAL_ERRORS_NAME;
 }
 
+// "$" is not part of the GraphQL name grammar, so the joined names of
+// different paths cannot be equal.
 function createResolveInfoName(path: ObjectPath) {
   return (
     flattenPath(path)
       .map((p) => p.key)
-      .join("_") + "Info"
+      .join("$") + "$Info"
   );
 }
 
@@ -1673,7 +1681,7 @@ function createErrorObject(
 }
 
 function getResolverName(parentName: string, name: string) {
-  return parentName + name + "Resolver";
+  return parentName + "$" + name + "$Resolver";
 }
 
 function getTypeResolverName(name: string) {

@@ -95,7 +95,26 @@ export function compileVariableParsing(
     mainBody += `const ${hasValueName} = Object.prototype.hasOwnProperty.call(${getObjectPath(
       context.inputPath
     )}, "${varName}");\n`;
+    // A name that is an Object.prototype member is read from a holder without
+    // a prototype, so an omitted variable is not read from Object.prototype.
+    const isPrototypeMember = varName in Object.prototype;
+    if (isPrototypeMember) {
+      const holder = `__input${varDefNodes.indexOf(varDefNode)}`;
+      mainBody += `const ${holder} = Object.create(null);
+        if (${hasValueName}) { ${holder}["${varName}"] = input["${varName}"]; }\n`;
+      context.inputPath = addPath(undefined, holder);
+    }
     context.inputPath = addPath(context.inputPath, varName);
+    // Assigning "__proto__" would set the prototype of `coerced`, so that
+    // variable is coerced into a holder and defined as an own property.
+    const output =
+      varName === "__proto__"
+        ? `__coerced${varDefNodes.indexOf(varDefNode)}`
+        : undefined;
+    if (output) {
+      mainBody += `const ${output} = Object.create(null);\n`;
+      context.responsePath = addPath(undefined, output);
+    }
     context.responsePath = addPath(context.responsePath, varName);
     mainBody += generateInput(
       context,
@@ -105,6 +124,11 @@ export function compileVariableParsing(
       valueFromAST(varDefNode.defaultValue, varType),
       false
     );
+    if (output) {
+      mainBody += `if (Object.prototype.hasOwnProperty.call(${output}, "${varName}")) {
+        Object.defineProperty(coerced, "${varName}", { value: ${output}["${varName}"], writable: true, enumerable: true, configurable: true });
+      }\n`;
+    }
   }
 
   if (errors.length > 0) {
@@ -140,6 +164,17 @@ export function compileVariableParsing(
 // https://graphql.github.io/graphql-spec/June2018/#sec-Int
 const MAX_32BIT_INT = 2147483647;
 const MIN_32BIT_INT = -2147483648;
+
+/**
+ * An object literal with a "__proto__" key would set the prototype, while
+ * JSON.parse keeps it as an own property.
+ */
+function compileDefaultValue(defaultValue: unknown): string {
+  const json = JSON.stringify(defaultValue);
+  return json !== undefined && json.includes('"__proto__"')
+    ? `JSON.parse(${JSON.stringify(json)})`
+    : json;
+}
 
 function generateInput(
   context: CompilationContext,
@@ -180,7 +215,7 @@ function generateInput(
       if (${hasValueName}) { ${currentOutput} = null; }
     `);
     if (defaultValue !== undefined) {
-      gen(`else { ${currentOutput} = ${JSON.stringify(defaultValue)} }`);
+      gen(`else { ${currentOutput} = ${compileDefaultValue(defaultValue)} }`);
     }
   }
   gen(`} else {`);
