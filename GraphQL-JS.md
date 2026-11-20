@@ -46,7 +46,7 @@ const resolvers = {
 
 ### Input values
 
-Argument literals are coerced when the query is compiled. Lists and input objects are rebuilt for every execution. A custom scalar literal that parses to an object, such as a `Date`, is parsed again for every execution, like GraphQL-JS does, so resolvers can mutate the value they receive. Literals that parse to strings, numbers or booleans are only parsed once. This leads to a few differences.
+Argument literals are coerced when the query is compiled. Lists and input objects are rebuilt for every execution. When a custom scalar literal parses to an object, every execution still gets its own value, as with GraphQL-JS, so resolvers can mutate the value they receive: dates, arrays and plain objects are copied, and other objects, such as class instances, are parsed again for every execution. To find the objects that parsing creates anew, `parseLiteral` (or `coerceInputLiteral`) is called twice when compiling; objects that it returns both times are shared, as with GraphQL-JS. Literals that parse to strings, numbers or booleans are only parsed when compiling. This leads to a few differences.
 
 #### Invalid literals fail compilation
 

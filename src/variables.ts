@@ -24,7 +24,7 @@ import {
   type VariableDefinitionNode
 } from "graphql";
 import { computeLocations } from "./ast.js";
-import { compileInputValue, isMutable } from "./compile-input.js";
+import { compileInputCopy, compileInputValue } from "./compile-input.js";
 import { GraphQLError as GraphQLJITError } from "./error.js";
 import {
   coerceConstLiteral,
@@ -249,6 +249,9 @@ const MAX_32BIT_INT = 2147483647;
 const MIN_32BIT_INT = -2147483648;
 
 /**
+ * Emits the statement that writes the default value of an input to its
+ * target.
+ *
  * Default values are internal values, so a custom scalar may use bigints,
  * dates or other values that cannot be written into source. Containers are
  * emitted inline, so every execution gets fresh ones, and opaque values are
@@ -256,31 +259,45 @@ const MIN_32BIT_INT = -2147483648;
  *
  * GraphQL-JS coerces the default literal of a variable definition for every
  * execution, while defaults from the schema are shared. When such a literal
- * holds a custom scalar that parses to an object, it is coerced again for
- * every execution, so that each one gets its own value.
+ * holds a custom scalar that parses to an object, every execution gets a copy
+ * of it, or coerces the literal again if the value cannot be copied, see
+ * ScalarLiteral.
  */
 function compileDefault(
   context: CompilationContext,
-  type: GraphQLInputType,
-  defaultValue: unknown,
-  literal: ConstValueNode | undefined
+  input: InputValue,
+  type: GraphQLInputType
 ): string {
+  const { target, defaultValue, defaultLiteral } = input;
   const bind = (value: unknown) => {
     const name = `__default${context.dependencies.size}`;
     context.dependencies.set(name, value);
     return name;
   };
-  if (literal !== undefined) {
-    let mutable = false;
-    compileInputValue(defaultValue, type, (value) => {
-      mutable = mutable || isMutable(value);
-      return "";
-    });
-    if (mutable) {
-      return `${bind(() => coerceConstLiteral(literal, type))}()`;
-    }
+  if (defaultLiteral === undefined) {
+    return `${target} = ${compileInputValue(defaultValue, type, bind)};`;
   }
-  return compileInputValue(defaultValue, type, bind);
+  // returns undefined if the literal is invalid
+  const coerce = () => coerceConstLiteral(defaultLiteral, type);
+  const copy = compileInputCopy(defaultValue, coerce(), type, bind);
+  if (copy !== undefined) {
+    return `${target} = ${copy};`;
+  }
+  // The literal was valid when compiling, so coercing it can only fail if
+  // parsing does not return the same result every time.
+  const message = JSON.stringify(
+    ` has invalid default value ${print(defaultLiteral)}.`
+  );
+  return `{
+    const __coerced = ${bind(coerce)}();
+    if (__coerced === undefined) {
+      errors.push(new GraphQLJITError('Variable "$' + ${
+        input.varName
+      } + '"' + ${message}, ${input.loc}));
+    } else {
+      ${target} = __coerced;
+    }
+  }`;
 }
 
 function invalidValue(input: InputValue, message: string) {
@@ -289,7 +306,7 @@ function invalidValue(input: InputValue, message: string) {
 }
 
 function generateInput(context: CompilationContext, input: InputValue) {
-  const { value, target, hasValue, defaultValue, defaultLiteral, loc } = input;
+  const { value, target, hasValue, defaultValue, loc } = input;
   let varType = input.type;
   const declaredType = varType;
   // Type names are written into the generated source, as part of
@@ -318,12 +335,7 @@ function generateInput(context: CompilationContext, input: InputValue) {
         if (${hasValue}) {
           errors.push(new GraphQLJITError(${nonNullMessage}, ${loc}));
         } else {
-          ${target} = ${compileDefault(
-            context,
-            declaredType,
-            defaultValue,
-            defaultLiteral
-          )};
+          ${compileDefault(context, input, declaredType)}
         }
       `);
     } else {
@@ -334,14 +346,7 @@ function generateInput(context: CompilationContext, input: InputValue) {
   } else {
     gen(`if (${hasValue}) { ${target} = null; }`);
     if (defaultValue !== undefined) {
-      gen(
-        `else { ${target} = ${compileDefault(
-          context,
-          declaredType,
-          defaultValue,
-          defaultLiteral
-        )}; }`
-      );
+      gen(`else { ${compileDefault(context, input, declaredType)} }`);
     }
   }
   gen(`} else {`);
