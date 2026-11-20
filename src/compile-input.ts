@@ -61,7 +61,10 @@ export function compileInputValue(
       const value = fields[key]
         ? compileInputValue(val[key], fields[key].type, bind)
         : bind(val[key]);
-      props.push(`${JSON.stringify(key)}:${value}`);
+      // A computed key, unlike a plain "__proto__": key, defines an own property.
+      const prop =
+        key === "__proto__" ? `[${JSON.stringify(key)}]` : JSON.stringify(key);
+      props.push(`${prop}:${value}`);
     }
     return `{${props.join(",")}}`;
   }

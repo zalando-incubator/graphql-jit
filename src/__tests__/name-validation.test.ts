@@ -1,4 +1,5 @@
 import {
+  GraphQLNonNull,
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
@@ -38,6 +39,35 @@ describe("invalid names in a hand-built document", () => {
     document.definitions[0].selectionSet.selections[0].name.value = invalidName;
     const prepared: any = compileQuery(schema, document);
     expect(prepared.errors[0].message).toMatch(/^Invalid field name/);
+  });
+
+  it("rejects an invalid field name in an aliased field", () => {
+    const document: any = parse("{ b: a }");
+    document.definitions[0].selectionSet.selections[0].name.value = invalidName;
+    const prepared: any = compileQuery(schema, document);
+    expect(prepared.errors[0].message).toMatch(/^Invalid field name/);
+  });
+
+  it("rejects an invalid field name in a merged field", () => {
+    const document: any = parse("{ b: a b: a }");
+    document.definitions[0].selectionSet.selections[1].name.value = invalidName;
+    const prepared: any = compileQuery(schema, document);
+    expect(prepared.errors[0].message).toMatch(/^Invalid field name/);
+  });
+
+  it("names every merged field in a non-null error", () => {
+    const nonNullSchema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: "Query",
+        fields: {
+          a: { type: new GraphQLNonNull(GraphQLString), resolve: () => null }
+        }
+      })
+    });
+    const prepared: any = compileQuery(nonNullSchema, parse("{ b: a b: a }"));
+    expect(prepared.query({}, {}, {}).errors[0].message).toBe(
+      "Cannot return null for non-nullable field Query.(a,a)."
+    );
   });
 
   it("rejects an invalid variable name", () => {
