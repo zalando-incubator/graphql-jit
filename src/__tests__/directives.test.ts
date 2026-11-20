@@ -1289,6 +1289,22 @@ describe("Execute: handles directives", () => {
         });
       });
 
+      test.each([["true"], [1], [null], [{}]])(
+        "invalid boolean value for if in a hand-built document (%p)",
+        (value) => {
+          for (const directive of ["skip", "include"]) {
+            const document: any = parse(`{ a @${directive}(if: true) }`);
+            document.definitions[0].selectionSet.selections[0].directives[0].arguments[0].value.value =
+              value;
+            const compiled: any = compileQuery(testSchema, document);
+            expect(isCompiledQuery(compiled)).toBe(false);
+            expect(compiled.errors[0].message).toBe(
+              `Argument 'if' on Directive '${directive}' has an invalid value of type '${typeof value}'. Expected type 'Boolean!'`
+            );
+          }
+        }
+      );
+
       test("invalid variable for if - variable not defined", async () => {
         const query = `
           query {

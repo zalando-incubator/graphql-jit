@@ -236,9 +236,13 @@ function doesFragmentConditionMatch(
  * Implements the logic to compute the key of a given field's entry
  */
 function getFieldEntryKey(node: FieldNode): string {
-  const name = node.alias ? node.alias.value : node.name.value;
-  assertValidName(name, node.alias ? "field alias" : "field name");
-  return name;
+  if (node.alias) {
+    assertValidName(node.alias.value, "field alias");
+  }
+  // The field name is checked even when aliased: merged field nodes share
+  // the response key, but each name is used in generated messages.
+  assertValidName(node.name.value, "field name");
+  return node.alias ? node.alias.value : node.name.value;
 }
 
 export { resolveFieldDef };

@@ -308,9 +308,22 @@ function compileSkipIncludeDirective(
   switch (ifNode.value.kind) {
     case Kind.VARIABLE:
       validateSkipIncludeVariableType(compilationContext, ifNode.value);
-      return `${GLOBAL_VARIABLES_NAME}["${ifNode.value.name.value}"]`;
-    case Kind.BOOLEAN:
-      return `${ifNode.value.value.toString()}`;
+      return `${GLOBAL_VARIABLES_NAME}[${JSON.stringify(
+        ifNode.value.name.value
+      )}]`;
+    case Kind.BOOLEAN: {
+      // A hand-built document can hold any value here.
+      const value: unknown = ifNode.value.value;
+      if (typeof value !== "boolean") {
+        throw new GraphQLError(
+          `Argument 'if' on Directive '${
+            directive.name.value
+          }' has an invalid value of type '${typeof value}'. Expected type 'Boolean!'`,
+          getGraphQLErrorOptions([ifNode])
+        );
+      }
+      return value ? "true" : "false";
+    }
     default:
       throw new GraphQLError(
         `Argument 'if' on Directive '${
