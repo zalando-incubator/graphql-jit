@@ -414,7 +414,7 @@ export function createBoundQuery(
       variables: Maybe<{ [key: string]: any }>
     ): Promise<ExecutionResult> | ExecutionResult {
       // this can be shared across in a batch request
-      const parsedVariables = getVariableValues(variables || {});
+      const parsedVariables = getVariableValues(variables ?? {});
 
       // Return early errors if variable coercing failed.
       if (failToParseVariables(parsedVariables)) {
@@ -1911,7 +1911,7 @@ function createBoundSubscribe(
       variables: Maybe<{ [key: string]: any }>
     ): Promise<AsyncIterableIterator<ExecutionResult> | ExecutionResult> {
       // this can be shared across in a batch request
-      const parsedVariables = getVariableValues(variables || {});
+      const parsedVariables = getVariableValues(variables ?? {});
 
       // Return early errors if variable coercing failed.
       if (failToParseVariables(parsedVariables)) {
