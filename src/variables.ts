@@ -114,6 +114,7 @@ export function compileVariableParsing(
 
   let constants = "";
   let mainBody = "";
+  let checksPrototype = false;
   for (let i = 0; i < varDefNodes.length; i++) {
     const varDefNode = varDefNodes[i];
     const varName = varDefNode.variable.name.value;
@@ -143,12 +144,22 @@ export function compileVariableParsing(
       const __loc${i} = ${JSON.stringify(computeLocations([varDefNode]))};
     `;
     const value = `__variable${i}`;
-    // Only own properties of the input are variable values. Other names
-    // cannot be inherited from a plain object, so they are read directly.
-    mainBody +=
-      varName in Object.prototype
-        ? `const ${value} = __hasOwn.call(input, ${key}) ? input[${key}] : undefined;\n`
-        : `const ${value} = input[${key}];\n`;
+    // Only own properties of the input are variable values, like in GraphQL.js.
+    // A plain object only inherits the members of Object.prototype, so other
+    // names are only checked when the input has another prototype. That is
+    // tested after the first read, where V8 knows the map of the input and
+    // folds the test into a constant.
+    mainBody += `let ${value} = input[${key}];\n`;
+    if (!checksPrototype) {
+      checksPrototype = true;
+      mainBody += `const __inputProto = Object.getPrototypeOf(input);
+        const __inherits = __inputProto !== Object.prototype && __inputProto !== null;\n`;
+    }
+    mainBody += `if (${value} !== undefined && ${
+      varName in Object.prototype ? "" : "__inherits && "
+    }!__hasOwn.call(input, ${key})) {
+        ${value} = undefined;
+      }\n`;
     // Assigning "__proto__" would set the prototype of `coerced`, so that
     // variable is coerced into a local and defined as an own property.
     const isProtoKey = varName === "__proto__";
@@ -192,6 +203,13 @@ export function compileVariableParsing(
         printed = (typeof p.key === "number" ? "[" + p.key + "]" : "." + p.key) + printed;
       }
       return "value" + printed;
+    }
+
+    // Like GraphQL.js, any iterable object is a list, not only arrays
+    function __iterableToArray(value) {
+      return typeof value === "object" && typeof value[Symbol.iterator] === "function"
+        ? Array.from(value)
+        : undefined;
     }
 
     ${constants}
@@ -467,15 +485,17 @@ function generateListInput(
   const id = context.counter++;
   const index = `__index${id}`;
   const item = `__item${id}`;
+  const items = `__items${id}`;
   const list = `__list${id}`;
   const errorMessage = `'Variable "$' + ${input.varName} + '" got invalid value ' + inspect(${value}) + '; '`;
 
   const gen = genFn();
   gen(`
-    if (Array.isArray(${value})) {
+    const ${items} = Array.isArray(${value}) ? ${value} : __iterableToArray(${value});
+    if (${items} !== undefined) {
     const ${list} = [];
-    for (let ${index} = 0; ${index} < ${value}.length; ++${index}) {
-      const ${item} = ${value}[${index}];
+    for (let ${index} = 0; ${index} < ${items}.length; ++${index}) {
+      const ${item} = ${items}[${index}];
       ${generateInput(context, {
         type: varType.ofType,
         value: item,
@@ -525,7 +545,7 @@ function hoistInputObjectParser(
   const gen = genFn();
   gen(`
     function ${fnName}(v, varName, path, errors, loc) {
-      if (typeof v !== "object") {
+      if (typeof v !== "object" || Array.isArray(v)) {
         errors.push(new GraphQLJITError(${errorMessage} +
           'Expected type ${varType.name} to be an object.', loc));
         return;
@@ -544,7 +564,8 @@ function hoistInputObjectParser(
         target: `out[${key}]`,
         path: `{ prev: path, key: ${key} }`,
         varName: key,
-        hasValue: `__hasOwn.call(v, ${key})`,
+        // Like GraphQL.js, a field is omitted when its value is undefined
+        hasValue: `${value} !== undefined`,
         defaultValue: hasDefaultValue(field)
           ? getDefaultValue(field)
           : undefined,

@@ -2081,3 +2081,197 @@ describe("Execute: opaque default values in variable coercion", () => {
     expect(lists[0]).not.toBe(lists[1]);
   });
 });
+
+describe("Execute: variable values that GraphQL.js coerces differently", () => {
+  const valuesSchema = buildSchema(`
+    input Range {
+      min: Int
+      max: Int
+    }
+    input Filter {
+      term: String!
+      sort: String! = "ASC"
+      label: String = "dflt"
+      note: String
+      range: Range
+    }
+    type Query {
+      range(r: Range): String
+      ranges(r: [Range]): String
+      ints(i: [Int]): String
+      strings(s: [String]): String
+      filter(f: Filter): String
+      echo(s: String): String
+      id(id: ID!): String
+    }
+  `);
+  const fields = (valuesSchema.getQueryType() as GraphQLObjectType).getFields();
+  for (const name of Object.keys(fields)) {
+    fields[name].resolve = (_source, args) => JSON.stringify(args);
+  }
+
+  async function executeBoth(query: string, variableValues: unknown) {
+    const reference = await execute({
+      schema: valuesSchema,
+      document: parse(query),
+      variableValues: variableValues as any
+    });
+    const result: any = await executeQuery(query, variableValues, valuesSchema);
+    return { reference, result };
+  }
+
+  test.each([
+    ["an input object", "query ($r: Range) { range(r: $r) }", { r: [] }],
+    [
+      "an item of a list of input objects",
+      "query ($r: [Range]) { ranges(r: $r) }",
+      { r: [{ min: 1 }, []] }
+    ],
+    [
+      "an input object field",
+      "query ($f: Filter) { filter(f: $f) }",
+      { f: { term: "a", range: [] } }
+    ]
+  ])("rejects a list given for %s", async (_name, query, variableValues) => {
+    const { reference, result } = await executeBoth(query, variableValues);
+    // GraphQL.js 15 still coerces lists as input objects
+    if (versionInfo.major >= 16) {
+      expect(reference.errors).toHaveLength(1);
+    }
+    expect(result.data).toBeUndefined();
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message).toMatch(
+      /; Expected type Range to be an object\.$/
+    );
+  });
+
+  test("ignores inherited variables", async () => {
+    const required = await executeBoth(
+      "query ($id: ID!) { id(id: $id) }",
+      Object.create({ id: "1" })
+    );
+    expect(required.reference.errors).toHaveLength(1);
+    expect(required.result).toEqual({
+      errors: [
+        expect.objectContaining({
+          message: 'Variable "$id" of required type "ID!" was not provided.'
+        })
+      ]
+    });
+
+    const query =
+      "query ($a: String, $s: String) { a: echo(s: $a) s: echo(s: $s) }";
+    const optional = await executeBoth(
+      query,
+      Object.assign(Object.create({ s: "inherited" }), { a: "own" })
+    );
+    expect(optional.reference).toEqual({
+      data: { a: '{"s":"own"}', s: "{}" }
+    });
+    expect(optional.result).toEqual(optional.reference);
+
+    const nullPrototype = await executeBoth(
+      query,
+      Object.assign(Object.create(null), { s: "own" })
+    );
+    expect(nullPrototype.reference).toEqual({
+      data: { a: "{}", s: '{"s":"own"}' }
+    });
+    expect(nullPrototype.result).toEqual(nullPrototype.reference);
+  });
+
+  test.each([
+    [
+      "omits input object fields set to undefined",
+      { f: { term: "a", sort: undefined, label: undefined, note: undefined } }
+    ],
+    [
+      "reads inherited input object fields",
+      {
+        f: Object.assign(Object.create({ label: null, note: "n" }), {
+          term: "a"
+        })
+      }
+    ]
+  ])("%s", async (_name, variableValues) => {
+    const { reference, result } = await executeBoth(
+      "query ($f: Filter) { filter(f: $f) }",
+      variableValues
+    );
+    expect(reference.errors).toBeUndefined();
+    expect(result).toEqual(reference);
+  });
+
+  test("rejects an inherited null for a non-null input object field", async () => {
+    const { reference, result } = await executeBoth(
+      "query ($f: Filter) { filter(f: $f) }",
+      { f: Object.assign(Object.create({ sort: null }), { term: "a" }) }
+    );
+    expect(reference.errors).toHaveLength(1);
+    expect(result.data).toBeUndefined();
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message).toMatch(
+      /Expected non-nullable type String! not to be null at value\.sort\.$/
+    );
+  });
+
+  test.each([
+    ["a Set", "query ($i: [Int]) { ints(i: $i) }", { i: new Set([1, 2]) }],
+    [
+      "an iterable object",
+      "query ($i: [Int]) { ints(i: $i) }",
+      {
+        i: {
+          *[Symbol.iterator]() {
+            yield 1;
+            yield 2;
+          }
+        }
+      }
+    ],
+    [
+      "a Set of input objects",
+      "query ($r: [Range]) { ranges(r: $r) }",
+      { r: new Set([{ min: 1 }, { max: 2 }]) }
+    ],
+    ["a string", "query ($s: [String]) { strings(s: $s) }", { s: "ab" }]
+  ])("coerces %s given for a list", async (_name, query, variableValues) => {
+    const { reference, result } = await executeBoth(query, variableValues);
+    expect(reference.errors).toBeUndefined();
+    expect(result).toEqual(reference);
+  });
+
+  test("rejects invalid items of a Set given for a list", async () => {
+    const { reference, result } = await executeBoth(
+      "query ($r: [Range]) { ranges(r: $r) }",
+      { r: new Set([{ min: 1 }, 1]) }
+    );
+    expect(reference.errors).toHaveLength(1);
+    expect(result.data).toBeUndefined();
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message).toMatch(
+      /; Expected type Range to be an object\.$/
+    );
+  });
+
+  test("reads variables given as an empty string like any other string", async () => {
+    const query = "query ($length: String) { echo(s: $length) }";
+    for (const variableValues of ["", "abc"]) {
+      // GraphQL.js 15 and 16 refuse variables that are not an object
+      if (versionInfo.major >= 17) {
+        const { reference } = await executeBoth(query, variableValues);
+        expect(reference.errors).toHaveLength(1);
+      }
+      const result: any = await executeQuery(
+        query,
+        variableValues,
+        valuesSchema
+      );
+      expect(result.data).toBeUndefined();
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].message).toMatch(
+        /^Variable "\$length" got invalid value \d; Expected type String;/
+      );
+    }
+  });
+});

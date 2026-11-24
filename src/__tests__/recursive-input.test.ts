@@ -570,7 +570,7 @@ describe("recursive input types", () => {
 
       const result = executeQuery(schema, document, variables);
       expect(result.errors[0].message).toBe(
-        `Variable "$list" got invalid value [[Circular]]; Field "0" is not defined by type Item.`
+        `Variable "$list" got invalid value [[Circular]]; Expected type Item to be an object.`
       );
     });
 
@@ -588,7 +588,7 @@ describe("recursive input types", () => {
 
       const result = executeQuery(schema, document, variables);
       expect(result.errors[0].message).toBe(
-        `Variable "$list" got invalid value [[[Circular]]]; Field "0" is not defined by type Item.`
+        `Variable "$list" got invalid value [[[Circular]]]; Expected type Item to be an object.`
       );
     });
   });
