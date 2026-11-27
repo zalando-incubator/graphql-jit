@@ -32,10 +32,10 @@ export function GraphQLError(
       value: originalError
     },
     extensions: {
-      // Coercing falsey values to undefined ensures they will not be included
-      // in JSON.stringify() when not provided.
-      value: extensions || undefined,
-      enumerable: Boolean(extensions)
+      // Always initialize extensions as an empty object to match graphql-js v17+
+      // This ensures extensions is always present and enumerable for JSON serialization.
+      value: extensions || {},
+      enumerable: true
     }
   });
 

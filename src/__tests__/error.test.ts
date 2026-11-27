@@ -75,4 +75,50 @@ describe("error generation", () => {
       Error.captureStackTrace = captureStackTrace;
     });
   });
+  describe("extensions", () => {
+    test("extensions is always an empty object even without originalError extensions", () => {
+      const resp = executeTestQuery("{ a }", false);
+      // Schema field 'a' returns normally, but we can test with a thrown error without extensions
+      const error = new GraphQLError("test error");
+      expect(error.extensions).toEqual({});
+    });
+    test("extensions is enumerable (appears in JSON.stringify)", () => {
+      const error = new GraphQLError("test error");
+      const json = JSON.stringify(error);
+      expect(json).toContain('"extensions":{}');
+    });
+    test("extensions with custom data from originalError is preserved", () => {
+      const originalError = new Error("original");
+      (originalError as any).extensions = { custom: "data" };
+      const error = new (GraphQLError as any)(
+        "test",
+        undefined,
+        undefined,
+        originalError
+      );
+      expect(error.extensions).toEqual({ custom: "data" });
+    });
+    test("null extensions coerces to empty object", () => {
+      const originalError = new Error("original");
+      (originalError as any).extensions = null;
+      const error = new (GraphQLError as any)(
+        "test",
+        undefined,
+        undefined,
+        originalError
+      );
+      expect(error.extensions).toEqual({});
+    });
+    test("false extensions coerces to empty object", () => {
+      const originalError = new Error("original");
+      (originalError as any).extensions = false;
+      const error = new (GraphQLError as any)(
+        "test",
+        undefined,
+        undefined,
+        originalError
+      );
+      expect(error.extensions).toEqual({});
+    });
+  });
 });
